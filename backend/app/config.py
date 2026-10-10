@@ -5,9 +5,21 @@ standard AWS credential chain (env vars, AWS_PROFILE, SSO, instance roles).
 """
 
 from functools import lru_cache
+from pathlib import Path
+import os
 
 from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+BACKEND_ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR = BACKEND_ROOT / "data"
+DB_PATH = DATA_DIR / "knowledge" / "railsaathi.db"
+DELAYS_CSV_PATH = DATA_DIR / "ml" / "train_delays.csv"
+STATIONS_DIR = DATA_DIR / "stations"
+
+# Ensure environment variable for navigation store
+os.environ["RAILSATHI_DATA_DIR"] = str(STATIONS_DIR.resolve())
 
 
 class Settings(BaseSettings):
@@ -15,9 +27,26 @@ class Settings(BaseSettings):
                                       populate_by_name=True)
 
     app_env: str = "development"
-    api_version: str = "0.1.0"
+    api_version: str = "2.0.0"
     timezone: str = "Asia/Kolkata"
-    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,https://localhost:5173,https://127.0.0.1:5173"
+
+    # Indoor Station Navigation
+    data_dir: Path = STATIONS_DIR
+    admin_token: str | None = None
+    public_disruption_simulation: bool = True
+    walking_speed_mps: float = 1.2
+    max_backups: int = 50
+
+    # Knowledge & LLM
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.0-flash"
+    gemini_temperature: float = 0.3
+    gemini_max_output_tokens: int = 2048
+    max_agent_rounds: int = 4
+    max_tool_calls: int = 6
+    max_input_length: int = 2000
+    max_history_messages: int = 20
 
     # Planning policy
     max_passengers: int = Field(default=6, ge=1, le=20)

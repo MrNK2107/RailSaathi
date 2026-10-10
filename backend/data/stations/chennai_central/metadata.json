@@ -1,0 +1,32 @@
+{
+  "station_id": "chennai_central",
+  "station_name": "Chennai Central",
+  "city": "Chennai",
+  "map_source": "Ground-level 2D station layout plan supplied by the team (map.png).",
+  "map_scale": {
+    "metres_per_pixel": 0.17794,
+    "source": "Scale bar printed on the plan: 0–50 m spans 281 px.",
+    "verification": "pending"
+  },
+  "data_status": "mock",
+  "notes": [
+    "Seed graph traced from the plan drawing; every node and pathway is pending on-site verification.",
+    "Accessibility of every pathway is unknown. Nothing here is a verified accessibility claim.",
+    "Distances are not measured; any distance shown is an estimate from the plan scale bar.",
+    "Pathways with verification 'simulated' (sug_*) were suggested by proximity where the plan shows no clear walkway; review them in the editor."
+  ],
+  "geo_reference": {
+    "method": "anchor_scale_rotation",
+    "anchor": {
+      "lat": 13.0825,
+      "lon": 80.275,
+      "x": 0.49039,
+      "y": 0.49537
+    },
+    "rotation_deg": 0,
+    "metres_per_pixel": 0.17794,
+    "verification": "pending",
+    "source": "Station coordinate (13.0825 N, 80.2750 E, Wikipedia) pinned to the main concourse; plan treated as north-up per its compass; scale from the plan's scale bar.",
+    "expected_error_m": 50
+  }
+}

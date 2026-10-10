@@ -1,0 +1,1955 @@
+{
+  "schema_version": 1,
+  "station_id": "chennai_central",
+  "station_name": "Chennai Central",
+  "map": {
+    "image": "/data/stations/chennai_central/map.png",
+    "width": 1821,
+    "height": 864,
+    "coordinate_system": "normalized_image"
+  },
+  "nodes": [
+    {
+      "id": "ent_wall_tax",
+      "name": "Main Entrance (Wall Tax Road)",
+      "type": "entrance",
+      "position": [
+        0.49039,
+        0.18287
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "ent_jn_road",
+      "name": "Main Entrance (Jawaharlal Nehru Road)",
+      "type": "entrance",
+      "position": [
+        0.49039,
+        0.72685
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "ent_bus_stop",
+      "name": "Entrance from Central Station Bus Stop",
+      "type": "entrance",
+      "position": [
+        0.72927,
+        0.18519
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "ent_suburban",
+      "name": "Station Entrance (Chennai Suburban Side)",
+      "type": "entrance",
+      "position": [
+        0.9006,
+        0.4537
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": "No passenger walkway to the rest of the station could be traced on the plan; left unconnected."
+    },
+    {
+      "id": "ent_parking",
+      "name": "Parking & Drop-off Zone Entrance",
+      "type": "entrance",
+      "position": [
+        0.83031,
+        0.75231
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": "Plan shows this entrance opening into station-building rooms; no passenger walkway traced. Left unconnected."
+    },
+    {
+      "id": "concourse_centre",
+      "name": "Main Concourse (Waiting Area)",
+      "type": "concourse",
+      "position": [
+        0.49039,
+        0.49537
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "cj_north",
+      "name": "Concourse North Junction",
+      "type": "junction",
+      "position": [
+        0.49039,
+        0.31944
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "cj_south",
+      "name": "Concourse South Junction",
+      "type": "junction",
+      "position": [
+        0.49039,
+        0.6331
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "nj_west",
+      "name": "North Corridor (west)",
+      "type": "junction",
+      "position": [
+        0.42943,
+        0.31944
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "nj_east",
+      "name": "North Corridor (east)",
+      "type": "junction",
+      "position": [
+        0.55354,
+        0.31944
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "wa_north",
+      "name": "West Aisle (north)",
+      "type": "junction",
+      "position": [
+        0.36518,
+        0.31944
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "wa_centre",
+      "name": "West Aisle (centre)",
+      "type": "junction",
+      "position": [
+        0.36518,
+        0.49537
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "wa_south",
+      "name": "West Aisle (south)",
+      "type": "junction",
+      "position": [
+        0.36518,
+        0.57292
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "sj_west",
+      "name": "Concourse South-West Junction",
+      "type": "junction",
+      "position": [
+        0.39813,
+        0.6331
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "ea_north",
+      "name": "East Aisle (north)",
+      "type": "junction",
+      "position": [
+        0.59143,
+        0.31944
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "ea_centre",
+      "name": "East Aisle (centre)",
+      "type": "junction",
+      "position": [
+        0.59143,
+        0.49537
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "ea_south",
+      "name": "East Aisle (south)",
+      "type": "junction",
+      "position": [
+        0.59143,
+        0.6331
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "ne_passage",
+      "name": "North-East Passage",
+      "type": "junction",
+      "position": [
+        0.60406,
+        0.25694
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "bus_passage",
+      "name": "Bus Stop Passage",
+      "type": "junction",
+      "position": [
+        0.7084,
+        0.25694
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "se_passage_w",
+      "name": "South-East Passage (west)",
+      "type": "junction",
+      "position": [
+        0.6425,
+        0.68866
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "se_passage",
+      "name": "South-East Passage",
+      "type": "junction",
+      "position": [
+        0.71389,
+        0.68866
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "ticketing_approach",
+      "name": "Ticketing Hall Approach",
+      "type": "junction",
+      "position": [
+        0.76606,
+        0.66551
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "p12_access",
+      "name": "Platform 12 Access",
+      "type": "platform_access",
+      "position": [
+        0.35969,
+        0.25
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "p11_access",
+      "name": "Platform 11 Access",
+      "type": "platform_access",
+      "position": [
+        0.35969,
+        0.34722
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "p10_access",
+      "name": "Platform 10 Access",
+      "type": "platform_access",
+      "position": [
+        0.35969,
+        0.43981
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "p9_access",
+      "name": "Platform 9 Access",
+      "type": "platform_access",
+      "position": [
+        0.35969,
+        0.54398
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "p8_access",
+      "name": "Platform 8 Access",
+      "type": "platform_access",
+      "position": [
+        0.35146,
+        0.64468
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "p7_access",
+      "name": "Platform 7 Access",
+      "type": "platform_access",
+      "position": [
+        0.3542,
+        0.69213
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "platform_12",
+      "name": "Platform 12",
+      "type": "platform",
+      "position": [
+        0.26359,
+        0.25
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "platform_11",
+      "name": "Platform 11",
+      "type": "platform",
+      "position": [
+        0.26359,
+        0.34722
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "platform_10",
+      "name": "Platform 10",
+      "type": "platform",
+      "position": [
+        0.26359,
+        0.43981
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "platform_9",
+      "name": "Platform 9",
+      "type": "platform",
+      "position": [
+        0.26359,
+        0.54398
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "platform_8",
+      "name": "Platform 8",
+      "type": "platform",
+      "position": [
+        0.26359,
+        0.64468
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "platform_7",
+      "name": "Platform 7",
+      "type": "platform",
+      "position": [
+        0.26359,
+        0.73727
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "info_desk",
+      "name": "Information Desk",
+      "type": "information_desk",
+      "position": [
+        0.49149,
+        0.34722
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "shop_nw",
+      "name": "Food / Shop (north-west)",
+      "type": "shop",
+      "position": [
+        0.42943,
+        0.30324
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "shop_ne",
+      "name": "Food / Shop (north-east)",
+      "type": "shop",
+      "position": [
+        0.55354,
+        0.30324
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "shop_se",
+      "name": "Food / Shop (south-east)",
+      "type": "shop",
+      "position": [
+        0.74025,
+        0.64815
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "toilet_west",
+      "name": "Toilet (west)",
+      "type": "toilet",
+      "position": [
+        0.37507,
+        0.64468
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "toilet_east",
+      "name": "Toilet (east)",
+      "type": "toilet",
+      "position": [
+        0.60846,
+        0.64005
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "ticketing",
+      "name": "Ticketing & Reservation",
+      "type": "ticket_counter",
+      "position": [
+        0.82372,
+        0.55556
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "reserved_lounge",
+      "name": "Reserved Lounge (AC Waiting Area)",
+      "type": "other_facility",
+      "position": [
+        0.79901,
+        0.37037
+      ],
+      "verification": "pending",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": "Shaded as restricted on the plan; its door is not identifiable, so no pathway is traced."
+    },
+    {
+      "id": "east_hall_north",
+      "name": "East Hall (north)",
+      "type": "junction",
+      "position": [
+        0.68094,
+        0.41667
+      ],
+      "verification": "simulated",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": "SUGGESTED by proximity (not traced from a visible walkway)."
+    },
+    {
+      "id": "east_hall",
+      "name": "East Hall",
+      "type": "junction",
+      "position": [
+        0.71389,
+        0.53819
+      ],
+      "verification": "simulated",
+      "accessible": "unknown",
+      "status": "open",
+      "notes": "SUGGESTED by proximity (not traced from a visible walkway)."
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge_001",
+      "from": "ent_wall_tax",
+      "to": "cj_north",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.49039,
+          0.18287
+        ],
+        [
+          0.49039,
+          0.23148
+        ],
+        [
+          0.49039,
+          0.31944
+        ]
+      ],
+      "notes": "Hatched pattern at the entrance on the plan may indicate steps or a gate; not verified."
+    },
+    {
+      "id": "edge_002",
+      "from": "cj_north",
+      "to": "concourse_centre",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.49039,
+          0.31944
+        ],
+        [
+          0.47556,
+          0.34144
+        ],
+        [
+          0.47556,
+          0.37616
+        ],
+        [
+          0.49039,
+          0.39931
+        ],
+        [
+          0.49039,
+          0.49537
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_003",
+      "from": "concourse_centre",
+      "to": "cj_south",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.49039,
+          0.49537
+        ],
+        [
+          0.49259,
+          0.54398
+        ],
+        [
+          0.49259,
+          0.5787
+        ],
+        [
+          0.49039,
+          0.6331
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_004",
+      "from": "cj_south",
+      "to": "ent_jn_road",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "stairs",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.49039,
+          0.6331
+        ],
+        [
+          0.49039,
+          0.67708
+        ],
+        [
+          0.49039,
+          0.72685
+        ]
+      ],
+      "notes": "Plan draws tread lines here (steps). Step count and any ramp alternative are not verified."
+    },
+    {
+      "id": "edge_005",
+      "from": "cj_north",
+      "to": "info_desk",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.49039,
+          0.31944
+        ],
+        [
+          0.49149,
+          0.34722
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_006",
+      "from": "wa_north",
+      "to": "nj_west",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.36518,
+          0.31944
+        ],
+        [
+          0.42943,
+          0.31944
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_007",
+      "from": "nj_west",
+      "to": "shop_nw",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "doorway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.42943,
+          0.31944
+        ],
+        [
+          0.42943,
+          0.30324
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_008",
+      "from": "nj_west",
+      "to": "cj_north",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.42943,
+          0.31944
+        ],
+        [
+          0.49039,
+          0.31944
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_009",
+      "from": "cj_north",
+      "to": "nj_east",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.49039,
+          0.31944
+        ],
+        [
+          0.55354,
+          0.31944
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_010",
+      "from": "nj_east",
+      "to": "shop_ne",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "doorway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.55354,
+          0.31944
+        ],
+        [
+          0.55354,
+          0.30324
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_011",
+      "from": "nj_east",
+      "to": "ea_north",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.55354,
+          0.31944
+        ],
+        [
+          0.59143,
+          0.31944
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_012",
+      "from": "p12_access",
+      "to": "wa_north",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.35969,
+          0.25
+        ],
+        [
+          0.36518,
+          0.27778
+        ],
+        [
+          0.36518,
+          0.31944
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_013",
+      "from": "wa_north",
+      "to": "p11_access",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.36518,
+          0.31944
+        ],
+        [
+          0.35969,
+          0.34722
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_014",
+      "from": "p11_access",
+      "to": "p10_access",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.35969,
+          0.34722
+        ],
+        [
+          0.36518,
+          0.39352
+        ],
+        [
+          0.35969,
+          0.43981
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_015",
+      "from": "p10_access",
+      "to": "wa_centre",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.35969,
+          0.43981
+        ],
+        [
+          0.36518,
+          0.46875
+        ],
+        [
+          0.36518,
+          0.49537
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_016",
+      "from": "wa_centre",
+      "to": "p9_access",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.36518,
+          0.49537
+        ],
+        [
+          0.36518,
+          0.52083
+        ],
+        [
+          0.35969,
+          0.54398
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_017",
+      "from": "p9_access",
+      "to": "wa_south",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.35969,
+          0.54398
+        ],
+        [
+          0.36518,
+          0.57292
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_018",
+      "from": "wa_south",
+      "to": "p8_access",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.36518,
+          0.57292
+        ],
+        [
+          0.3542,
+          0.60185
+        ],
+        [
+          0.35146,
+          0.64468
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_019",
+      "from": "p8_access",
+      "to": "p7_access",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.35146,
+          0.64468
+        ],
+        [
+          0.35146,
+          0.6713
+        ],
+        [
+          0.3542,
+          0.69213
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_020",
+      "from": "p12_access",
+      "to": "platform_12",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "platform",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.35969,
+          0.25
+        ],
+        [
+          0.32949,
+          0.25
+        ],
+        [
+          0.26359,
+          0.25
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_021",
+      "from": "p11_access",
+      "to": "platform_11",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "platform",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.35969,
+          0.34722
+        ],
+        [
+          0.32949,
+          0.34722
+        ],
+        [
+          0.26359,
+          0.34722
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_022",
+      "from": "p10_access",
+      "to": "platform_10",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "platform",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.35969,
+          0.43981
+        ],
+        [
+          0.32949,
+          0.43981
+        ],
+        [
+          0.26359,
+          0.43981
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_023",
+      "from": "p9_access",
+      "to": "platform_9",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "platform",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.35969,
+          0.54398
+        ],
+        [
+          0.32949,
+          0.54398
+        ],
+        [
+          0.26359,
+          0.54398
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_024",
+      "from": "p8_access",
+      "to": "platform_8",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "platform",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.35146,
+          0.64468
+        ],
+        [
+          0.32949,
+          0.64468
+        ],
+        [
+          0.26359,
+          0.64468
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_025",
+      "from": "p7_access",
+      "to": "platform_7",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "platform",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.3542,
+          0.69213
+        ],
+        [
+          0.34322,
+          0.71759
+        ],
+        [
+          0.32949,
+          0.73727
+        ],
+        [
+          0.26359,
+          0.73727
+        ]
+      ],
+      "notes": "Hatched area near the Platform 7 end on the plan may indicate steps; not verified."
+    },
+    {
+      "id": "edge_026",
+      "from": "wa_centre",
+      "to": "concourse_centre",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.36518,
+          0.49537
+        ],
+        [
+          0.49039,
+          0.49537
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_027",
+      "from": "concourse_centre",
+      "to": "ea_centre",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.49039,
+          0.49537
+        ],
+        [
+          0.59143,
+          0.49537
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_028",
+      "from": "wa_south",
+      "to": "sj_west",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.36518,
+          0.57292
+        ],
+        [
+          0.39978,
+          0.57292
+        ],
+        [
+          0.39813,
+          0.6331
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_029",
+      "from": "sj_west",
+      "to": "toilet_west",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.39813,
+          0.6331
+        ],
+        [
+          0.39813,
+          0.64815
+        ],
+        [
+          0.37507,
+          0.64468
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_030",
+      "from": "sj_west",
+      "to": "cj_south",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.39813,
+          0.6331
+        ],
+        [
+          0.49039,
+          0.6331
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_031",
+      "from": "cj_south",
+      "to": "ea_south",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.49039,
+          0.6331
+        ],
+        [
+          0.59143,
+          0.6331
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_032",
+      "from": "ea_north",
+      "to": "ea_centre",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.59143,
+          0.31944
+        ],
+        [
+          0.59143,
+          0.49537
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_033",
+      "from": "ea_centre",
+      "to": "ea_south",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.59143,
+          0.49537
+        ],
+        [
+          0.59143,
+          0.6331
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_034",
+      "from": "ea_south",
+      "to": "toilet_east",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.59143,
+          0.6331
+        ],
+        [
+          0.60846,
+          0.64005
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_035",
+      "from": "ea_north",
+      "to": "ne_passage",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.59143,
+          0.31944
+        ],
+        [
+          0.60406,
+          0.28935
+        ],
+        [
+          0.60406,
+          0.25694
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_036",
+      "from": "ne_passage",
+      "to": "bus_passage",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "corridor",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.60406,
+          0.25694
+        ],
+        [
+          0.7084,
+          0.25694
+        ]
+      ],
+      "notes": "Plan shows a narrow hatched feature near x≈1240 px (possible gate or steps); not verified."
+    },
+    {
+      "id": "edge_037",
+      "from": "bus_passage",
+      "to": "ent_bus_stop",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "stairs",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.7084,
+          0.25694
+        ],
+        [
+          0.72927,
+          0.23727
+        ],
+        [
+          0.72927,
+          0.18519
+        ]
+      ],
+      "notes": "Plan draws tread lines here (steps). Step count and any ramp alternative are not verified."
+    },
+    {
+      "id": "edge_038",
+      "from": "ea_south",
+      "to": "se_passage_w",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.59143,
+          0.6331
+        ],
+        [
+          0.59583,
+          0.68519
+        ],
+        [
+          0.6425,
+          0.68866
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_039",
+      "from": "se_passage_w",
+      "to": "se_passage",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.6425,
+          0.68866
+        ],
+        [
+          0.71389,
+          0.68866
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_040",
+      "from": "se_passage",
+      "to": "shop_se",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.71389,
+          0.68866
+        ],
+        [
+          0.71389,
+          0.64815
+        ],
+        [
+          0.74025,
+          0.64815
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_041",
+      "from": "se_passage",
+      "to": "ticketing_approach",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.71389,
+          0.68866
+        ],
+        [
+          0.76057,
+          0.68866
+        ],
+        [
+          0.76606,
+          0.66551
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_042",
+      "from": "ticketing_approach",
+      "to": "ticketing",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.76606,
+          0.66551
+        ],
+        [
+          0.77979,
+          0.63426
+        ],
+        [
+          0.82372,
+          0.55556
+        ]
+      ],
+      "notes": "Doorway into the ticketing hall is not legible on the plan; this connection is approximate."
+    },
+    {
+      "id": "sug_001",
+      "from": "bus_passage",
+      "to": "east_hall_north",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "simulated",
+      "geometry": [
+        [
+          0.7084,
+          0.25694
+        ],
+        [
+          0.70566,
+          0.30093
+        ],
+        [
+          0.70016,
+          0.38194
+        ],
+        [
+          0.68094,
+          0.41667
+        ]
+      ],
+      "notes": "SUGGESTED by proximity (not traced from a visible walkway). Follows the open strip between the station rooms and the lounge."
+    },
+    {
+      "id": "sug_002",
+      "from": "ea_centre",
+      "to": "east_hall_north",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "simulated",
+      "geometry": [
+        [
+          0.59143,
+          0.49537
+        ],
+        [
+          0.60681,
+          0.46296
+        ],
+        [
+          0.62054,
+          0.39352
+        ],
+        [
+          0.648,
+          0.39352
+        ],
+        [
+          0.68094,
+          0.41667
+        ]
+      ],
+      "notes": "SUGGESTED by proximity (not traced from a visible walkway). Assumes an opening in the concourse's east partition near the green-marked feature."
+    },
+    {
+      "id": "sug_003",
+      "from": "east_hall_north",
+      "to": "east_hall",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "simulated",
+      "geometry": [
+        [
+          0.68094,
+          0.41667
+        ],
+        [
+          0.68094,
+          0.50926
+        ],
+        [
+          0.71389,
+          0.53819
+        ]
+      ],
+      "notes": "SUGGESTED by proximity (not traced from a visible walkway)."
+    },
+    {
+      "id": "sug_004",
+      "from": "east_hall",
+      "to": "ticketing",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "simulated",
+      "geometry": [
+        [
+          0.71389,
+          0.53819
+        ],
+        [
+          0.76881,
+          0.54398
+        ],
+        [
+          0.82372,
+          0.55556
+        ]
+      ],
+      "notes": "SUGGESTED by proximity (not traced from a visible walkway). Assumes a doorway in the ticketing hall's west wall."
+    },
+    {
+      "id": "sug_005",
+      "from": "bus_passage",
+      "to": "reserved_lounge",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "doorway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "simulated",
+      "geometry": [
+        [
+          0.7084,
+          0.25694
+        ],
+        [
+          0.71389,
+          0.33565
+        ],
+        [
+          0.73037,
+          0.34722
+        ],
+        [
+          0.79901,
+          0.37037
+        ]
+      ],
+      "notes": "SUGGESTED by proximity (not traced from a visible walkway). Lounge door position unknown; lounge is shaded restricted on the plan."
+    },
+    {
+      "id": "sug_006",
+      "from": "ticketing",
+      "to": "reserved_lounge",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "doorway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "simulated",
+      "geometry": [
+        [
+          0.82372,
+          0.55556
+        ],
+        [
+          0.81274,
+          0.47454
+        ],
+        [
+          0.79901,
+          0.37037
+        ]
+      ],
+      "notes": "SUGGESTED by proximity (not traced from a visible walkway). Assumes a door in the shared wall between ticketing and the lounge."
+    },
+    {
+      "id": "sug_007",
+      "from": "ent_suburban",
+      "to": "ticketing",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "simulated",
+      "geometry": [
+        [
+          0.9006,
+          0.4537
+        ],
+        [
+          0.88303,
+          0.46296
+        ],
+        [
+          0.8704,
+          0.50926
+        ],
+        [
+          0.82372,
+          0.55556
+        ]
+      ],
+      "notes": "SUGGESTED by proximity (not traced from a visible walkway). Crosses a hatched strip that may be stairs and an area shaded restricted."
+    },
+    {
+      "id": "sug_008",
+      "from": "ent_parking",
+      "to": "ticketing",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "stairs",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "simulated",
+      "geometry": [
+        [
+          0.83031,
+          0.75231
+        ],
+        [
+          0.83031,
+          0.71181
+        ],
+        [
+          0.81823,
+          0.64815
+        ],
+        [
+          0.82372,
+          0.55556
+        ]
+      ],
+      "notes": "SUGGESTED by proximity (not traced from a visible walkway). Plan draws tread lines at this entrance; passes through rooms shaded as station building."
+    },
+    {
+      "id": "sug_009",
+      "from": "p8_access",
+      "to": "toilet_west",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "simulated",
+      "geometry": [
+        [
+          0.35146,
+          0.64468
+        ],
+        [
+          0.37507,
+          0.64468
+        ]
+      ],
+      "notes": "SUGGESTED by proximity (not traced from a visible walkway). Toilet block sits directly beside the Platform 8 end."
+    },
+    {
+      "id": "sug_010",
+      "from": "shop_se",
+      "to": "east_hall",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "accessible": "unknown",
+      "status": "open",
+      "verification": "simulated",
+      "geometry": [
+        [
+          0.74025,
+          0.64815
+        ],
+        [
+          0.73586,
+          0.5787
+        ],
+        [
+          0.71389,
+          0.53819
+        ]
+      ],
+      "notes": "SUGGESTED by proximity (not traced from a visible walkway). Assumes the shop room opens to the north."
+    }
+  ]
+}

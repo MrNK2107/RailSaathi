@@ -1,0 +1,112 @@
+{
+  "checked_on": "2026-10-10",
+  "disclaimer": "Numbers collected from online references on the date shown. Confirm with Indian Railways / station staff before publishing to passengers.",
+  "helplines": [
+    {
+      "id": "rail_madad_139",
+      "number": "139",
+      "label": "Rail Madad – integrated railway helpline",
+      "purpose": "Security, medical assistance (press 1 / * for an agent), enquiries, complaints and suggestions. 12 languages; works from any phone.",
+      "category": "railway",
+      "priority": 1,
+      "confidence": "official",
+      "sources": [
+        {"name": "Business Standard – Railways announces integrated Rail Madad helpline 139", "url": "https://www.business-standard.com/article/indian-railways/indian-railways-announces-integrated-rail-madad-helpline-number-139-121030801478_1.html"},
+        {"name": "DoT circular – merger of 182 helpline into 139", "url": "https://dotws.cdot.in/sites/default/files/merger%20of%20182%20helpline.pdf?download=1"}
+      ],
+      "notes": "The RPF security helpline 182 was merged into 139; short code 182 was withdrawn from 1 April 2021 (DoT circular). Use 139 for security on trains and stations."
+    },
+    {
+      "id": "rail_madad_web",
+      "number": null,
+      "url": "https://railmadad.indianrailways.gov.in",
+      "label": "Rail Madad web portal / app",
+      "purpose": "Register and track complaints online.",
+      "category": "railway",
+      "priority": 2,
+      "confidence": "official",
+      "sources": [{"name": "Integrated Railway Helpline 139 & Rail Madad", "url": "https://www.punekarnews.in/?p=51152"}]
+    },
+    {
+      "id": "erss_112",
+      "number": "112",
+      "label": "National emergency (police, fire, health)",
+      "purpose": "Single pan-India emergency number under the Emergency Response Support System.",
+      "category": "emergency",
+      "priority": 1,
+      "confidence": "official",
+      "sources": [{"name": "india.gov.in – Helpline directory", "url": "https://india.gov.in/directory/helpline"}]
+    },
+    {
+      "id": "ambulance_108",
+      "number": "108",
+      "label": "Emergency ambulance (Tamil Nadu)",
+      "purpose": "State emergency ambulance service.",
+      "category": "medical",
+      "priority": 1,
+      "confidence": "secondary",
+      "sources": [{"name": "Indian Eagle – Emergency helpline numbers India", "url": "https://www.indianeagle.com/traveldiary/emergency-helpline-numbers-india/"}],
+      "notes": "Secondary source lists 108 as the medical emergency number in Tamil Nadu; india.gov.in lists 102 as the National Ambulance Service. Confirm with TN Health Department."
+    },
+    {
+      "id": "police_100",
+      "number": "100",
+      "label": "Police (Chennai)",
+      "purpose": "Police emergency.",
+      "category": "emergency",
+      "priority": 2,
+      "confidence": "secondary",
+      "sources": [{"name": "Citizen Matters – Emergency helplines in Chennai", "url": "https://citizenmatters.in/chennai-emergency-helplines-police-fire-women-childline-jio"}]
+    },
+    {
+      "id": "fire_101",
+      "number": "101",
+      "label": "Fire (Chennai)",
+      "purpose": "Fire and rescue.",
+      "category": "emergency",
+      "priority": 2,
+      "confidence": "secondary",
+      "sources": [{"name": "Citizen Matters – Emergency helplines in Chennai", "url": "https://citizenmatters.in/chennai-emergency-helplines-police-fire-women-childline-jio"}]
+    },
+    {
+      "id": "women_181",
+      "number": "181",
+      "label": "Women helpline",
+      "purpose": "Support for women in distress.",
+      "category": "safety",
+      "priority": 2,
+      "confidence": "secondary",
+      "sources": [{"name": "The Current India – Government helpline numbers", "url": "https://www.thecurrentindia.com/govt/government-helpline-numbers-india/"}]
+    },
+    {
+      "id": "women_police_1091",
+      "number": "1091",
+      "label": "Women in distress (police, Chennai)",
+      "purpose": "Police helpline for women.",
+      "category": "safety",
+      "priority": 3,
+      "confidence": "secondary",
+      "sources": [{"name": "Citizen Matters – Emergency helplines in Chennai", "url": "https://citizenmatters.in/chennai-emergency-helplines-police-fire-women-childline-jio"}]
+    },
+    {
+      "id": "child_1098",
+      "number": "1098",
+      "label": "Child helpline",
+      "purpose": "Children in need of care and protection; lost or missing children. 24×7.",
+      "category": "safety",
+      "priority": 2,
+      "confidence": "official",
+      "sources": [{"name": "india.gov.in – Helpline directory", "url": "https://india.gov.in/directory/helpline"}]
+    },
+    {
+      "id": "elders_1253",
+      "number": "1253",
+      "label": "Elders helpline (Chennai)",
+      "purpose": "Assistance for senior citizens.",
+      "category": "safety",
+      "priority": 3,
+      "confidence": "secondary",
+      "sources": [{"name": "Citizen Matters – Emergency helplines in Chennai", "url": "https://citizenmatters.in/chennai-emergency-helplines-police-fire-women-childline-jio"}]
+    }
+  ]
+}
