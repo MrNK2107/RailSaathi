@@ -1,0 +1,110 @@
+import { act, render, renderHook, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { ChatPanel } from '../components/ChatPanel'
+import { useSpeechRecognition } from '../hooks/useSpeech'
+import { STRINGS } from '../i18n/strings'
+
+type Result = { transcript: string; isFinal: boolean }
+
+/** Fake browser recognition engine: the test drives results and session ends. */
+class FakeRecognition {
+  static instances: FakeRecognition[] = []
+  lang = ''
+  interimResults = false
+  continuous = false
+  onresult: ((e: unknown) => void) | null = null
+  onerror: ((e: { error: string }) => void) | null = null
+  onend: (() => void) | null = null
+  started = 0
+  stopped = 0
+  constructor() { FakeRecognition.instances.push(this) }
+  start() { this.started += 1 }
+  stop() { this.stopped += 1; this.onend?.() }
+  abort() {}
+  emit(results: Result[]) {
+    this.onresult?.({ results: results.map((r) => Object.assign([{ transcript: r.transcript, confidence: 0.9 }], { isFinal: r.isFinal })) })
+  }
+}
+
+const latest = () => FakeRecognition.instances[FakeRecognition.instances.length - 1]
+
+beforeEach(() => {
+  FakeRecognition.instances = []
+  ;(globalThis as Record<string, unknown>).webkitSpeechRecognition = FakeRecognition
+})
+afterEach(() => {
+  delete (globalThis as Record<string, unknown>).webkitSpeechRecognition
+})
+
+describe('useSpeechRecognition', () => {
+  it('keeps listening across browser pauses until Stop is pressed', () => {
+    const onTranscript = vi.fn()
+    const { result } = renderHook(() => useSpeechRecognition('en-IN', onTranscript))
+    act(() => result.current.start())
+    expect(result.current.state).toBe('listening')
+    expect(latest().continuous).toBe(true)
+    expect(latest().interimResults).toBe(true)
+
+    act(() => latest().emit([{ transcript: 'I need to reach Chennai', isFinal: true }, { transcript: 'before', isFinal: false }]))
+    expect(onTranscript).toHaveBeenLastCalledWith('I need to reach Chennai before')
+
+    // Browser ends the session on its own after a pause: hook must restart, not stop.
+    act(() => latest().onend?.())
+    expect(FakeRecognition.instances).toHaveLength(2)
+    expect(result.current.state).toBe('listening')
+
+    act(() => latest().emit([{ transcript: 'nine AM tomorrow', isFinal: true }]))
+    expect(onTranscript).toHaveBeenLastCalledWith('I need to reach Chennai nine AM tomorrow')
+
+    act(() => result.current.stop())
+    expect(result.current.state).toBe('idle')
+    expect(FakeRecognition.instances).toHaveLength(2) // no restart after Stop
+    expect(onTranscript).toHaveBeenLastCalledWith('I need to reach Chennai nine AM tomorrow')
+  })
+
+  it('appends to text already in the box', () => {
+    const onTranscript = vi.fn()
+    const { result } = renderHook(() => useSpeechRecognition('en-IN', onTranscript))
+    act(() => result.current.start('from Coimbatore'))
+    act(() => latest().emit([{ transcript: 'to Chennai', isFinal: true }]))
+    expect(onTranscript).toHaveBeenLastCalledWith('from Coimbatore to Chennai')
+  })
+
+  it('stops with an error when microphone permission is denied', () => {
+    const { result } = renderHook(() => useSpeechRecognition('en-IN', vi.fn()))
+    act(() => result.current.start())
+    act(() => { latest().onerror?.({ error: 'not-allowed' }); latest().onend?.() })
+    expect(result.current.state).toBe('error')
+    expect(FakeRecognition.instances).toHaveLength(1)
+  })
+
+  it('ignores silence and keeps listening', () => {
+    const { result } = renderHook(() => useSpeechRecognition('en-IN', vi.fn()))
+    act(() => result.current.start())
+    act(() => { latest().onerror?.({ error: 'no-speech' }); latest().onend?.() })
+    expect(result.current.state).toBe('listening')
+    expect(FakeRecognition.instances).toHaveLength(2)
+  })
+})
+
+describe('ChatPanel voice controls', () => {
+  it('shows a Stop button while recording, fills the box live, and never auto-sends', async () => {
+    const onSend = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <ChatPanel t={STRINGS.en} language="en" messages={[]} loading={false} error={null} canRetry={false}
+        onSend={onSend} onRetry={vi.fn()} onRestart={vi.fn()} onCancel={vi.fn()} />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Start voice input' }))
+    const stop = screen.getByRole('button', { name: /press Stop/ })
+    expect(stop).toHaveTextContent('Stop')
+    expect(screen.getByText(/speak as long as you need/)).toBeInTheDocument()
+    act(() => latest().emit([{ transcript: 'to Madurai tomorrow', isFinal: true }]))
+    expect(screen.getByLabelText('Type your travel request')).toHaveValue('to Madurai tomorrow')
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
+    await user.click(stop)
+    expect(screen.getByRole('button', { name: 'Start voice input' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled()
+    expect(onSend).not.toHaveBeenCalled()
+  })
+})

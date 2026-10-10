@@ -1,0 +1,69 @@
+### RailSaathi Smart Passenger Planner — sample requests (VS Code REST Client / JetBrains HTTP client)
+@base = http://localhost:8000/api
+
+### Health
+GET {{base}}/health
+
+### Start a session
+# @name session
+POST {{base}}/planner/sessions
+Content-Type: application/json
+
+{"language": "en"}
+
+### Use the session id from the response
+@sid = {{session.response.body.session_id}}
+
+### Scenario A: natural-language request
+POST {{base}}/planner/sessions/{{sid}}/messages
+Content-Type: application/json
+
+{"message": "I need to reach Chennai before 9 AM tomorrow."}
+
+### Answer the clarification
+POST {{base}}/planner/sessions/{{sid}}/messages
+Content-Type: application/json
+
+{"message": "Coimbatore"}
+
+### Passenger count and priority
+POST {{base}}/planner/sessions/{{sid}}/messages
+Content-Type: application/json
+
+{"message": "2 passengers, cheapest please"}
+
+### Manual correction through the form
+PATCH {{base}}/planner/sessions/{{sid}}/journey
+Content-Type: application/json
+
+{"passenger_count": 3, "class_preference": "SL", "class_strict": false}
+
+### Recompute recommendations
+POST {{base}}/planner/sessions/{{sid}}/recommendations
+
+### Select an option (copy an option_id from the recommendations)
+POST {{base}}/planner/sessions/{{sid}}/select
+Content-Type: application/json
+
+{"option_id": "CBE-MAS-D103@2026-10-10"}
+
+### Confirm for handoff (does NOT book a ticket)
+POST {{base}}/planner/sessions/{{sid}}/confirm
+Content-Type: application/json
+
+{}
+
+### Handoff payload
+GET {{base}}/planner/sessions/{{sid}}/handoff
+
+### Scenario E: simulated disruption
+POST {{base}}/planner/sessions/{{sid}}/reassess
+Content-Type: application/json
+
+{"event_id": "SIM-DELAY-D103"}
+
+### Cancel
+POST {{base}}/planner/sessions/{{sid}}/cancel
+
+### Audit trail
+GET {{base}}/planner/sessions/{{sid}}/audit

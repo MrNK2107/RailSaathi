@@ -1,0 +1,35 @@
+{
+  "_notice": "DEMO DATA. Illustrative stations with simulated facility information. Not verified by Indian Railways.",
+  "cities": [
+    {"id": "chennai", "label": "Chennai (any station)", "aliases": ["chennai", "madras", "சென்னை"], "stations": ["MAS", "MS"]},
+    {"id": "coimbatore", "label": "Coimbatore", "aliases": ["coimbatore", "kovai", "கோயம்புத்தூர்", "கோவை"], "stations": ["CBE"]},
+    {"id": "bengaluru", "label": "Bengaluru (any station)", "aliases": ["bengaluru", "bangalore", "பெங்களூரு", "பெங்களூர்"], "stations": ["SBC", "BNC"]},
+    {"id": "madurai", "label": "Madurai", "aliases": ["madurai", "மதுரை"], "stations": ["MDU"]},
+    {"id": "trichy", "label": "Tiruchchirappalli", "aliases": ["trichy", "tiruchi", "tiruchirappalli", "tiruchchirappalli", "திருச்சி"], "stations": ["TPJ"]},
+    {"id": "salem", "label": "Salem", "aliases": ["salem", "சேலம்"], "stations": ["SA"]},
+    {"id": "erode", "label": "Erode", "aliases": ["erode", "ஈரோடு"], "stations": ["ED"]},
+    {"id": "katpadi", "label": "Katpadi (Vellore)", "aliases": ["katpadi", "vellore", "காட்பாடி", "வேலூர்"], "stations": ["KPD"]}
+  ],
+  "stations": [
+    {"code": "MAS", "name": "Chennai Central", "city": "chennai", "aliases": ["chennai central", "mgr chennai central", "central"],
+     "facilities": {"assistance_requested": "verified_supported", "wheelchair": "verified_supported", "reduced_walking": "unknown"}},
+    {"code": "MS", "name": "Chennai Egmore", "city": "chennai", "aliases": ["chennai egmore", "egmore", "எழும்பூர்"],
+     "facilities": {"assistance_requested": "unknown", "wheelchair": "unknown", "reduced_walking": "unknown"}},
+    {"code": "CBE", "name": "Coimbatore Junction", "city": "coimbatore", "aliases": ["coimbatore junction", "coimbatore jn"],
+     "facilities": {"assistance_requested": "verified_supported", "wheelchair": "verified_supported", "reduced_walking": "unknown"}},
+    {"code": "SBC", "name": "KSR Bengaluru", "city": "bengaluru", "aliases": ["ksr bengaluru", "bengaluru city", "bangalore city", "majestic"],
+     "facilities": {"assistance_requested": "verified_supported", "wheelchair": "verified_supported", "reduced_walking": "unknown"}},
+    {"code": "BNC", "name": "Bengaluru Cantonment", "city": "bengaluru", "aliases": ["bengaluru cantonment", "bangalore cantonment", "cantonment"],
+     "facilities": {"assistance_requested": "unknown", "wheelchair": "unknown", "reduced_walking": "unknown"}},
+    {"code": "MDU", "name": "Madurai Junction", "city": "madurai", "aliases": ["madurai junction", "madurai jn"],
+     "facilities": {"assistance_requested": "verified_supported", "wheelchair": "unknown", "reduced_walking": "unknown"}},
+    {"code": "TPJ", "name": "Tiruchchirappalli Junction", "city": "trichy", "aliases": ["trichy junction", "tiruchchirappalli junction"],
+     "facilities": {"assistance_requested": "unknown", "wheelchair": "unknown", "reduced_walking": "unknown"}},
+    {"code": "SA", "name": "Salem Junction", "city": "salem", "aliases": ["salem junction", "salem jn"],
+     "facilities": {"assistance_requested": "not_supported", "wheelchair": "not_supported", "reduced_walking": "unknown"}},
+    {"code": "ED", "name": "Erode Junction", "city": "erode", "aliases": ["erode junction", "erode jn"],
+     "facilities": {"assistance_requested": "unknown", "wheelchair": "unknown", "reduced_walking": "unknown"}},
+    {"code": "KPD", "name": "Katpadi Junction", "city": "katpadi", "aliases": ["katpadi junction", "katpadi jn"],
+     "facilities": {"assistance_requested": "unknown", "wheelchair": "unknown", "reduced_walking": "unknown"}}
+  ]
+}

@@ -1,0 +1,254 @@
+import type { Language } from '../api/types'
+
+const en = {
+  brand: 'RailSaathi',
+  tagline: 'Your Railway Companion',
+  back: 'Back',
+  nav: { home: 'Home', trips: 'My Trips', alerts: 'Alerts', profile: 'Profile' },
+  live: 'LIVE · RailRadar',
+  dashboard: {
+    hello: 'Hello,',
+    intro: 'Plan, navigate and travel with confidence across Indian Railways.',
+    planTitle: 'Plan Your Journey',
+    planBody: 'Tell us where you want to go. Our AI will handle the rest.',
+    liveUpdates: 'Live Train Updates',
+    stationNav: 'Station Navigation',
+    accessible: 'Accessible Travel',
+    help: 'Help & Assistance',
+    popular: 'Popular Routes',
+    viewAll: 'View All',
+    showLess: 'Show less',
+    comingSoon: 'Preview',
+  },
+  plan: {
+    title: 'Plan with AI',
+    subtitle: "Speak in your language and I'll create your journey plan.",
+    speakIn: 'Speak in',
+    tapToSpeak: 'Tap the microphone and speak',
+    listening: 'Listening… speak as long as you need, then press Stop',
+    reviewTranscript: 'Check what I heard, edit if needed, then send.',
+    micUnsupported: 'Voice input is not supported in this browser. Please type your request below.',
+    micError: 'Microphone unavailable or permission denied. Please type your request.',
+    inputLabel: 'Type your journey request',
+    inputPlaceholder: 'e.g. Chennai to Bengaluru tomorrow morning, 2 people, under ₹800',
+    send: 'Send',
+    tryExamples: 'Try saying',
+    conversation: 'Conversation',
+    understanding: 'Understanding your request…',
+    stepPlaces: 'Extracting source and destination',
+    stepDatePax: 'Checking date and passengers',
+    stepPrefs: 'Applying your preferences',
+    stepDone: 'Journey options ready',
+    extracted: 'Journey details',
+    editHint: 'Tap Edit to correct anything before choosing a train.',
+    viewOptions: 'View journey options',
+    newPlan: 'New plan',
+    understoodBy: { bedrock: 'Understood by Claude (AWS Bedrock)', rules: 'Understood by the built-in parser' },
+  },
+  fields: {
+    origin: 'From', destination: 'To', journey_date: 'Date', passenger_count: 'Passengers',
+    budget: 'Budget', arrival_deadline: 'Arrive by', class_preference: 'Class',
+    transfer_preference: 'Direct trains', passenger_needs: 'Needs', departure_window: 'Departure',
+    notSet: 'Not set', strict: 'must', preferred: 'preferred', edit: 'Edit',
+  },
+  options: {
+    title: 'Journey Options',
+    passenger: 'Passenger', passengers: 'Passengers',
+    tabs: { best_overall: 'Best Match', lowest_cost: 'Cheapest', fastest: 'Fastest', also: 'Also eligible' },
+    from: '(from)',
+    perPassenger: 'per passenger',
+    fareUnknown: 'Fare not available',
+    classesUnknown: 'Classes not listed',
+    direct: 'Direct',
+    changes: 'change(s)',
+    unverified: 'Not verified',
+    noOptions: 'No matching train found',
+    relax: 'Relax this requirement',
+    excluded: 'Excluded options',
+    empty: 'No journey options yet. Tell the AI planner where you want to go.',
+    goPlan: 'Plan a journey',
+    retry: 'Try again',
+    source: 'Source',
+    retrieved: 'retrieved',
+    datasetAsOf: 'dataset as of',
+    choose: 'View details',
+  },
+  details: {
+    title: 'Journey Details',
+    fareFrom: 'Fare (from)',
+    classes: 'Classes Available',
+    facilities: 'Facilities',
+    facilitiesUnknown: 'Facility information (pantry, charging points, toilets) is not provided by the data source.',
+    passengerDetails: 'Passenger Details',
+    preferences: 'Preferences Applied',
+    requirements: 'Mandatory requirements',
+    noPreferences: 'No extra preferences',
+    confirm: 'Confirm & Continue',
+    missing: 'Select a journey option first.',
+    anyClass: 'Any class',
+    directPreferred: 'Direct trains preferred',
+    directOnly: 'Direct trains only',
+    arrivalBefore: 'Arrival before',
+    budgetUnder: 'Budget under',
+  },
+  confirmation: {
+    ready: 'Journey Plan Ready!',
+    readyBody: 'Your journey details are confirmed and saved for handoff.',
+    selectedClass: 'Selected Class',
+    totalFare: 'Total Fare (from)',
+    journeyTime: 'Journey Time',
+    status: 'Live status',
+    checkStatus: 'Check live status',
+    planOnly: 'This is a journey plan only. No ticket has been booked.',
+    toStationGuide: 'Continue to Station Guide',
+    save: 'Save to My Trips',
+    saved: 'Saved on this device',
+    modify: 'Modify Plan',
+    handoff: 'Handoff payload (for the main RailSaathi app)',
+    notConfirmed: 'No confirmed plan yet. Choose a journey option and confirm it first.',
+    noDelays: 'No delays or cancellations reported right now.',
+  },
+  navigation: {
+    title: 'Station Navigation',
+    preview: 'Preview only — in-station navigation is not connected yet. Map and steps below are illustrative placeholders.',
+    mapView: 'Map View',
+    steps: 'Step-by-Step',
+    changeStation: 'Change Station',
+    search: 'Search for a facility (Toilet, Food, etc.)',
+    start: 'Start Navigation',
+    notAvailable: 'Not available yet',
+    accessibility: 'Accessibility Options',
+    placeholderSteps: ['Enter via the main concourse', 'Take the foot over bridge (FOB)', 'Follow signs to your platform'],
+    platform: 'Platform',
+    noTrain: 'No journey selected. Placeholder station shown.',
+  },
+  help: {
+    title: 'Help & Assistance',
+    urgent: 'Need immediate help?',
+    urgentSub: 'For security or medical emergencies',
+    call: 'Call',
+    helpline: 'Railway Helpline',
+    lines: {
+      police: 'Railway Police (RPF)', medical: 'Medical Assistance', enquiry: 'Station Enquiry',
+      lostFound: 'Lost & Found', divyangjan: 'Divyangjan Assistance',
+    },
+    report: 'Report an Issue',
+    reportSub: 'RailMadad Portal',
+    disclaimer: 'Calling a helpline does not mean assistance is booked or guaranteed. RailSaathi does not book or verify assistance.',
+    nearby: 'Nearby Facilities',
+    viewOnMap: 'View on Map',
+    nearbyPreview: 'Preview — station facility data is not connected yet.',
+    tiles: { toilets: 'Toilets', water: 'Drinking Water', food: 'Food & Shops', lounge: 'Waiting Lounge', charging: 'Charging Point', atm: 'ATMs' },
+  },
+  trips: {
+    title: 'My Trips',
+    empty: 'No saved plans yet. Confirm a journey plan and tap "Save to My Trips".',
+    deviceOnly: 'Saved on this device only. These are journey plans, not tickets.',
+    remove: 'Remove',
+  },
+  alerts: {
+    title: 'Alerts',
+    body: 'Push alerts are not connected yet. To check delays for a confirmed plan, open it and tap "Check live status".',
+  },
+  profile: {
+    title: 'Profile',
+    language: 'Language',
+    dataSource: 'Train data source',
+    ai: 'Request understanding',
+    classic: 'Open classic planner view',
+    noAccount: 'No account is needed. Nothing personal is stored on the server beyond your planning session.',
+  },
+  errors: {
+    generic: 'Something went wrong.',
+  },
+}
+
+export type MobileStrings = typeof en
+
+type DeepPartial<T> = { [K in keyof T]?: T[K] extends string ? string : T[K] extends readonly string[] ? T[K] : DeepPartial<T[K]> }
+
+const taOverrides: DeepPartial<MobileStrings> = {
+  tagline: 'உங்கள் ரயில் துணை',
+  back: 'பின்',
+  nav: { home: 'முகப்பு', trips: 'என் பயணங்கள்', alerts: 'அறிவிப்புகள்', profile: 'சுயவிவரம்' },
+  dashboard: {
+    hello: 'வணக்கம்,',
+    intro: 'இந்திய ரயில்வேயில் நம்பிக்கையுடன் திட்டமிட்டு பயணம் செய்யுங்கள்.',
+    planTitle: 'பயணத்தைத் திட்டமிடுங்கள்',
+    planBody: 'எங்கு செல்ல வேண்டும் என்று சொல்லுங்கள். மீதியை AI பார்த்துக்கொள்ளும்.',
+    liveUpdates: 'நேரடி ரயில் தகவல்',
+    stationNav: 'நிலைய வழிகாட்டி',
+    accessible: 'அணுகக்கூடிய பயணம்',
+    help: 'உதவி',
+    popular: 'பிரபல வழித்தடங்கள்',
+    viewAll: 'அனைத்தும்',
+    showLess: 'குறைவாக',
+  },
+  plan: {
+    title: 'AI உடன் திட்டமிடுங்கள்',
+    subtitle: 'உங்கள் மொழியில் பேசுங்கள்; நான் பயணத் திட்டத்தை உருவாக்குகிறேன்.',
+    speakIn: 'பேசும் மொழி',
+    tapToSpeak: 'மைக்கைத் தட்டி பேசுங்கள்',
+    listening: 'கேட்கிறது… பேசி முடித்ததும் நிறுத்து அழுத்தவும்',
+    reviewTranscript: 'நான் கேட்டதைச் சரிபார்த்து, தேவையெனில் திருத்தி, அனுப்புங்கள்.',
+    inputLabel: 'உங்கள் பயணக் கோரிக்கை',
+    send: 'அனுப்பு',
+    tryExamples: 'இப்படிச் சொல்லலாம்',
+    understanding: 'உங்கள் கோரிக்கையைப் புரிந்துகொள்கிறது…',
+    stepPlaces: 'புறப்படும் / சேரும் இடம்',
+    stepDatePax: 'தேதி மற்றும் பயணிகள்',
+    stepPrefs: 'உங்கள் விருப்பங்கள்',
+    stepDone: 'பயண விருப்பங்கள் தயார்',
+    extracted: 'பயண விவரங்கள்',
+    viewOptions: 'பயண விருப்பங்களைப் பார்',
+    newPlan: 'புதிய திட்டம்',
+  },
+  options: {
+    title: 'பயண விருப்பங்கள்',
+    tabs: { best_overall: 'சிறந்த பொருத்தம்', lowest_cost: 'மலிவானது', fastest: 'விரைவானது', also: 'மேலும் தகுதியானது' },
+    fareUnknown: 'கட்டணம் கிடைக்கவில்லை',
+    noOptions: 'பொருந்தும் ரயில் இல்லை',
+    choose: 'விவரங்கள்',
+  },
+  details: { title: 'பயண விவரங்கள்', confirm: 'உறுதி செய்து தொடர்க' },
+  confirmation: {
+    ready: 'பயணத் திட்டம் தயார்!',
+    planOnly: 'இது பயணத் திட்டம் மட்டுமே. டிக்கெட் முன்பதிவு செய்யப்படவில்லை.',
+    save: 'என் பயணங்களில் சேமி',
+    modify: 'திட்டத்தை மாற்று',
+  },
+  help: { title: 'உதவி', urgent: 'உடனடி உதவி தேவையா?' },
+}
+
+function merge<T>(base: T, over: DeepPartial<T> | undefined): T {
+  if (!over) return base
+  const out: Record<string, unknown> = { ...(base as Record<string, unknown>) }
+  for (const [k, v] of Object.entries(over)) {
+    const b = (base as Record<string, unknown>)[k]
+    out[k] = v && typeof v === 'object' && !Array.isArray(v) && b && typeof b === 'object'
+      ? merge(b, v as DeepPartial<typeof b>)
+      : v
+  }
+  return out as T
+}
+
+export const MOBILE_STRINGS: Record<Language, MobileStrings> = { en, ta: merge(en, taOverrides) }
+
+export const VOICE_EXAMPLES: Record<Language, string[]> = {
+  en: [
+    'I need to go from Chennai to Bengaluru tomorrow morning under ₹800.',
+    'Find a direct train from Chennai to Coimbatore for 2 people.',
+    'I need to reach Chennai before 9 AM tomorrow from Madurai.',
+  ],
+  ta: [
+    'நாளை சென்னையிலிருந்து பெங்களூருக்கு போகணும். காலை 10 மணிக்குள் அடையணும்.',
+    'சென்னையிலிருந்து கோயம்புத்தூருக்கு 2 பேருக்கு நேரடி ரயில் வேண்டும்.',
+    'Naalaiku Kovai la irundhu Chennai ku amma kooda poganum',
+  ],
+}
+
+/** Speech-recognition languages offered by the mic. Recognition quality depends on the browser. */
+export const SPEECH_OPTIONS = [
+  { code: 'ta-IN', label: 'தமிழில் பேசுங்கள்', name: 'Tamil' },
+  { code: 'en-IN', label: 'Speak in English / Tanglish', name: 'English (India)' },
+] as const
