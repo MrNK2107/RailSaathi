@@ -5,7 +5,6 @@ Reusable, mockable interface to the Google GenAI SDK.
 Handles model configuration, tool declarations, and the function-calling protocol.
 """
 
-import json
 import logging
 from typing import Any
 

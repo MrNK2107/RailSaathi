@@ -4,12 +4,11 @@ Provides real-time station departure boards, NTES schedule tracking, and 600m co
 """
 
 import math
-from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
+from typing import Optional, Dict, Any
+from fastapi import APIRouter, Query
 
 try:
-    from ntes import NTESClient, NTESError
+    from ntes import NTESClient
     ntes = NTESClient(timeout=10, retries=2)
 except Exception:
     ntes = None
@@ -125,7 +124,7 @@ def get_nearest_station(
 ):
     closest = None
     min_dist = float("inf")
-    for code, info in STATIONS_MAP.items():
+    for _code, info in STATIONS_MAP.items():
         d = haversine_distance(lat, lon, info["latitude"], info["longitude"])
         if d < min_dist:
             min_dist = d

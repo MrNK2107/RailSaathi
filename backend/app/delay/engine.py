@@ -5,7 +5,6 @@ Blends live telemetry, corridor historical averages, and train precedence weight
 """
 
 import csv
-import os
 from pathlib import Path
 from typing import Optional, Dict, Any
 from app.config import DELAYS_CSV_PATH

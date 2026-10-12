@@ -6,7 +6,6 @@ trade-off explanations, alternative suggestions, and infeasibility diagnoses.
 """
 
 import logging
-from typing import Any
 from app.journey.models import (
     TripRequirements,
     ResolvedLocation,

@@ -7,7 +7,7 @@ and relevance ranking.
 
 import json
 import sqlite3
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Any
 
 from app.knowledge.database import get_connection
@@ -133,7 +133,6 @@ def search_guidance(
         enriched = []
         sources_used = {}
         any_stale = False
-        any_contradictions = False
 
         for row in results:
             source = _get_source_for_result(conn, row["source_id"])

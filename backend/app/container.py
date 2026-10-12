@@ -2,9 +2,10 @@
 
 import logging
 from dataclasses import dataclass
+from zoneinfo import ZoneInfo
 
 from app.audit.log import AuditLog
-from app.clock import Clock, SystemClock
+from app.clock import Clock, FixedClock, SystemClock
 from app.config import Settings
 from app.disruption.service import DisruptionService
 from app.harness.engine import WorkflowEngine
@@ -35,6 +36,19 @@ class Container:
     audit: AuditLog
     planner: PlannerService
     data_provider_status: dict
+
+
+def build_clock(settings: Settings) -> Clock:
+    """System clock, or a frozen clock when FIXED_NOW is set outside production (for deterministic e2e runs)."""
+    if settings.fixed_now is None or settings.is_production:
+        if settings.fixed_now is not None:
+            log.warning("FIXED_NOW is ignored because APP_ENV=production")
+        return SystemClock(settings.timezone)
+    fixed = settings.fixed_now
+    if fixed.tzinfo is None:
+        fixed = fixed.replace(tzinfo=ZoneInfo(settings.timezone))
+    log.warning("Application clock frozen at %s (FIXED_NOW)", fixed.isoformat())
+    return FixedClock(fixed)
 
 
 def build_llm(settings: Settings) -> tuple[IntentLLM | None, str | None]:
@@ -83,7 +97,7 @@ def build_data_sources(settings: Settings) -> tuple[JourneyProvider, DisruptionS
 
 def build_container(settings: Settings, clock: Clock | None = None,
                     llm: IntentLLM | None = None, use_configured_llm: bool = True) -> Container:
-    clock = clock or SystemClock(settings.timezone)
+    clock = clock or build_clock(settings)
     provider, disruptions, data_status = build_data_sources(settings)
     resolver = StationResolver(provider)
     reason = None

@@ -6,6 +6,8 @@ const en = {
   language: 'Language',
   liveBanner:
     'LIVE DATA from RailRadar (third-party, not official Indian Railways). Timings can change and fares may be missing — verify on IRCTC/NTES. No tickets are booked.',
+  demoBanner:
+    'DEMO DATA — trains, timings, fares and disruptions are simulated, not real Indian Railways data. No tickets are booked.',
   liveBadge: 'LIVE · RailRadar',
   fareUnknown: 'Fare not available',
   retrievedAt: 'retrieved',
@@ -126,6 +128,8 @@ const ta: Strings = {
   language: 'மொழி',
   liveBanner:
     'RailRadar நேரடி தரவு (மூன்றாம் தரப்பு, அதிகாரப்பூர்வ இந்திய ரயில்வே அல்ல). நேரங்கள் மாறலாம்; கட்டணம் இல்லாமல் இருக்கலாம் — IRCTC/NTES இல் சரிபார்க்கவும். டிக்கெட் முன்பதிவு இல்லை.',
+  demoBanner:
+    'DEMO DATA — ரயில்கள், நேரங்கள், கட்டணங்கள் மற்றும் இடையூறுகள் உருவகப்படுத்தப்பட்டவை; உண்மையான இந்திய ரயில்வே தரவு அல்ல. டிக்கெட் முன்பதிவு இல்லை.',
   fareUnknown: 'கட்டணம் கிடைக்கவில்லை',
   retrievedAt: 'பெறப்பட்டது',
   classesUnknown: 'வகுப்புகள் பட்டியலிடப்படவில்லை',

@@ -35,7 +35,7 @@ export function ClassicView({ planner }: { planner: Planner }) {
       </a>
       <Header t={t} language={planner.language} onLanguage={planner.setLanguage} health={planner.health} />
       <a href="#/home" className="block bg-rail-700 px-4 py-1 text-center text-xs text-white underline">Open the mobile app view</a>
-      {isLive && <DemoBanner text={t.liveBanner} live />}
+      {isLive ? <DemoBanner text={t.liveBanner} live /> : <DemoBanner text={t.demoBanner} />}
       <main className="mx-auto grid max-w-7xl gap-4 p-4 lg:grid-cols-12">
         <div className="lg:col-span-5 lg:h-[calc(100vh-150px)] lg:sticky lg:top-4">
           <ChatPanel

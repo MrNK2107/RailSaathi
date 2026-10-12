@@ -5,7 +5,6 @@ Registered tool declarations and handlers for the Goal-Based Train Journey Plann
 Enables function calling by Gemini / Agent Controller with strict validation and schemas.
 """
 
-import json
 import logging
 from typing import Any
 
@@ -14,7 +13,7 @@ from app.journey.location import LocationResolutionService
 from app.journey.timetable import TrainSearchService
 from app.journey.feasibility import JourneyFeasibilityEvaluator
 from app.journey.ranking import JourneyRankingEngine
-from app.journey.booking import BookingHandoffService, is_url_safe_and_allowlisted
+from app.journey.booking import BookingHandoffService
 from app.journey.planner import parse_requirements_from_text, JourneyPlanner
 
 logger = logging.getLogger("railsaathi.tools.journey")
@@ -290,7 +289,7 @@ def execute_journey_tool(tool_name: str, args: dict) -> dict[str, Any]:
             train = _train_service.get_train_by_number_or_name(args["train_number"])
             if not train:
                 return {"status": "error", "error": f"Train {args['train_number']} not found", "tool_name": tool_name}
-            
+
             req = TripRequirements(
                 origin=train.origin_station_name,
                 destination_venue=args["destination_venue"],

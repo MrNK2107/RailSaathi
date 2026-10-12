@@ -220,29 +220,6 @@ class DevMockGeminiClient:
                         reasons = " ".join(inf.get("hard_constraint_violations", []))
                         answer += f"- **{its.get('train_name')} ({its.get('train_number')}):** {reasons}\n"
                 return DevMockResponse(text=answer)
-            p_text = res_p[0]["answer_text"] if res_p else f"Class details for {primary.get('class_code')}."
-
-            if comp:
-                res_c = comp.get("results", [])
-                c_text = res_c[0]["answer_text"] if res_c else f"Class details for {comp.get('class_code')}."
-                answer = (
-                    f"### Comparison: {primary.get('class_code')} vs {comp.get('class_code')}\n\n"
-                    f"**{primary.get('class_code')} Overview:**\n{p_text}\n\n"
-                    f"**{comp.get('class_code')} Overview:**\n{c_text}\n\n"
-                    f"**Key Conditions & Amenities:**\n"
-                )
-                for cond in (res_p[0].get("conditions", []) if res_p else []):
-                    answer += f"- {cond}\n"
-                answer += "\n*(Verified from official IRCTC classes documentation)*"
-                return DevMockResponse(text=answer)
-            else:
-                answer = f"### {primary.get('class_code')} Ticket Class Guidance\n\n{p_text}\n\n"
-                if res_p and res_p[0].get("conditions"):
-                    answer += "**Key Travel Conditions:**\n"
-                    for cond in res_p[0]["conditions"]:
-                        answer += f"- {cond}\n"
-                answer += "\n*(Verified from official IRCTC classes documentation)*"
-                return DevMockResponse(text=answer)
 
         # Case 2: explain_reservation_status
         if tool_name == "explain_reservation_status":

@@ -1,6 +1,6 @@
 """
 Station Topologies & Gate/FOB Navigation Dataset
-Provides curbside entries, security checkpoints, Foot-Over-Bridges (FOBs), 
+Provides curbside entries, security checkpoints, Foot-Over-Bridges (FOBs),
 accessibility paths, and platform connections for major Indian Railway hubs.
 """
 
@@ -384,7 +384,7 @@ def get_station_topology(station_code: str):
     code = station_code.upper().strip()
     if code in STATION_TOPOLOGIES:
         return STATION_TOPOLOGIES[code]
-    
+
     # Generic intelligent fallback template for stations without custom blueprint
     return {
         "station_name": f"{code} Railway Station",
@@ -439,17 +439,17 @@ def parse_rake_composition(coach_str: str, target_coach: str = None):
 
     # Split coaches
     raw_tokens = [c.strip().upper() for c in coach_str.replace(",", "-").split("-") if c.strip()]
-    
+
     coaches = []
     current_distance = 0.0
     target_info = None
 
     for idx, code in enumerate(raw_tokens):
         length = 22.0 if code == "ENG" or "LOCO" in code else 24.0
-        
+
         # Position relative to 600m platform
         relative_section = "Front" if idx < len(raw_tokens) / 3 else "Middle" if idx < (2 * len(raw_tokens)) / 3 else "Rear"
-        
+
         # Class identification
         coach_type = "Locomotive" if code in ["ENG", "LOCO"] else \
                      "First AC (1A)" if code.startswith("H") else \

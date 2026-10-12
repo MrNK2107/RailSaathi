@@ -5,7 +5,6 @@ Integrates AWS Bedrock (Claude 3.5 Sonnet / Haiku / Nova) using boto3 Converse A
 with native tool calling and strict grounding against verified railway tools.
 """
 
-import json
 import logging
 from typing import Any
 import boto3

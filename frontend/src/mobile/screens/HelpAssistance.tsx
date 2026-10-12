@@ -85,7 +85,7 @@ export default function HelpAssistance() {
             {FACILITY_TILES.map((tile) => {
               const Icon = TILE_ICONS[tile]
               return (
-                <li key={tile} className="flex flex-col items-center gap-1 rounded-2xl bg-white p-3 text-center text-xs text-ink-500 shadow-card ring-1 ring-ink-100" aria-disabled>
+                <li key={tile} className="flex flex-col items-center gap-1 rounded-2xl bg-white p-3 text-center text-xs text-ink-500 shadow-card ring-1 ring-ink-100">
                   <Icon size={24} className="text-brand-500 opacity-70" /> {m.help.tiles[tile]}
                 </li>
               )

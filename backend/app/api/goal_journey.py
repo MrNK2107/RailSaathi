@@ -59,7 +59,7 @@ def plan_journey(payload: GoalPlanRequest):
         journey_plans_store[trace_id] = plan_dict
         return plan_dict
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Journey planning failed") from e
 
 
 @router.post("/refine")
@@ -83,7 +83,7 @@ def refine_journey(data: Dict[str, Any]):
         journey_plans_store[trace_id] = plan_dict
         return plan_dict
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Journey planning failed") from e
 
 
 @router.get("/options/{request_id}")

@@ -1,19 +1,14 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Compass,
-  MapPin,
   Accessibility,
   Footprints,
   AlertTriangle,
   CheckCircle2,
   X,
   Layers,
-  ArrowRight,
-  ShieldCheck,
   Info,
-  Clock,
   Sparkles,
-  PhoneCall,
 } from "lucide-react";
 
 export default function StationBlueprintModal({
@@ -21,15 +16,15 @@ export default function StationBlueprintModal({
   onClose,
   initialStation = "chennai_central",
   initialTargetPlatform = "10",
-  onLaunchAR,
+  onLaunchAR = null,
 }) {
   const [stationData, setStationData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [mobility, setMobility] = useState("wheelchair"); // 'wheelchair' | 'avoid_stairs' | 'normal'
   const [selectedSource, setSelectedSource] = useState("ent_wall_tax");
   const [selectedTarget, setSelectedTarget] = useState("platform_10");
   const [routeResult, setRouteResult] = useState(null);
-  const [routeLoading, setRouteLoading] = useState(false);
+  const [, setRouteLoading] = useState(false);
   const [selectedTab, setSelectedTab] = useState("map"); // 'map' | 'turns' | 'amenities'
 
   // Default coordinate space for Chennai Central blueprint
@@ -126,8 +121,6 @@ export default function StationBlueprintModal({
     ["toilet", "ticket_counter", "concourse", "shop"].includes(n.type)
   );
 
-  const isStepFreeActive = mobility === "wheelchair" || mobility === "avoid_stairs";
-
   return (
     <div style={styles.backdrop}>
       <div style={styles.sheet}>
@@ -189,8 +182,9 @@ export default function StationBlueprintModal({
         {/* Route Selectors (Source Entrance & Destination Platform) */}
         <div style={styles.selectorsRow}>
           <div style={styles.selectorItem}>
-            <label style={styles.selectorLabel}>FROM ENTRANCE</label>
+            <label htmlFor="blueprint-from" style={styles.selectorLabel}>FROM ENTRANCE</label>
             <select
+              id="blueprint-from"
               value={selectedSource}
               onChange={(e) => setSelectedSource(e.target.value)}
               style={styles.selectInput}
@@ -204,8 +198,9 @@ export default function StationBlueprintModal({
           </div>
 
           <div style={styles.selectorItem}>
-            <label style={styles.selectorLabel}>TO PLATFORM / DESTINATION</label>
+            <label htmlFor="blueprint-to" style={styles.selectorLabel}>TO PLATFORM / DESTINATION</label>
             <select
+              id="blueprint-to"
               value={selectedTarget}
               onChange={(e) => setSelectedTarget(e.target.value)}
               style={styles.selectInput}

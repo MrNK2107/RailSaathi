@@ -3,18 +3,15 @@ import {
   PhoneCall,
   ShieldAlert,
   HeartPulse,
-  AlertTriangle,
-  Info,
   X,
   MapPin,
-  ExternalLink,
   Accessibility,
   CheckCircle2,
 } from "lucide-react";
 
 export default function EmergencyHelpModal({ isOpen, onClose, stationCode = "MAS" }) {
-  const [stationInfo, setStationInfo] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [, setStationInfo] = useState(null);
+  const [, setLoading] = useState(false);
 
   useEffect(() => {
     if (isOpen) {

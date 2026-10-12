@@ -52,7 +52,7 @@ class BookingHandoffService:
         # Official IRCTC main booking portal with pre-formatted search path
         # Official safe URL: https://www.irctc.co.in/nget/train-search
         base_url = "https://www.irctc.co.in/nget/train-search"
-        
+
         # Build query parameters safely
         params = {
             "fromStation": train.origin_station_code,

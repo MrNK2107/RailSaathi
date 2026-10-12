@@ -47,4 +47,4 @@ def ticketing_chat(payload: ChatRequest):
             "trace_id": res.trace_id,
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Ticketing guidance failed") from e

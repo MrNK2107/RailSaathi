@@ -14,7 +14,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 os.environ["PYTHONPATH"] = str(BACKEND_DIR)
 
-import uvicorn
+import uvicorn  # noqa: E402
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

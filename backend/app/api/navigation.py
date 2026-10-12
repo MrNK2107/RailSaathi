@@ -3,8 +3,7 @@ API Router for Indoor Concourse Navigation & 2D Station Blueprints (Pillar 5)
 Handles curbside gates, FOBs, coach berth markers, and Dijkstra route geometry.
 """
 
-from typing import Any, List
-from fastapi import APIRouter, HTTPException, Query, Body
+from fastapi import APIRouter, HTTPException, Query
 
 from app.config import get_settings
 from app.navigation.models.station import RouteRequest, RouteResponse, Station
@@ -23,7 +22,7 @@ def _graph(station_id: str, apply_disruptions: bool = True) -> tuple[Station, St
         station = station_store.load_published(station_id)
         metadata = station_store.load_metadata(station_id)
     except Exception as exc:
-        raise HTTPException(404, f"Station {station_id} not found in store")
+        raise HTTPException(404, f"Station {station_id} not found in store") from exc
 
     errors, _ = validate_graph(station, metadata)
     if errors:
@@ -84,7 +83,7 @@ def get_station_details(station_id: str, draft: bool = Query(False)) -> dict:
             "has_draft": station_store.has_draft(station_id),
         }
     except Exception as exc:
-        raise HTTPException(404, str(exc))
+        raise HTTPException(404, str(exc)) from exc
 
 
 @router.get("/api/stations/{station_id}/info")
@@ -93,7 +92,7 @@ def get_station_info(station_id: str) -> dict:
     try:
         return station_store.load_info(station_id)
     except Exception as exc:
-        raise HTTPException(404, str(exc))
+        raise HTTPException(404, str(exc)) from exc
 
 
 @router.get("/stations/{station_code}/navigation")
@@ -112,7 +111,7 @@ def calculate_route(req: RouteRequest) -> RouteResponse:
     try:
         resp = find_route(graph, req, get_settings().walking_speed_mps)
     except RoutingError as exc:
-        raise HTTPException(exc.status_code, {"code": exc.code, "message": exc.message})
+        raise HTTPException(exc.status_code, {"code": exc.code, "message": exc.message}) from exc
     if resp.status == "ok":
         problems = _verify(station, resp)
         if problems:

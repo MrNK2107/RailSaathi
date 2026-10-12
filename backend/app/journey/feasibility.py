@@ -6,15 +6,12 @@ calculating deadline buffers, overnight schedules, hard constraints, and soft pr
 """
 
 import logging
-from datetime import datetime, date, time, timedelta
-from typing import Any
+from datetime import datetime, timedelta
 from app.journey.models import (
     TripRequirements,
     TrainService,
-    StationCandidate,
     LastMileEstimate,
     JourneyEvaluation,
-    BookingHandoff,
 )
 from app.journey.booking import BookingHandoffService
 
@@ -165,7 +162,7 @@ class JourneyFeasibilityEvaluator:
         if actual_buffer_minutes >= requested_buffer:
             extra_buffer = actual_buffer_minutes - requested_buffer
             soft_matches.append(f"Provides {actual_buffer_minutes}m buffer at venue ({extra_buffer}m extra margin)")
-        
+
         # Early arrival penalty if arriving excessively early (> 8 hours early)
         if actual_buffer_minutes > 480:
             soft_penalties.append(f"Arrives {actual_buffer_minutes // 60} hours before meeting; requires extended wait")
@@ -218,7 +215,7 @@ class JourneyFeasibilityEvaluator:
 
         # 10. Match Category and Explanation
         match_cat = "feasible_alternative" if is_feasible else "infeasible"
-        
+
         if is_feasible:
             explanation = (
                 f"Feasible journey: Departs {train.origin_station_name} at {train.departure_time} "

@@ -35,7 +35,7 @@ function fakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
 describe('App', () => {
   it('shows the demo notice, starts a session and an empty recommendation state', async () => {
     render(<App client={fakeClient()} />)
-    expect(screen.queryByText(/DEMO/)).not.toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent(/DEMO DATA/)
     expect(await screen.findByText('Tell me where and when you want to travel.')).toBeInTheDocument()
     expect(screen.getByText(/Recommendations appear here/)).toBeInTheDocument()
     expect(screen.getByText(/Voice input is not supported/)).toBeInTheDocument()

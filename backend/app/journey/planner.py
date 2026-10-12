@@ -9,15 +9,9 @@ feasibility evaluation, ranking, and official booking handoffs.
 import re
 import uuid
 import logging
-from datetime import datetime, date, timedelta
-from typing import Any
 
 from app.journey.models import (
     TripRequirements,
-    ResolvedLocation,
-    StationCandidate,
-    LastMileEstimate,
-    TrainService,
     JourneyEvaluation,
     JourneyPlanResponse,
 )
@@ -97,7 +91,7 @@ def parse_requirements_from_text(text: str) -> TripRequirements:
     # 3. Date extraction (YYYY-MM-DD or DD Month or relative "tomorrow")
     # Default to a realistic target date
     meeting_date = "2026-10-25"
-    
+
     # Check for patterns like "25 October", "25th Oct", "2026-10-25"
     iso_date_match = re.search(r"\b(202\d-\d{2}-\d{2})\b", t)
     if iso_date_match:
@@ -175,7 +169,7 @@ def parse_requirements_from_text(text: str) -> TripRequirements:
         preferred_train = "Chennai Mail"
     elif "rajdhani" in t_lower:
         preferred_train = "Rajdhani Express"
-    
+
     # Train number pattern (5 digits)
     train_num_match = re.search(r"\b(1\d{4}|2\d{4})\b", t)
     if train_num_match:

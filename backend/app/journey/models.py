@@ -5,7 +5,6 @@ Strictly typed Pydantic models for goal-based journey planning,
 location resolution, train schedules, feasibility evaluations, and booking handoffs.
 """
 
-from datetime import date, time, datetime
 from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
@@ -16,18 +15,18 @@ class TripRequirements(BaseModel):
     destination_venue: str = Field(..., description="Target venue or landmark name (e.g., 'Tidel Park', 'IIT Madras').")
     destination_address: str | None = Field(default=None, description="Street address or locality (e.g., 'Taramani, Chennai').")
     destination_city: str | None = Field(default=None, description="Resolved destination city (e.g., 'Chennai').")
-    
+
     meeting_date: str = Field(..., description="Target meeting or arrival date in YYYY-MM-DD format.")
     meeting_time: str = Field(..., description="Target meeting start time in HH:MM 24-hour format.")
     timezone: str = Field(default="Asia/Kolkata", description="Timezone of the journey (default: Asia/Kolkata).")
-    
+
     required_arrival_buffer_minutes: int = Field(
         default=45,
         ge=0,
         le=720,
         description="Desired buffer time at venue before the meeting starts (in minutes)."
     )
-    
+
     preferred_train_name_or_number: str | None = Field(
         default=None,
         description="Explicit train name or 5-digit number preferred by the passenger (if any)."
@@ -39,7 +38,7 @@ class TripRequirements(BaseModel):
     budget_min: float | None = Field(default=None, ge=0, description="Minimum budget in INR.")
     budget_max: float | None = Field(default=None, ge=0, description="Maximum budget in INR.")
     currency: str = Field(default="INR", description="Currency code (default: INR).")
-    
+
     maximum_journey_duration_minutes: int | None = Field(
         default=None,
         ge=0,
@@ -47,7 +46,7 @@ class TripRequirements(BaseModel):
     )
     maximum_transfers: int = Field(default=0, ge=0, description="Maximum acceptable train interchanges (default 0 for direct).")
     accessibility_requirements: list[str] = Field(default_factory=list, description="Specific accessibility requirements.")
-    
+
     hard_constraints: list[str] = Field(
         default_factory=lambda: ["deadline", "arrival_buffer"],
         description="Non-negotiable constraints that must be satisfied for feasibility."
@@ -171,26 +170,26 @@ class JourneyEvaluation(BaseModel):
     departure_datetime_iso: str
     arrival_datetime_iso: str
     meeting_datetime_iso: str
-    
+
     last_mile_origin_station: str
     last_mile_destination_venue: str
     last_mile_duration_minutes: int | None
     last_mile_distance_km: float | None
     last_mile_mode: str | None
-    
+
     latest_acceptable_station_arrival_iso: str
     actual_arrival_buffer_minutes: int | None
-    
+
     is_feasible: bool
     is_preferred_train: bool = False
     class_match: bool = True
     budget_match: bool = True
     duration_match: bool = True
-    
+
     hard_constraint_violations: list[str] = Field(default_factory=list)
     soft_preference_matches: list[str] = Field(default_factory=list)
     soft_preference_penalties: list[str] = Field(default_factory=list)
-    
+
     score: float = 0.0
     rank: int = 0
     match_category: Literal["best_match", "feasible_alternative", "infeasible", "insufficient_data"]
@@ -217,15 +216,15 @@ class JourneyPlanResponse(BaseModel):
     resolved_destination: ResolvedLocation | None = None
     candidate_origin_stations: list[StationCandidate] = Field(default_factory=list)
     candidate_destination_stations: list[StationCandidate] = Field(default_factory=list)
-    
+
     best_match: JourneyEvaluation | None = None
     feasible_alternatives: list[JourneyEvaluation] = Field(default_factory=list)
     infeasible_options: list[JourneyEvaluation] = Field(default_factory=list)
-    
+
     clarification_question: str | None = None
     missing_fields: list[str] = Field(default_factory=list)
     tradeoff_explanation: str | None = None
-    
+
     sources: list[dict] = Field(default_factory=list)
     trace_id: str
     trace: list[dict] = Field(default_factory=list)

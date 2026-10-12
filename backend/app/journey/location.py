@@ -399,11 +399,11 @@ def estimate_urban_travel_time_minutes(distance_km: float, is_metro_available: b
     """
     if distance_km <= 0.5:
         return 5  # Walking distance
-    
+
     # Base speed in urban traffic ~ 22 km/h
     travel_time_hrs = distance_km / 22.0
     travel_time_mins = travel_time_hrs * 60.0
-    
+
     # Add urban dispatch / station exit buffer (8 mins)
     total_mins = int(math.ceil(travel_time_mins + 8.0))
     return max(total_mins, 10)
@@ -418,7 +418,7 @@ class LocationResolutionService:
         Uses verified registry first, falls back to normalized city centroids.
         """
         q_norm = query.strip().lower()
-        
+
         # Check venue registry
         if q_norm in VENUE_REGISTRY:
             v = VENUE_REGISTRY[q_norm]
@@ -497,7 +497,7 @@ class LocationResolutionService:
                 loc.latitude, loc.longitude,
                 info["latitude"], info["longitude"]
             )
-            
+
             is_same_city = (
                 st_city == target_city
                 or (target_city == "bengaluru" and st_city in ["bengaluru", "bangalore"])

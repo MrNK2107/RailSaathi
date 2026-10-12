@@ -4,9 +4,9 @@ AWS credentials are never read here directly: boto3 resolves them through the
 standard AWS credential chain (env vars, AWS_PROFILE, SSO, instance roles).
 """
 
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-import os
 
 from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -18,9 +18,6 @@ DB_PATH = DATA_DIR / "knowledge" / "railsaathi.db"
 DELAYS_CSV_PATH = DATA_DIR / "ml" / "train_delays.csv"
 STATIONS_DIR = DATA_DIR / "stations"
 
-# Ensure environment variable for navigation store
-os.environ["RAILSATHI_DATA_DIR"] = str(STATIONS_DIR.resolve())
-
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore",
@@ -29,6 +26,9 @@ class Settings(BaseSettings):
     app_env: str = "development"
     api_version: str = "2.0.0"
     timezone: str = "Asia/Kolkata"
+    # Freeze the application clock (ISO-8601, e.g. 2026-10-10T10:00:00+05:30) so end-to-end tests are
+    # deterministic. Ignored when APP_ENV=production.
+    fixed_now: datetime | None = None
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,https://localhost:5173,https://127.0.0.1:5173"
 
     # Indoor Station Navigation
@@ -81,6 +81,10 @@ class Settings(BaseSettings):
 
     # Logging
     log_message_content: bool = False
+
+    @property
+    def is_production(self) -> bool:
+        return self.app_env.lower() == "production"
 
     @property
     def cors_origin_list(self) -> list[str]:
