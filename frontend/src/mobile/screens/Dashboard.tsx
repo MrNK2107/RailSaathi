@@ -59,13 +59,23 @@ export default function Dashboard() {
     <Screen nav>
       <header className="flex items-center justify-between px-4 py-3">
         <Logo />
-        <div role="group" aria-label="Language" className="flex overflow-hidden rounded-full border border-ink-300 text-xs font-semibold">
-          {(['en', 'ta'] as Language[]).map((code) => (
-            <button key={code} type="button" onClick={() => planner.setLanguage(code)} aria-pressed={lang === code}
-              className={`px-2.5 py-1 ${lang === code ? 'bg-brand-600 text-white' : 'text-ink-700'}`}>
-              {code === 'en' ? 'EN' : 'தமிழ்'}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => go('help')}
+            className="flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-bold text-red-600 hover:bg-red-100"
+            title="Emergency SOS & Helplines"
+          >
+            SOS
+          </button>
+          <div role="group" aria-label="Language" className="flex overflow-hidden rounded-full border border-ink-300 text-xs font-semibold">
+            {(['en', 'ta'] as Language[]).map((code) => (
+              <button key={code} type="button" onClick={() => planner.setLanguage(code)} aria-pressed={lang === code}
+                className={`px-2.5 py-1 ${lang === code ? 'bg-brand-600 text-white' : 'text-ink-700'}`}>
+                {code === 'en' ? 'EN' : 'தமிழ்'}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 

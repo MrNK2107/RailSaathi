@@ -30,3 +30,11 @@ playwright-report/
 
 # RailRadar raw response samples (may contain API output)
 backend/scripts/railradar_sample.json
+
+# SQLite side files
+*.db-shm
+*.db-wal
+
+# Build artefacts
+frontend/tsconfig.tsbuildinfo
+frontend/vite.config.ts.timestamp-*.mjs

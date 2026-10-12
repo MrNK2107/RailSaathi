@@ -7,7 +7,27 @@ is not yet set in the environment. Follows the exact GeminiClient protocol.
 
 import re
 from typing import Any
-from google.genai import types
+try:
+    from google.genai import types
+except ImportError:
+    class DummyPart:
+        def __init__(self, text=None, function_call=None):
+            self.text = text
+            self.function_call = function_call
+        @classmethod
+        def from_text(cls, text=""):
+            return cls(text=text)
+
+    class DummyContent:
+        def __init__(self, role="", parts=None):
+            self.role = role
+            self.parts = parts or []
+
+    class DummyTypes:
+        Part = DummyPart
+        Content = DummyContent
+
+    types = DummyTypes()
 
 
 class DevMockResponse:

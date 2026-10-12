@@ -62,3 +62,13 @@ export const AtmIcon = make(['M3 6h18v12H3z', 'M7 10h10', 'M7 14h4'])
 export const GlobeIcon = make(['M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z', 'M2 12h20', 'M12 2a15 15 0 0 1 0 20', 'M12 2a15 15 0 0 0 0 20'])
 export const RefreshIcon = make(['M20 11a8 8 0 1 0-2.3 5.7', 'M20 4v7h-7'])
 export const SpeakerIcon = make(['M4 9h4l5-4v14l-5-4H4z', 'M16 9a4 4 0 0 1 0 6', 'M19 6a8 8 0 0 1 0 12'])
+export const CompassIcon = make([
+  'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z',
+  'M16.2 7.8l-2.1 6.4-6.3 2.1 2.1-6.4 6.3-2.1z',
+])
+export const WalkIcon = make([
+  'M13 4a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+  'M7 21v-5l4-3 1-4 3 2v6',
+])
+export const TrendingUp = make(['M23 6l-9.5 9.5-5-5L1 18', 'M17 6h6v6'])
+export const TrendingDown = make(['M23 18l-9.5-9.5-5 5L1 6', 'M17 18h6v-6'])

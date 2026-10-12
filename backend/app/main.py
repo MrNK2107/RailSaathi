@@ -47,9 +47,10 @@ def create_app(settings: Settings | None = None, container: Container | None = N
     app.add_middleware(AccessLogMiddleware)
     app.add_middleware(RateLimitMiddleware, per_minute=settings.rate_limit_per_minute)
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_body_bytes)
+    origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

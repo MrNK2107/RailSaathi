@@ -87,6 +87,15 @@ def get_station_details(station_id: str, draft: bool = Query(False)) -> dict:
         raise HTTPException(404, str(exc))
 
 
+@router.get("/api/stations/{station_id}/info")
+def get_station_info(station_id: str) -> dict:
+    """Helplines, station facts, and amenities gathered for station."""
+    try:
+        return station_store.load_info(station_id)
+    except Exception as exc:
+        raise HTTPException(404, str(exc))
+
+
 @router.get("/stations/{station_code}/navigation")
 @router.get("/api/stations/{station_code}/navigation")
 def get_navigation_topology(station_code: str):

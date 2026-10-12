@@ -1,4 +1,5 @@
 // Helplines are real tap-to-call links from config.ts. Nearby facilities are a labelled placeholder.
+import { useState } from 'react'
 import { EMERGENCY_NUMBER, FACILITY_TILES, HELPLINES, RAIL_MADAD_URL } from '../config'
 import {
   AccessibleIcon, AtmIcon, BagIcon, ChevronRight, DocIcon, FoodIcon, HelpIcon, InfoIcon, LoungeIcon, MedicalIcon,
@@ -6,6 +7,7 @@ import {
 } from '../icons'
 import { useApp } from '../PlannerContext'
 import { AppHeader, Screen } from '../ui'
+import EmergencyHelpModal from '../../components/EmergencyHelpModal'
 
 const LINE_ICONS = { police: ShieldIcon, medical: MedicalIcon, enquiry: InfoIcon, lostFound: BagIcon, divyangjan: AccessibleIcon }
 const TONES = { blue: 'bg-brand-50 text-brand-600', red: 'bg-red-50 text-red-600', navy: 'bg-ink-100 text-brand-900', amber: 'bg-amber-50 text-amber-600' }
@@ -13,6 +15,8 @@ const TILE_ICONS = { toilets: ToiletIcon, water: WaterIcon, food: FoodIcon, loun
 
 export default function HelpAssistance() {
   const { m } = useApp()
+  const [sosModalOpen, setSosModalOpen] = useState(false)
+
   return (
     <Screen>
       <AppHeader />
@@ -24,9 +28,18 @@ export default function HelpAssistance() {
           <div className="flex-1">
             <p className="font-bold text-red-700">{m.help.urgent}</p>
             <p className="text-xs text-red-700/80">{m.help.urgentSub}</p>
-            <a href={`tel:${EMERGENCY_NUMBER}`} className="mt-2 inline-block rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">
-              {m.help.call} {EMERGENCY_NUMBER} ({m.help.helpline})
-            </a>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <a href={`tel:${EMERGENCY_NUMBER}`} className="inline-block rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">
+                {m.help.call} {EMERGENCY_NUMBER} ({m.help.helpline})
+              </a>
+              <button
+                type="button"
+                onClick={() => setSosModalOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-red-300 bg-white px-3 py-2 text-xs font-bold text-red-700 shadow-sm hover:bg-red-50"
+              >
+                <ShieldIcon size={16} /> 24×7 Station SOS & Medical
+              </button>
+            </div>
           </div>
         </section>
 
@@ -80,6 +93,12 @@ export default function HelpAssistance() {
           </ul>
         </section>
       </div>
+
+      <EmergencyHelpModal
+        isOpen={sosModalOpen}
+        onClose={() => setSosModalOpen(false)}
+        stationCode="MAS"
+      />
     </Screen>
   )
 }
