@@ -281,7 +281,7 @@ export default function StationBlueprintModal({
               >
                 {/* Station architectural blueprint background image */}
                 <image
-                  href="/data/stations/chennai_central/map.png"
+                  href={`/api/stations/${initialStation}/map`}
                   width={mapW}
                   height={mapH}
                   opacity="0.88"

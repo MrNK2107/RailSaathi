@@ -17,4 +17,4 @@ os.environ["PYTHONPATH"] = str(BACKEND_DIR)
 import uvicorn  # noqa: E402
 
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("app.main:create_app", factory=True, host="127.0.0.1", port=8000, reload=True)

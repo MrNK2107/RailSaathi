@@ -1,0 +1,16 @@
+.venv/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+tests/
+scripts/
+htmlcov/
+.coverage
+*.db-shm
+*.db-wal
+data/stations/*/station.draft.json
+data/stations/*/backups/

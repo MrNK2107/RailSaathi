@@ -1,0 +1,114 @@
+name: Deploy to Cloud Run
+
+# Builds both images, pushes them to Artifact Registry and deploys two Cloud Run services.
+# One-time setup (project, Artifact Registry repo, Workload Identity Federation, secrets) is
+# described in docs/DEPLOYMENT.md. Required repository variables:
+#   GCP_PROJECT_ID, GCP_REGION, GCP_WIF_PROVIDER, GCP_SERVICE_ACCOUNT
+# Optional repository variables:
+#   GAR_REPOSITORY (default: railsaathi), BACKEND_SERVICE (default: railsaathi-backend),
+#   FRONTEND_SERVICE (default: railsaathi-frontend), RAILWAY_DATA_MODE (default: demo),
+#   LLM_PROVIDER (default: none)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  REGION: ${{ vars.GCP_REGION }}
+  GAR_REPOSITORY: ${{ vars.GAR_REPOSITORY || 'railsaathi' }}
+  BACKEND_SERVICE: ${{ vars.BACKEND_SERVICE || 'railsaathi-backend' }}
+  FRONTEND_SERVICE: ${{ vars.FRONTEND_SERVICE || 'railsaathi-frontend' }}
+
+jobs:
+  deploy:
+    name: Build, push and deploy
+    runs-on: ubuntu-latest
+    if: ${{ vars.GCP_PROJECT_ID != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (Workload Identity Federation)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Compute image names
+        id: images
+        run: |
+          BASE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${GAR_REPOSITORY}"
+          echo "backend=${BASE}/backend:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "frontend=${BASE}/frontend:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push backend image
+        run: |
+          docker build -t "${{ steps.images.outputs.backend }}" ./backend
+          docker push "${{ steps.images.outputs.backend }}"
+
+      - name: Build and push frontend image
+        run: |
+          docker build -t "${{ steps.images.outputs.frontend }}" ./frontend
+          docker push "${{ steps.images.outputs.frontend }}"
+
+      - name: Deploy backend
+        id: backend
+        run: |
+          # Phase 1: sessions are in-process, so exactly one instance. Lifted in Phase 2 (Redis).
+          gcloud run deploy "${BACKEND_SERVICE}" \
+            --image "${{ steps.images.outputs.backend }}" \
+            --region "${REGION}" \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8080 \
+            --cpu 1 --memory 512Mi \
+            --min-instances 0 --max-instances 1 --concurrency 40 \
+            --timeout 60 \
+            --set-env-vars "APP_ENV=production,RAILWAY_DATA_MODE=${{ vars.RAILWAY_DATA_MODE || 'demo' }},LLM_PROVIDER=${{ vars.LLM_PROVIDER || 'none' }},CORS_ORIGINS=${{ vars.FRONTEND_ORIGIN || '' }}" \
+            --set-secrets "RAILRADAR_API_KEY=RAILRADAR_API_KEY:latest" \
+            --quiet
+          URL="$(gcloud run services describe "${BACKEND_SERVICE}" --region "${REGION}" --format 'value(status.url)')"
+          echo "url=${URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test backend
+        run: sh backend/scripts/smoke.sh "${{ steps.backend.outputs.url }}"
+
+      - name: Deploy frontend
+        id: frontend
+        run: |
+          gcloud run deploy "${FRONTEND_SERVICE}" \
+            --image "${{ steps.images.outputs.frontend }}" \
+            --region "${REGION}" \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8080 \
+            --cpu 1 --memory 256Mi \
+            --min-instances 0 --max-instances 3 --concurrency 80 \
+            --set-env-vars "BACKEND_URL=${{ steps.backend.outputs.url }}" \
+            --quiet
+          URL="$(gcloud run services describe "${FRONTEND_SERVICE}" --region "${REGION}" --format 'value(status.url)')"
+          echo "url=${URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test frontend (through the nginx proxy)
+        run: |
+          set -eu
+          FE="${{ steps.frontend.outputs.url }}"
+          curl -fsS --max-time 20 "${FE}/healthz"
+          curl -fsS --max-time 20 "${FE}/" | grep -q '<div id="root">'
+          curl -fsS --max-time 20 "${FE}/api/health" | grep -q '"status":"ok"'
+          echo "Frontend: ${FE}"
+          echo "Backend:  ${{ steps.backend.outputs.url }}"

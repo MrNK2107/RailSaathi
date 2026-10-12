@@ -20,7 +20,7 @@ STATIONS_DIR = DATA_DIR / "stations"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore",
+    model_config = SettingsConfigDict(env_file=str(BACKEND_ROOT / ".env"), env_file_encoding="utf-8", extra="ignore",
                                       populate_by_name=True)
 
     app_env: str = "development"

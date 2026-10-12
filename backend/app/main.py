@@ -1,12 +1,10 @@
-"""
-RailSaathi AI — Unified API Gateway (Pillars 1 to 5)
-Consolidated, production-grade backend engine uniting:
-- Pillar 1: Conversational Voice/Text Intent Planner & Goal-Based Meeting Journey Evaluator
-- Pillar 2: Real-time Live Station Departure Boards & NTES Train Schedule Tracker
-- Pillar 3: Curbside-to-Coach Berth Turn-by-Turn Wayfinding with 600m Platform Pillar Halting Decoder
-- Pillar 4: Machine Learning Cascading Delay Predictor trained on 63k+ CRIS Historical Arrival Records
-- Pillar 5: 2D Indoor Station Concourse Blueprint & Step-Free Wheelchair Accessibility Navigator
-- Ticketing Guidance: Indian Railways RAC/WL, Tatkal, and Refund Regulatory Advisor
+"""RailSaathi AI unified API.
+
+Routers: conversational journey planner, goal-based journey planner, ticketing guidance,
+indoor station navigation, delay estimation and live station information.
+
+Use the factory with uvicorn so nothing is built at import time:
+    uvicorn app.main:create_app --factory
 """
 
 import logging
@@ -14,7 +12,6 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 
 from app.api.middleware import AccessLogMiddleware, BodySizeLimitMiddleware, RateLimitMiddleware
 from app.api.routes import router as conversational_planner_router
@@ -24,7 +21,7 @@ from app.api.navigation import router as navigation_router
 from app.api.delay import router as delay_router
 from app.api.live import router as live_router
 
-from app.config import Settings, get_settings, DATA_DIR
+from app.config import Settings, get_settings
 from app.container import Container, build_container
 from app.harness.errors import PlannerError
 
@@ -38,7 +35,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
     app = FastAPI(
         title="RailSaathi AI — Unified Rail Platform API",
         version=settings.api_version,
-        description="Unified platform combining Smart Conversational Journey Planning, ML Delay Forecasting, 2D Concourse Blueprints, and WebAR Wayfinding.",
+        description="Conversational journey planning, goal-based planning, ticketing guidance, indoor station navigation, delay estimation and live station information.",
     )
     app.state.container = container or build_container(settings)
 
@@ -65,24 +62,21 @@ def create_app(settings: Settings | None = None, container: Container | None = N
     app.include_router(delay_router)
     app.include_router(live_router)
 
-    # Static files for 2D blueprints (maps, station assets)
-    if DATA_DIR.exists():
-        app.mount("/data", StaticFiles(directory=str(DATA_DIR.resolve())), name="data")
-
     @app.get("/")
     def platform_root():
         return {
             "name": "RailSaathi AI — Unified Rail Platform API",
             "version": settings.api_version,
             "status": "online",
-            "pillars": {
-                "pillar_1": "Smart Passenger Conversational Planner & Goal-Based Meeting Timetable Evaluator",
-                "pillar_2": "Real-time Live Station Departure Boards & NTES Train Schedule Tracker",
-                "pillar_3": "Curbside-to-Coach Berth Turn-by-Turn Wayfinding with Pillar Halting Decoder",
-                "pillar_4": "ML Cascading Delay Predictor trained on 63k+ CRIS Historical Arrival Records",
-                "pillar_5": "2D Indoor Station Concourse Blueprint & Step-Free Accessibility Navigator",
-                "ticketing_guidance": "Indian Railways RAC/WL & Tatkal Regulatory Guidance AI"
-            }
+            "capabilities": {
+                "conversational_planner": "Natural-language journey planning with deterministic validation and ranking",
+                "goal_journey": "Reach-a-meeting journey evaluation with arrival buffers",
+                "ticketing_guidance": "Indian Railways ticketing guidance grounded in a sourced knowledge base",
+                "station_navigation": "Indoor concourse routing and curbside wayfinding for authored stations",
+                "delay_estimate": "Historical-average delay estimate (statistical baseline, not a trained model yet)",
+                "live_station_info": "Station search and live board (data provenance reported per response)",
+            },
+            "docs": "/docs",
         }
 
     return app
@@ -112,5 +106,3 @@ def _register_errors(app: FastAPI) -> None:
             content={"error": {"code": "internal_error", "message": "Something went wrong. Please try again.", "details": {}}}
         )
 
-
-app = create_app()

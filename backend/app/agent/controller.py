@@ -14,7 +14,10 @@ import time
 import uuid
 from dataclasses import dataclass, field
 
-from google.genai import types
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # pragma: no cover
+    from google.genai import types
 
 from app.tools.registry import (
     execute_any_tool as execute_tool,
@@ -78,7 +81,7 @@ class AgentController:
     def process_message(
         self,
         message: str,
-        history: list[types.Content] | None = None,
+        history: "list[types.Content] | None" = None,
     ) -> AgentResponse:
         """
         Process a passenger message through the full agent lifecycle.

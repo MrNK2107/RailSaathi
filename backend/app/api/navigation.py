@@ -4,6 +4,7 @@ Handles curbside gates, FOBs, coach berth markers, and Dijkstra route geometry.
 """
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse
 
 from app.config import get_settings
 from app.navigation.models.station import RouteRequest, RouteResponse, Station
@@ -84,6 +85,17 @@ def get_station_details(station_id: str, draft: bool = Query(False)) -> dict:
         }
     except Exception as exc:
         raise HTTPException(404, str(exc)) from exc
+
+
+@router.get("/api/stations/{station_id}/map")
+def get_station_map(station_id: str) -> FileResponse:
+    """The station's blueprint image. Only `map.png` inside an allowlisted station id is served;
+    this replaces the former public mount of the whole data directory."""
+    try:
+        path = station_store.image_path(station_id, "map.png")
+    except Exception as exc:
+        raise HTTPException(404, "Station map not found") from exc
+    return FileResponse(path, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
 
 
 @router.get("/api/stations/{station_id}/info")

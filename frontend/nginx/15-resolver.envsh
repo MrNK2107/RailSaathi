@@ -1,0 +1,14 @@
+#!/bin/sh
+# Sourced by the official nginx entrypoint before the envsubst template step (files ending in
+# .envsh are sourced, so the export is visible to 20-envsubst-on-templates.sh).
+# Picks the container's own DNS server so proxy_pass with a variable can resolve the backend
+# hostname wherever the image runs (Cloud Run, Docker Desktop, Compose).
+if [ -z "${NGINX_RESOLVER:-}" ]; then
+  NGINX_RESOLVER="$(awk '/^nameserver/ { print $2; exit }' /etc/resolv.conf 2>/dev/null)"
+  case "$NGINX_RESOLVER" in
+    *:*) NGINX_RESOLVER="[$NGINX_RESOLVER]" ;;   # IPv6 literal
+    "")  NGINX_RESOLVER="127.0.0.11" ;;           # Docker's embedded DNS as a last resort
+  esac
+  export NGINX_RESOLVER
+fi
+echo "nginx resolver: $NGINX_RESOLVER"

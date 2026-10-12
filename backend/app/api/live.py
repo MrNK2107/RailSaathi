@@ -7,13 +7,11 @@ import math
 from typing import Optional, Dict, Any
 from fastapi import APIRouter, Query
 
-try:
-    from ntes import NTESClient
-    ntes = NTESClient(timeout=10, retries=2)
-except Exception:
-    ntes = None
-
 from app.navigation.curbside_topology import parse_rake_composition
+
+# No live upstream is wired yet; the LiveSource provider arrives in Phase 5. Until then the
+# endpoints below return the bundled sample data and must be treated as illustrative.
+ntes = None
 
 router = APIRouter(tags=["Live Railway Operations"])
 

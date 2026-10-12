@@ -7,7 +7,8 @@ import type {
   ReferenceData,
 } from './types'
 
-const DEFAULT_BASE = 'http://localhost:8000'
+// Same origin by default: in dev the Vite proxy forwards /api to the backend, in production nginx does.
+const DEFAULT_BASE = ''
 const TIMEOUT_MS = 20_000
 const RETRY_STATUSES = new Set([502, 503, 504])
 

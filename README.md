@@ -22,19 +22,19 @@ RailSaathi AI application.
 
 ## Quick start (Windows, macOS, Linux)
 
-Prerequisites: Python 3.11+, [uv](https://docs.astral.sh/uv/), Node.js 18+.
+Prerequisites: Python 3.12, [uv](https://docs.astral.sh/uv/), Node.js 20+.
 
 ```bash
 # 1. Backend (http://localhost:8000, docs at /docs)
 cd backend
 uv sync
 cp .env.example .env          # optional; defaults work without it
-uv run uvicorn app.main:app --reload --port 8000
+uv run python -m uvicorn app.main:create_app --factory --reload --port 8000
 
 # 2. Frontend (http://localhost:5173), in a second terminal
 cd frontend
 npm install
-cp .env.example .env          # VITE_API_BASE_URL=http://localhost:8000
+cp .env.example .env          # optional; API calls are same-origin via the Vite proxy
 npm run dev
 ```
 
@@ -76,6 +76,7 @@ back to the rule-based extractor automatically.
 - [Integration handoff](docs/INTEGRATION.md): how the main app embeds this module and consumes the result
 - [Demo scenarios](docs/DEMO_SCENARIOS.md): scripted walkthroughs A–G
 - [Limitations and future work](docs/LIMITATIONS.md)
+- [Deployment to Google Cloud Run](docs/DEPLOYMENT.md): containers, one-time project setup, CI/CD workflow
 
 ## Project layout
 

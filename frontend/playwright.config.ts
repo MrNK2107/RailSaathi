@@ -15,7 +15,7 @@ export default defineConfig({
   use: { baseURL: 'http://127.0.0.1:5173', headless: true, screenshot: 'only-on-failure', trace: 'retain-on-failure' },
   webServer: [
     {
-      command: `uv run python -m uvicorn app.main:app --port ${BACKEND_PORT}`,
+      command: `uv run python -m uvicorn app.main:create_app --factory --port ${BACKEND_PORT}`,
       cwd: '../backend',
       url: `${BACKEND_URL}/api/health`,
       reuseExistingServer: !CI,
