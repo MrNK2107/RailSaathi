@@ -6,6 +6,7 @@ Each tool has an explicit schema, validates its inputs, and returns
 structured results with source provenance.
 """
 
+import logging
 from typing import Any
 from app.knowledge.retrieval import search_guidance, SUPPORTED_TOPICS
 
@@ -218,10 +219,11 @@ def execute_tool(tool_name: str, args: dict, db_path: str) -> dict[str, Any]:
         result = handler(args, db_path)
         result["tool_name"] = tool_name
         return result
-    except Exception as e:
+    except Exception:
+        logging.getLogger("railsaathi.ticketing").exception("Ticketing tool %s failed", tool_name)
         return {
             "status": "error",
-            "error": f"Tool execution failed: {type(e).__name__}: {str(e)}",
+            "error": "Tool execution failed.",
             "tool_name": tool_name,
         }
 

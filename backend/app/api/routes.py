@@ -17,6 +17,7 @@ from app.api.schemas import (
     SelectRequest,
     data_notice,
 )
+from app.api.health import dependency_status
 from app.api.deps import enforce_message_limit, verify_session_token
 from app.container import Container
 from app.domain.enums import (
@@ -64,6 +65,7 @@ def health(request: Request) -> HealthResponse:
         data_provider=c.data_provider_status,
         ai={"llm_provider_setting": c.settings.llm_provider, "bedrock_configured": c.settings.bedrock_configured,
             **c.extractor.llm_status, "fallback": "rule_based_extractor"},
+        **dependency_status(c),
     )
 
 

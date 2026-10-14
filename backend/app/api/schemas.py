@@ -102,6 +102,9 @@ class HealthResponse(BaseModel):
     data_mode: DataMode
     data_provider: dict[str, Any]
     ai: dict[str, Any]
+    redis: dict[str, Any] = Field(default_factory=dict)
+    model: dict[str, Any] = Field(default_factory=dict)
+    llm: dict[str, Any] = Field(default_factory=dict)
 
 
 class ErrorBody(BaseModel):

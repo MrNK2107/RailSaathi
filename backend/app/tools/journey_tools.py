@@ -329,4 +329,4 @@ def execute_journey_tool(tool_name: str, args: dict) -> dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Error executing journey tool {tool_name}: {e}", exc_info=True)
-        return {"status": "error", "error": f"{type(e).__name__}: {str(e)}", "tool_name": tool_name}
+        return {"status": "error", "error": "The tool failed to run.", "tool_name": tool_name}

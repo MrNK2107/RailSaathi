@@ -90,6 +90,8 @@ class Settings(BaseSettings):
     railradar_cache_seconds: int = Field(default=300, ge=0)
     railradar_max_concurrency: int = Field(default=4, ge=1, le=10)
     railradar_requests_per_minute: int = Field(default=10, ge=1)  # observed limit of the current key
+    # How long a cached RailRadar response may still be served (labelled STALE) when the quota is exhausted.
+    railradar_stale_seconds: int = Field(default=21_600, ge=0)
 
     # LLM (optional). "bedrock" or "none".
     llm_provider: str = "none"
@@ -100,7 +102,10 @@ class Settings(BaseSettings):
     bedrock_max_retries: int = Field(default=2, ge=0, le=5)
 
     # Logging
-    log_message_content: bool = False
+    log_message_content: bool = False  # never log passenger message text unless explicitly enabled
+    log_format: str = "json"  # "json" (Cloud Logging) or "text"
+    gcp_project: str | None = Field(default=None, validation_alias=AliasChoices("GOOGLE_CLOUD_PROJECT", "GCP_PROJECT",
+                                                                              "gcp_project"))
 
     @model_validator(mode="after")
     def _lock_outlives_llm_deadline(self) -> "Settings":

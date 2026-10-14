@@ -118,3 +118,8 @@ def predict_train_delay(
         ],
         "insights": insights
     }
+
+
+def model_status() -> Dict[str, Any]:
+    """Health summary: this is a historical-average lookup, not a trained model."""
+    return {"kind": "historical_average", "loaded": bool(HISTORICAL_DELAYS), "stations_indexed": len(HISTORICAL_DELAYS)}

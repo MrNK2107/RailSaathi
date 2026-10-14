@@ -23,7 +23,7 @@ def _graph(station_id: str, apply_disruptions: bool = True) -> tuple[Station, St
         station = station_store.load_published(station_id)
         metadata = station_store.load_metadata(station_id)
     except Exception as exc:
-        raise HTTPException(404, f"Station {station_id} not found in store") from exc
+        raise HTTPException(404, "Station not found in store") from exc
 
     errors, _ = validate_graph(station, metadata)
     if errors:
@@ -73,7 +73,6 @@ def list_stations() -> list[dict]:
 @router.get("/api/stations/{station_id}")
 def get_station_details(station_id: str, draft: bool = Query(False)) -> dict:
     try:
-        station_store.ensure_station_exists(station_id)
         source = "draft" if draft and station_store.has_draft(station_id) else "published"
         raw = station_store.load_raw(station_id, draft=source == "draft")
         meta = station_store.load_metadata(station_id)
@@ -84,7 +83,7 @@ def get_station_details(station_id: str, draft: bool = Query(False)) -> dict:
             "has_draft": station_store.has_draft(station_id),
         }
     except Exception as exc:
-        raise HTTPException(404, str(exc)) from exc
+        raise HTTPException(404, "Station not found") from exc
 
 
 @router.get("/api/stations/{station_id}/map")
@@ -104,7 +103,7 @@ def get_station_info(station_id: str) -> dict:
     try:
         return station_store.load_info(station_id)
     except Exception as exc:
-        raise HTTPException(404, str(exc)) from exc
+        raise HTTPException(404, "Station information not found") from exc
 
 
 @router.get("/stations/{station_code}/navigation")

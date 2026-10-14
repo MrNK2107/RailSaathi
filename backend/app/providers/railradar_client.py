@@ -9,18 +9,23 @@ The API key is sent as a Bearer token and is never logged.
 """
 
 import logging
-import math
-import threading
 import time
-from collections import deque
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from typing import Any
 
 import httpx
 
+from app.domain.enums import DataMode
 from app.providers.errors import ProviderError, ProviderErrorKind
+from app.providers.railradar_shared import (
+    CacheEntry,
+    InMemoryQuotaGate,
+    InMemoryResponseCache,
+    QuotaGate,
+    ResponseCache,
+)
 
 log = logging.getLogger("railsaathi.railradar")
 
@@ -34,21 +39,27 @@ _STATUS_KINDS = {
 
 @dataclass(frozen=True)
 class Fetched:
-    """Response payload plus when RailRadar was actually called (not when the cache was read)."""
+    """Response payload plus when RailRadar was actually called (not when the cache was read).
+    `mode` is STALE when an expired cached response was served because the quota was exhausted."""
     data: Any
     fetched_at: datetime
+    mode: DataMode = field(default=DataMode.LIVE)
 
 
 class RailRadarClient:
+    """Async client. The quota gate and response cache are injected so every instance shares one budget (Redis)
+    or, locally and in tests, a per-process one (in-memory)."""
+
     def __init__(
         self, base_url: str, api_key: str, timeout_seconds: float = 10.0, cache_seconds: int = 300,
-        transport: httpx.BaseTransport | None = None, monotonic: Callable[[], float] = time.monotonic,
+        transport: httpx.AsyncBaseTransport | None = None,
         wall_clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
-        requests_per_minute: int = 10,
+        requests_per_minute: int = 10, quota: QuotaGate | None = None, cache: ResponseCache | None = None,
+        clock: Callable[[], float] = time.time, stale_seconds: int = 21_600,
     ) -> None:
         if not api_key:
             raise ProviderError(ProviderErrorKind.NOT_CONFIGURED, "RAILRADAR_API_KEY is not set")
-        self._http = httpx.Client(
+        self._http = httpx.AsyncClient(
             base_url=base_url.rstrip("/"),
             timeout=timeout_seconds,
             transport=transport,
@@ -56,74 +67,65 @@ class RailRadarClient:
                      "User-Agent": "RailSaathi-Planner/0.1"},
         )
         self._cache_seconds = cache_seconds
-        self._cache: dict[str, tuple[float, Fetched]] = {}
-        self._lock = threading.Lock()
-        self._now = monotonic
-        self._wall = wall_clock
-        # Observed live: "Rate limit exceeded. Maximum 10 requests per minute." Enforce it locally so a
-        # search fails fast with a clear wait time instead of hitting HTTP 429 mid-search.
-        self._rpm = requests_per_minute
-        self._sent: deque[float] = deque()
+        self._clock = clock  # epoch seconds: freshness of cache entries
+        self._wall = wall_clock  # when RailRadar was actually called (reported as as_of)
+        # Observed live: "Rate limit exceeded. Maximum 10 requests per minute." The gate enforces it before a
+        # request is sent so a search fails fast with a clear wait time instead of hitting HTTP 429 mid-search.
+        self._quota = quota or InMemoryQuotaGate(requests_per_minute, clock)
+        self._cache = cache or InMemoryResponseCache(stale_seconds, clock=clock)
 
-    def trains_between(self, from_code: str, to_code: str, day: date) -> Fetched:
+    async def trains_between(self, from_code: str, to_code: str, day: date) -> Fetched:
         """GET /v1/trains/between/{from}/{to}. Documented shape: data.trains[] (plus from/to/count).
         A 404 is NOT treated as "no trains": RailRadar also uses 404 for unknown routes."""
-        fetched = self.get(f"/v1/trains/between/{from_code}/{to_code}", {"date": day.isoformat()})
-        return Fetched(_as_list(fetched.data, ("trains", "items", "results")), fetched.fetched_at)
+        fetched = await self.get(f"/v1/trains/between/{from_code}/{to_code}", {"date": day.isoformat()})
+        return Fetched(_as_list(fetched.data, ("trains", "items", "results")), fetched.fetched_at, fetched.mode)
 
-    def live_status(self, train_no: str, day: date) -> Fetched:
-        fetched = self.get(f"/v1/trains/{train_no}/live", {"date": day.isoformat()}, use_cache=False)
-        return Fetched(fetched.data if isinstance(fetched.data, dict) else {}, fetched.fetched_at)
+    async def live_status(self, train_no: str, day: date) -> Fetched:
+        fetched = await self.get(f"/v1/trains/{train_no}/live", {"date": day.isoformat()}, use_cache=False)
+        return Fetched(fetched.data if isinstance(fetched.data, dict) else {}, fetched.fetched_at, fetched.mode)
 
-    def get(self, path: str, params: dict[str, str], use_cache: bool = True) -> Fetched:
+    async def get(self, path: str, params: dict[str, str], use_cache: bool = True) -> Fetched:
         key = f"{path}?{sorted(params.items())}"
-        if use_cache:
-            cached = self._cached(key)
-            if cached is not None:
-                return cached
-        fetched = Fetched(self._request_with_retry(path, params), self._wall())
+        entry = await self._cache.get(key) if use_cache else None
+        if entry is not None and entry.fresh_until > self._clock():
+            return Fetched(entry.data, entry.fetched_at)
+        try:
+            data = await self._request_with_retry(path, params)
+        except ProviderError as err:
+            if err.kind is ProviderErrorKind.RATE_LIMITED and entry is not None:
+                log.warning("RailRadar quota exhausted for %s; serving a stale cached response", path)
+                return Fetched(entry.data, entry.fetched_at, DataMode.STALE)
+            raise
+        fetched = Fetched(data, self._wall())
         if use_cache and self._cache_seconds:
-            with self._lock:
-                self._cache[key] = (self._now() + self._cache_seconds, fetched)
+            await self._cache.set(key, CacheEntry(data, fetched.fetched_at, self._clock() + self._cache_seconds))
         return fetched
 
-    def _cached(self, key: str) -> Fetched | None:
-        with self._lock:
-            hit = self._cache.get(key)
-            if hit and hit[0] > self._now():
-                return hit[1]
-            self._cache.pop(key, None)
-            return None
-
-    def _request_with_retry(self, path: str, params: dict[str, str]) -> Any:
+    async def _request_with_retry(self, path: str, params: dict[str, str]) -> Any:
         try:
-            return self._request(path, params)
+            return await self._request(path, params)
         except ProviderError as err:
             if err.kind not in (ProviderErrorKind.UNAVAILABLE, ProviderErrorKind.TIMEOUT):
                 raise
             log.warning("RailRadar %s failed (%s); retrying once", path, err.kind.value)
-            return self._request(path, params)
+            return await self._request(path, params)
 
-    def _reserve_slot(self) -> None:
-        with self._lock:
-            now = self._now()
-            while self._sent and now - self._sent[0] >= 60:
-                self._sent.popleft()
-            if len(self._sent) >= self._rpm:
-                wait = math.ceil(60 - (now - self._sent[0]))
-                raise ProviderError(ProviderErrorKind.RATE_LIMITED,
-                                    f"RailRadar allows {self._rpm} requests per minute; try again in {wait} s")
-            self._sent.append(now)
-
-    def _request(self, path: str, params: dict[str, str]) -> Any:
-        self._reserve_slot()
+    async def _request(self, path: str, params: dict[str, str]) -> Any:
+        decision = await self._quota.acquire()
+        if not decision.allowed:
+            raise ProviderError(ProviderErrorKind.RATE_LIMITED,
+                                f"RailRadar allows a limited number of requests per minute; "
+                                f"try again in {decision.retry_after} s")
         try:
-            response = self._http.get(path, params=params)
+            response = await self._http.get(path, params=params)
         except httpx.TimeoutException as exc:
             raise ProviderError(ProviderErrorKind.TIMEOUT, "RailRadar did not respond in time") from exc
         except httpx.HTTPError as exc:
             raise ProviderError(ProviderErrorKind.UNAVAILABLE, "Could not reach RailRadar") from exc
         return _unwrap(response)
+
+    async def aclose(self) -> None:
+        await self._http.aclose()
 
 
 def _unwrap(response: httpx.Response) -> Any:

@@ -4,6 +4,7 @@ Fixtures follow the DOCUMENTED response shape (railradar.in/docs/trains-between-
 error envelopes OBSERVED from api.railradar.in on 2026-10-10 (unauthenticated probes).
 """
 
+import asyncio
 from datetime import date, datetime, time, timezone
 
 import httpx
@@ -58,16 +59,33 @@ def make_transport(routes: dict[str, object], calls: list[httpx.Request] | None 
     return httpx.MockTransport(handler)
 
 
+class Sync:
+    """Synchronous view of the async client for tests (the provider uses the real async bridge)."""
+
+    def __init__(self, client: RailRadarClient) -> None:
+        self._c = client
+
+    def trains_between(self, *a):
+        return asyncio.run(self._c.trains_between(*a))
+
+    def live_status(self, *a):
+        return asyncio.run(self._c.live_status(*a))
+
+
 def client_for(routes, calls=None, cache_seconds=300) -> RailRadarClient:
     return RailRadarClient("https://api.railradar.test", KEY, 5, cache_seconds,
                            transport=make_transport(routes, calls), wall_clock=lambda: FETCHED_AT)
+
+
+def sync_client_for(routes, calls=None, cache_seconds=300) -> Sync:
+    return Sync(client_for(routes, calls, cache_seconds))
 
 
 # ---- client ---------------------------------------------------------------------
 
 def test_client_sends_bearer_key_and_unwraps_envelope():
     calls: list[httpx.Request] = []
-    fetched = client_for({"/v1/trains/between/CBE/MAS": CBE_MAS}, calls).trains_between("CBE", "MAS", date(2026, 10, 11))
+    fetched = sync_client_for({"/v1/trains/between/CBE/MAS": CBE_MAS}, calls).trains_between("CBE", "MAS", date(2026, 10, 11))
     assert len(fetched.data) == 3 and fetched.fetched_at == FETCHED_AT
     assert calls[0].headers["Authorization"] == f"Bearer {KEY}"
     assert calls[0].url.path == "/v1/trains/between/CBE/MAS" and calls[0].url.params["date"] == "2026-10-11"
@@ -76,33 +94,33 @@ def test_client_sends_bearer_key_and_unwraps_envelope():
 def test_client_caches_identical_requests_and_keeps_original_fetch_time():
     calls: list[httpx.Request] = []
     times = iter([FETCHED_AT, datetime(2026, 10, 10, 5, 0, tzinfo=timezone.utc)])
-    client = RailRadarClient("https://x", KEY, 5, 300, transport=make_transport({"*": CBE_MAS}, calls),
-                             wall_clock=lambda: next(times))
+    client = Sync(RailRadarClient("https://x", KEY, 5, 300, transport=make_transport({"*": CBE_MAS}, calls),
+                                  wall_clock=lambda: next(times)))
     first_fetch = client.trains_between("CBE", "MAS", date(2026, 10, 11))
     second_fetch = client.trains_between("CBE", "MAS", date(2026, 10, 11))
     assert len(calls) == 1 and second_fetch.fetched_at == first_fetch.fetched_at == FETCHED_AT
 
 
 def test_bare_list_payload_also_accepted():
-    client = client_for({"*": [DOCUMENTED, FALLBACK]})
+    client = sync_client_for({"*": [DOCUMENTED, FALLBACK]})
     assert len(client.trains_between("CBE", "MAS", date(2026, 10, 11)).data) == 2
 
 
 def test_empty_result_with_zero_count():
-    assert client_for({"*": {"from": "CBE", "to": "KPD", "count": 0}}).trains_between(
+    assert sync_client_for({"*": {"from": "CBE", "to": "KPD", "count": 0}}).trains_between(
         "CBE", "KPD", date(2026, 10, 11)).data == []
 
 
 def test_unknown_payload_shape_is_an_error_not_empty():
     with pytest.raises(ProviderError) as err:
-        client_for({"*": {"something": "else"}}).trains_between("CBE", "MAS", date(2026, 10, 11))
+        sync_client_for({"*": {"something": "else"}}).trains_between("CBE", "MAS", date(2026, 10, 11))
     assert err.value.kind is ProviderErrorKind.BAD_RESPONSE
 
 
 def test_404_route_not_found_is_an_error_not_no_trains():
     """Observed live: wrong paths return 404 {code: NOT_FOUND, message: Route not found}."""
     with pytest.raises(ProviderError) as err:
-        client_for({}).trains_between("CBE", "MAS", date(2026, 10, 11))
+        sync_client_for({}).trains_between("CBE", "MAS", date(2026, 10, 11))
     assert err.value.kind is ProviderErrorKind.NOT_FOUND and "Route not found" in err.value.message
 
 
@@ -110,7 +128,7 @@ def test_observed_unauthorized_envelope_is_reported():
     body = {"success": False, "error": {"code": "UNAUTHORIZED", "message": "Invalid API Key"},
             "meta": {"timestamp": "2026-10-10T14:39:41+05:30", "traceId": "x"}}
     with pytest.raises(ProviderError) as err:
-        client_for({"*": httpx.Response(401, json=body)}).trains_between("CBE", "MAS", date(2026, 10, 11))
+        sync_client_for({"*": httpx.Response(401, json=body)}).trains_between("CBE", "MAS", date(2026, 10, 11))
     assert err.value.kind is ProviderErrorKind.AUTH_FAILED
     assert "UNAUTHORIZED: Invalid API Key" in err.value.message and KEY not in err.value.message
 
@@ -119,7 +137,7 @@ def test_observed_unauthorized_envelope_is_reported():
     (403, ProviderErrorKind.AUTH_FAILED), (429, ProviderErrorKind.RATE_LIMITED), (400, ProviderErrorKind.BAD_REQUEST),
 ])
 def test_http_errors_are_mapped(status, kind):
-    client = client_for({"*": httpx.Response(status, json={"success": False, "error": {"message": "nope"}})})
+    client = sync_client_for({"*": httpx.Response(status, json={"success": False, "error": {"message": "nope"}})})
     with pytest.raises(ProviderError) as err:
         client.trains_between("CBE", "MAS", date(2026, 10, 11))
     assert err.value.kind is kind
@@ -128,18 +146,18 @@ def test_http_errors_are_mapped(status, kind):
 def test_server_errors_are_retried_once():
     calls: list[httpx.Request] = []
     with pytest.raises(ProviderError) as err:
-        client_for({"*": httpx.Response(503)}, calls).trains_between("CBE", "MAS", date(2026, 10, 11))
+        sync_client_for({"*": httpx.Response(503)}, calls).trains_between("CBE", "MAS", date(2026, 10, 11))
     assert err.value.kind is ProviderErrorKind.UNAVAILABLE and len(calls) == 2
 
 
 def test_timeout_is_mapped():
     with pytest.raises(ProviderError) as err:
-        client_for({"*": httpx.ReadTimeout("slow")}).trains_between("CBE", "MAS", date(2026, 10, 11))
+        sync_client_for({"*": httpx.ReadTimeout("slow")}).trains_between("CBE", "MAS", date(2026, 10, 11))
     assert err.value.kind is ProviderErrorKind.TIMEOUT
 
 
 def test_success_false_is_an_error():
-    client = client_for({"*": httpx.Response(200, json={"success": False, "error": "invalid station"})})
+    client = sync_client_for({"*": httpx.Response(200, json={"success": False, "error": "invalid station"})})
     with pytest.raises(ProviderError) as err:
         client.trains_between("CBE", "MAS", date(2026, 10, 11))
     assert "invalid station" in err.value.message
@@ -460,8 +478,8 @@ def test_observed_live_status_fields(payload):
 def test_local_rate_limit_fails_fast_with_wait_time():
     clock = {"t": 1000.0}
     calls: list[httpx.Request] = []
-    client = RailRadarClient("https://x", KEY, 5, 0, transport=make_transport({"*": CBE_MAS}, calls),
-                             monotonic=lambda: clock["t"], requests_per_minute=2)
+    client = Sync(RailRadarClient("https://x", KEY, 5, 0, transport=make_transport({"*": CBE_MAS}, calls),
+                                  clock=lambda: clock["t"], requests_per_minute=2))
     client.trains_between("CBE", "MAS", date(2026, 10, 11))
     clock["t"] += 10
     client.trains_between("CBE", "MS", date(2026, 10, 11))
@@ -478,7 +496,7 @@ def test_observed_429_body_is_reported():
     body = {"success": False, "error": {"code": "TOO_MANY_REQUESTS",
                                         "message": "Rate limit exceeded. Maximum 10 requests per minute."}}
     with pytest.raises(ProviderError) as err:
-        client_for({"*": httpx.Response(429, json=body)}).trains_between("CBE", "MAS", date(2026, 10, 11))
+        sync_client_for({"*": httpx.Response(429, json=body)}).trains_between("CBE", "MAS", date(2026, 10, 11))
     assert err.value.kind is ProviderErrorKind.RATE_LIMITED and "Maximum 10 requests per minute" in err.value.message
 
 

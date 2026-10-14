@@ -20,6 +20,7 @@ from app.providers.base import DisruptionSource, JourneyProvider
 from app.providers.demo import DemoDisruptionSource, DemoJourneyProvider
 from app.providers.railradar import RailRadarDisruptionSource, RailRadarJourneyProvider, UnconfiguredLiveProvider
 from app.providers.railradar_client import RailRadarClient
+from app.providers.railradar_shared import RedisQuotaGate, RedisResponseCache
 from app.ranking.recommender import Recommender
 from app.infra.redis import build_redis
 from app.security.tokens import SessionTokenSigner, build_signer
@@ -74,17 +75,27 @@ def build_llm(settings: Settings) -> tuple[IntentLLM | None, str | None]:
         return None, f"bedrock_{err.kind.value}"
 
 
-def build_data_sources(settings: Settings) -> tuple[JourneyProvider, DisruptionSource, dict]:
+def build_data_sources(settings: Settings, redis: Redis | None = None) -> tuple[JourneyProvider, DisruptionSource, dict]:
     """Choose demo or RailRadar (RAILWAY_DATA_MODE). Never contacts RailRadar here.
 
     Live mode without a key does NOT fall back to demo journeys: searches fail with a
     clear "not configured" message and /api/health reports the reason."""
     requested = settings.data_provider.lower()
     if requested == "railradar" and settings.railradar_configured:
+        api_key = settings.railradar_api_key.get_secret_value().strip()
+        shared = {}
+        if redis is not None:  # one quota and one cache across every instance
+            shared = {
+                "quota": RedisQuotaGate(redis, api_key, settings.railradar_requests_per_minute,
+                                        settings.redis_key_prefix),
+                "cache": RedisResponseCache(redis, api_key, settings.railradar_stale_seconds,
+                                            settings.redis_key_prefix),
+            }
         client = RailRadarClient(
-            settings.railradar_base_url, settings.railradar_api_key.get_secret_value().strip(),
+            settings.railradar_base_url, api_key,
             settings.railradar_timeout_seconds, settings.railradar_cache_seconds,
             requests_per_minute=settings.railradar_requests_per_minute,
+            stale_seconds=settings.railradar_stale_seconds, **shared,
         )
         provider = RailRadarJourneyProvider(client, settings.timezone, settings.railradar_max_concurrency)
         return provider, RailRadarDisruptionSource(client, settings.timezone), {
@@ -116,7 +127,7 @@ def build_container(settings: Settings, clock: Clock | None = None,
     clock = clock or build_clock(settings)
     redis = redis if redis is not None else build_redis(settings)
     signer = build_signer(settings)
-    provider, disruptions, data_status = build_data_sources(settings)
+    provider, disruptions, data_status = build_data_sources(settings, redis)
     resolver = StationResolver(provider)
     reason = None
     if llm is None and use_configured_llm:

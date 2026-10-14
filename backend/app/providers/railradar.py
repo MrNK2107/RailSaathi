@@ -5,16 +5,17 @@ ranking and API layers need no changes. Station facility data (assistance,
 wheelchair) is not provided by RailRadar and is therefore always 'unknown'.
 """
 
+import asyncio
 import json
 import logging
 import threading
-from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from app.domain.enums import DataMode
 from app.domain.options import DataProvenance, JourneyOption
+from app.infra.async_bridge import run_sync
 from app.providers.base import CityRecord, DisruptionEvent, StationRecord
 from app.providers.errors import ProviderError, ProviderErrorKind
 from app.providers.railradar_client import RailRadarClient
@@ -26,6 +27,12 @@ SOURCE = "RailRadar live API (third-party)"
 NOTE = ("Live third-party data from RailRadar, not an official Indian Railways source. Timings are as published "
         "by RailRadar and can change; fares, classes and seat availability are not provided; only direct trains "
         "are searched. Verify on IRCTC/NTES before travel.")
+STALE_NOTE = ("STALE: RailRadar's request quota is exhausted, so this is an earlier response shown instead of "
+              "fresh data and may be out of date. ")
+
+
+def _note(mode: DataMode) -> str:
+    return STALE_NOTE + NOTE if mode is DataMode.STALE else NOTE
 
 
 def load_catalogue() -> tuple[list[CityRecord], dict[str, StationRecord]]:
@@ -50,10 +57,10 @@ class RailRadarJourneyProvider:
     def data_mode(self) -> DataMode:
         return DataMode.LIVE
 
-    def provenance(self, fetched_at: datetime | None = None) -> DataProvenance:
+    def provenance(self, fetched_at: datetime | None = None, mode: DataMode = DataMode.LIVE) -> DataProvenance:
         """as_of is when RailRadar was actually called (cached responses keep their original time)."""
         as_of = (fetched_at or datetime.now(self._tz)).astimezone(self._tz)
-        return DataProvenance(mode=DataMode.LIVE, source=SOURCE, as_of=as_of, note=NOTE)
+        return DataProvenance(mode=mode, source=SOURCE, as_of=as_of, note=_note(mode))
 
     def cities(self) -> list[CityRecord]:
         return list(self._cities)
@@ -67,18 +74,27 @@ class RailRadarJourneyProvider:
 
     def search(self, origin_codes: list[str], destination_codes: list[str],
                departure_dates: list[date]) -> list[JourneyOption]:
+        return run_sync(self._search(origin_codes, destination_codes, departure_dates))
+
+    async def _search(self, origin_codes: list[str], destination_codes: list[str],
+                      departure_dates: list[date]) -> list[JourneyOption]:
         jobs = [(o, d, day) for day in departure_dates for o in origin_codes for d in destination_codes if o != d]
-        with ThreadPoolExecutor(max_workers=min(self._workers, max(len(jobs), 1))) as pool:
-            batches = list(pool.map(lambda job: self._search_one(*job), jobs))
+        gate = asyncio.Semaphore(self._workers)
+
+        async def bounded(job: tuple[str, str, date]) -> list[JourneyOption]:
+            async with gate:
+                return await self._search_one(*job)
+
+        batches = await asyncio.gather(*(bounded(job) for job in jobs))
         seen: dict[str, JourneyOption] = {}
         for option in (o for batch in batches for o in batch):
             seen.setdefault(option.option_id, option)  # same train listed for several station pairs
         return list(seen.values())
 
-    def _search_one(self, origin: str, dest: str, day: date) -> list[JourneyOption]:
-        fetched = self._client.trains_between(origin, dest, day)
+    async def _search_one(self, origin: str, dest: str, day: date) -> list[JourneyOption]:
+        fetched = await self._client.trains_between(origin, dest, day)
         raw_trains = fetched.data
-        provenance = self.provenance(fetched.fetched_at)
+        provenance = self.provenance(fetched.fetched_at, fetched.mode)
         options, skipped = [], 0
         for raw in raw_trains:
             try:
@@ -113,9 +129,13 @@ class RailRadarDisruptionSource:
 
     def events_for_trains(self, trains: list[tuple[str, date]]) -> list[DisruptionEvent]:
         """Fetch live status for (train_no, run_date) pairs; return delays/cancellations only."""
+        return run_sync(self._events_for_trains(trains))
+
+    async def _events_for_trains(self, trains: list[tuple[str, date]]) -> list[DisruptionEvent]:
+        pairs = list(dict.fromkeys(trains))
+        statuses = await asyncio.gather(*(self._client.live_status(n, d) for n, d in pairs))
         events: list[DisruptionEvent] = []
-        for train_no, day in dict.fromkeys(trains):
-            fetched = self._client.live_status(train_no, day)
+        for (train_no, day), fetched in zip(pairs, statuses):
             delay, cancelled = map_live_status(fetched.data)
             if not cancelled and not delay:
                 continue

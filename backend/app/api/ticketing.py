@@ -3,6 +3,7 @@ API Router for Indian Railways Ticketing Guidance & Verified Sources
 Powered by local knowledge database and deterministic safety checks.
 """
 
+import logging
 import uuid
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Request
@@ -14,6 +15,7 @@ from app.knowledge.database import get_all_sources, get_connection
 from app.agent.mock_llm import DevMockGeminiClient
 from app.agent.controller import AgentController
 
+log = logging.getLogger("railsaathi.ticketing")
 router = APIRouter(prefix="/api", tags=["Ticketing Guidance"])
 
 
@@ -29,8 +31,9 @@ def list_sources():
         with get_connection(DB_PATH) as conn:
             sources = get_all_sources(conn)
             return {"sources": sources, "count": len(sources)}
-    except Exception as e:
-        return {"sources": [], "error": str(e)}
+    except Exception:
+        log.exception("Could not list ticketing sources")
+        return {"sources": [], "error": "Knowledge sources are temporarily unavailable."}
 
 
 @router.post("/chat")
@@ -49,4 +52,5 @@ def ticketing_chat(request: Request, payload: ChatRequest):
             "trace_id": res.trace_id,
         }
     except Exception as e:
+        log.exception("Ticketing guidance failed")
         raise HTTPException(status_code=500, detail="Ticketing guidance failed") from e

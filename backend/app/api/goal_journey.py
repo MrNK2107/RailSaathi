@@ -3,6 +3,7 @@ API Router for Goal-Based Journey Planning
 Evaluates timetable schedules against meeting deadlines and last-mile cab buffer.
 """
 
+import logging
 import uuid
 from typing import Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, Request
@@ -12,6 +13,7 @@ from app.api.deps import enforce_message_limit
 from app.journey.planner import JourneyPlanner, parse_requirements_from_text
 from app.journey.models import TripRequirements
 
+log = logging.getLogger("railsaathi.journey")
 router = APIRouter(prefix="/api/journey", tags=["Goal Journey Planner"])
 
 journey_planner = JourneyPlanner()
@@ -61,6 +63,7 @@ def plan_journey(request: Request, payload: GoalPlanRequest):
         journey_plans_store[trace_id] = plan_dict
         return plan_dict
     except Exception as e:
+        log.exception("Journey planning failed")
         raise HTTPException(status_code=500, detail="Journey planning failed") from e
 
 
@@ -90,6 +93,7 @@ def refine_journey(request: Request, data: Dict[str, Any]):
         journey_plans_store[trace_id] = plan_dict
         return plan_dict
     except Exception as e:
+        log.exception("Journey planning failed")
         raise HTTPException(status_code=500, detail="Journey planning failed") from e
 
 
