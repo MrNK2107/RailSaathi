@@ -51,6 +51,7 @@ export default function Dashboard() {
   const shortcuts = [
     { label: m.dashboard.liveUpdates, Icon: LiveIcon, onClick: () => go(planner.state?.confirmation ? 'confirmation' : 'alerts') },
     { label: m.dashboard.goalPlanner, Icon: ClockIcon, onClick: () => go('goal') },
+    { label: m.dashboard.ticketing, Icon: HelpIcon, onClick: () => go('ticketing') },
     { label: m.dashboard.stationNav, Icon: PinIcon, onClick: () => go('navigation') },
     { label: m.dashboard.accessible, Icon: AccessibleIcon, onClick: () => go('help') },
     { label: m.dashboard.help, Icon: HelpIcon, onClick: () => go('help') },

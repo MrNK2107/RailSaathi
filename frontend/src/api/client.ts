@@ -9,6 +9,8 @@ import type {
   Language,
   PlannerResponse,
   ReferenceData,
+  TicketingRequest,
+  TicketingResponse,
 } from './types'
 
 // Same origin by default: in dev the Vite proxy forwards /api to the backend, in production nginx does.
@@ -210,6 +212,9 @@ export function createApiClient(options: ApiClientOptions = {}) {
       request<GoalPlanResponse>('POST', '/api/journey/plan', { body, signal: o?.signal, planner: true }),
     refineGoal: (body: GoalRefineRequest, o?: O) =>
       request<GoalPlanResponse>('POST', '/api/journey/refine', { body, signal: o?.signal, planner: true }),
+    // Ticketing guidance chat (LLM turn, so the planner timeout applies). Not retried: a turn is not idempotent.
+    ticketing: (body: TicketingRequest, o?: O) =>
+      request<TicketingResponse>('POST', '/api/chat', { body, signal: o?.signal, planner: true }),
     goalPlan: (planId: string, o?: O) =>
       request<GoalPlanResponse>('GET', `/api/journey/options/${encodeURIComponent(planId)}`, { signal: o?.signal, planner: true }),
   }

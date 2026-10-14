@@ -395,3 +395,37 @@ export interface GoalPlanResponse {
   sources: Record<string, unknown>[]
   trace_id: string
 }
+
+/** POST /api/chat (backend api/ticketing.py). `provenance` is a plain mode string here, not a DataProvenance object. */
+export interface TicketingRequest {
+  message: string
+  conversation_id?: string
+}
+
+export interface TicketingSource {
+  source_id: string
+  title: string
+  url: string
+  publisher: string
+  last_verified_at: string
+  as_of: string
+}
+
+export interface TicketingLink {
+  title: string
+  url: string
+}
+
+export interface TicketingResponse {
+  conversation_id: string
+  session_token: string
+  status: 'answered' | 'execution_limit_reached' | 'unavailable' | string
+  answer: string
+  sources: TicketingSource[]
+  provenance: DataMode
+  evidence_sufficient: boolean
+  trace_id: string
+  /** Only when status is "unavailable". */
+  message?: string
+  links?: TicketingLink[]
+}
