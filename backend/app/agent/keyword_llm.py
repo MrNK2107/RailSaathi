@@ -139,7 +139,8 @@ class KeywordChatLLM:
                         f"#### 🎫 Official Booking Handoff:\n"
                         f"Ready to book? Complete your reservation on the official portal:\n"
                         f"👉 [{bh.get('official_provider')}]({bh.get('booking_url')})\n\n"
-                        f"*(Data source: Indian Railways NTES Timetable repository)*"
+                        f"*(Schedules come from the planner's bundled timetable data; check the official "
+                        f"portal for current timings before booking.)*"
                     )
                 return LLMTurn(text=answer)
             else:

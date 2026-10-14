@@ -1,9 +1,10 @@
 """Vendor-neutral LLM primitives shared by the chat agent and planner intent extraction.
 
 - `ChatLLM`: `generate(messages, tools, deadline) -> LLMTurn` (text or tool calls).
-- `Deadline`: one monotonic budget for a whole planner/agent turn. Every LLM path clips its per-call timeout,
-  retries and backoff to `deadline.remaining()`, so a turn can never outlive the session lock TTL
-  (validated in config.py against `llm_overall_deadline_seconds`).
+- `Deadline`: one monotonic budget for the LLM work of a planner/agent turn. Every LLM path clips its per-call
+  timeout, retries and backoff to `deadline.remaining()`, so LLM work never exceeds `llm_overall_deadline_seconds`
+  (which config.py validates against the session lock TTL). Non-LLM work in the turn (e.g. RailRadar searches) is
+  bounded by its own timeouts, not by this deadline.
 - `LLMError`: carries a kind and a fixed, client-safe message. Upstream exception text is never put in it.
 - `call_with_retries`: per-call timeout, retry on transient failures with exponential backoff, all bounded by
   the deadline.

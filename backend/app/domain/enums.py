@@ -23,6 +23,7 @@ class DataMode(StrEnum):
     LIVE = "live"  # verified data from an authorised provider (not available in this prototype)
     DEMO = "demo"  # illustrative, simulated data
     UNKNOWN = "unknown"
+    CACHED = "cached"  # a recent live response served from cache (still within its freshness window)
     STALE = "stale"  # a previously fetched live response served because a fresh one could not be fetched
     UNAVAILABLE = "unavailable"  # no data could be obtained
     FALLBACK = "fallback"  # a lower-fidelity substitute (e.g. rule-based/statistical) replaced the primary source

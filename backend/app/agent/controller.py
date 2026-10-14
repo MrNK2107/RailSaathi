@@ -59,8 +59,9 @@ class AgentController:
     Deterministic controller that manages the LLM ↔ tool lifecycle.
 
     Independent of the HTTP routes; talks to any `ChatLLM` (Gemini, the rule-based KeywordChatLLM, or a
-    scripted MockChatLLM in tests). The whole turn shares one `Deadline` (Settings.llm_overall_deadline_seconds):
-    no LLM call or retry outlives it, so the turn always ends before the session lock TTL.
+    scripted MockChatLLM in tests). All LLM calls of the turn share one `Deadline`
+    (Settings.llm_overall_deadline_seconds): no LLM call or retry outlives it. Tool execution is not covered by
+    the deadline; tools rely on their own timeouts.
     """
 
     def __init__(

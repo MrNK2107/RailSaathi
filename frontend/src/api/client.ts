@@ -10,7 +10,15 @@ import type {
 
 // Same origin by default: in dev the Vite proxy forwards /api to the backend, in production nginx does.
 const DEFAULT_BASE = ''
-const TIMEOUT_MS = 20_000
+/** Plain reads (health, reference data). */
+export const READ_TIMEOUT_MS = 20_000
+/**
+ * Planner session calls: a turn may wait for the session lock (SESSION_LOCK_WAIT_SECONDS, 10 s), spend the whole
+ * LLM budget (LLM_OVERALL_DEADLINE_SECONDS, 20 s; a slow LLM then degrades to rules and still returns 200) and run
+ * the journey search. 45 s covers that with margin and stays under the Cloud Run request timeout (60 s in
+ * .github/workflows/deploy.yml). backend/tests/test_timeout_budget.py checks these values stay consistent.
+ */
+export const PLANNER_TIMEOUT_MS = 45_000
 const MAX_RETRIES = 2
 export const REQUEST_ID_HEADER = 'X-Request-Id'
 export const SESSION_TOKEN_HEADER = 'X-Session-Token'
@@ -69,6 +77,7 @@ export interface ApiClientOptions {
   /** Retries for network failures only (never HTTP errors or timeouts); capped at 2. */
   retries?: number
   retryDelayMs?: number
+  /** Overrides both READ_TIMEOUT_MS and PLANNER_TIMEOUT_MS (tests). */
   timeoutMs?: number
   requestId?: () => string
 }
@@ -83,6 +92,8 @@ interface Call {
   /** Only idempotent calls are retried, so a lost response never duplicates a state change. */
   idempotent?: boolean
   signal?: AbortSignal
+  /** Planner session call (may include lock wait + LLM turn): uses PLANNER_TIMEOUT_MS. */
+  planner?: boolean
 }
 
 class NetworkFailure extends Error {}
@@ -93,7 +104,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
   const fetchImpl = options.fetchImpl ?? fetch.bind(globalThis)
   const retries = Math.max(0, Math.min(options.retries ?? MAX_RETRIES, MAX_RETRIES))
   const retryDelayMs = options.retryDelayMs ?? 400
-  const timeoutMs = options.timeoutMs ?? TIMEOUT_MS
   const makeRequestId = options.requestId ?? newRequestId
   // Signed token issued by session creation; sent on every call so session routes and rate limits can verify it.
   let sessionToken: string | null = null
@@ -122,6 +132,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
   async function once<T>(method: string, path: string, call: Call, requestId: string): Promise<T> {
     const controller = new AbortController()
     let timedOut = false
+    const timeoutMs = options.timeoutMs ?? (call.planner ? PLANNER_TIMEOUT_MS : READ_TIMEOUT_MS)
     const timer = setTimeout(() => {
       timedOut = true
       controller.abort()
@@ -129,28 +140,35 @@ export function createApiClient(options: ApiClientOptions = {}) {
     const onAbort = () => controller.abort()
     if (call.signal?.aborted) controller.abort()
     call.signal?.addEventListener('abort', onAbort)
-    let res: Response
     try {
-      res = await fetchImpl(`${baseUrl}${path}`, {
+      let res: Response
+      try {
+        res = await fetchImpl(`${baseUrl}${path}`, {
         method,
-        headers: {
-          [REQUEST_ID_HEADER]: requestId,
-          ...(call.body === undefined ? {} : { 'Content-Type': 'application/json' }),
-          ...(sessionToken ? { [SESSION_TOKEN_HEADER]: sessionToken } : {}),
-        },
-        body: call.body === undefined ? undefined : JSON.stringify(call.body),
-        signal: controller.signal,
-      })
-    } catch {
-      if (timedOut) throw new TimedOut()
-      throw new NetworkFailure() // fetch rejects (TypeError) only when no HTTP response arrived
+          headers: {
+            [REQUEST_ID_HEADER]: requestId,
+            ...(call.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+            ...(sessionToken ? { [SESSION_TOKEN_HEADER]: sessionToken } : {}),
+          },
+          body: call.body === undefined ? undefined : JSON.stringify(call.body),
+          signal: controller.signal,
+        })
+      } catch {
+        if (timedOut) throw new TimedOut()
+        throw new NetworkFailure() // fetch rejects (TypeError) only when no HTTP response arrived
+      }
+      // The timeout and the caller's signal stay armed while the body is read, so a stalled body cannot hang.
+      const data: unknown = await res.json().catch(() => null)
+      if (controller.signal.aborted) {
+        if (timedOut) throw new TimedOut()
+        throw new NetworkFailure() // caller abort: request() reports it as `aborted`
+      }
+      if (!res.ok) throw errorFromResponse(res.status, data, res.headers.get(REQUEST_ID_HEADER) ?? requestId)
+      return data as T
     } finally {
       clearTimeout(timer)
       call.signal?.removeEventListener('abort', onAbort)
     }
-    const data: unknown = await res.json().catch(() => null)
-    if (!res.ok) throw errorFromResponse(res.status, data, res.headers.get(REQUEST_ID_HEADER) ?? requestId)
-    return data as T
   }
 
   const s = (id: string) => `/api/planner/sessions/${encodeURIComponent(id)}`
@@ -165,25 +183,25 @@ export function createApiClient(options: ApiClientOptions = {}) {
     reference: (o?: O) => request<ReferenceData>('GET', '/api/planner/reference', { signal: o?.signal }),
     createSession: async (language: Language, o?: O) => {
       const res = await request<PlannerResponse>('POST', '/api/planner/sessions',
-        { body: { language }, idempotent: true, signal: o?.signal })
+        { body: { language }, idempotent: true, signal: o?.signal, planner: true })
       sessionToken = res.session_token ?? null
       return res
     },
-    getSession: (id: string, o?: O) => request<PlannerResponse>('GET', s(id), { signal: o?.signal }),
+    getSession: (id: string, o?: O) => request<PlannerResponse>('GET', s(id), { signal: o?.signal, planner: true }),
     sendMessage: (id: string, message: string, language: Language, o?: O) =>
-      request<PlannerResponse>('POST', `${s(id)}/messages`, { body: { message, language }, signal: o?.signal }),
+      request<PlannerResponse>('POST', `${s(id)}/messages`, { body: { message, language }, signal: o?.signal, planner: true }),
     patchJourney: (id: string, patch: JourneyPatch, o?: O) =>
-      request<PlannerResponse>('PATCH', `${s(id)}/journey`, { body: patch, signal: o?.signal }),
+      request<PlannerResponse>('PATCH', `${s(id)}/journey`, { body: patch, signal: o?.signal, planner: true }),
     recommendations: (id: string, o?: O) =>
-      request<PlannerResponse>('POST', `${s(id)}/recommendations`, { idempotent: true, signal: o?.signal }),
+      request<PlannerResponse>('POST', `${s(id)}/recommendations`, { idempotent: true, signal: o?.signal, planner: true }),
     select: (id: string, optionId: string, o?: O) =>
-      request<PlannerResponse>('POST', `${s(id)}/select`, { body: { option_id: optionId }, idempotent: true, signal: o?.signal }),
+      request<PlannerResponse>('POST', `${s(id)}/select`, { body: { option_id: optionId }, idempotent: true, signal: o?.signal, planner: true }),
     confirm: (id: string, optionId: string | null, o?: O) =>
-      request<PlannerResponse>('POST', `${s(id)}/confirm`, { body: { option_id: optionId }, idempotent: true, signal: o?.signal }),
+      request<PlannerResponse>('POST', `${s(id)}/confirm`, { body: { option_id: optionId }, idempotent: true, signal: o?.signal, planner: true }),
     reassess: (id: string, eventId: string | null, o?: O) =>
-      request<PlannerResponse>('POST', `${s(id)}/reassess`, { body: { event_id: eventId }, signal: o?.signal }),
+      request<PlannerResponse>('POST', `${s(id)}/reassess`, { body: { event_id: eventId }, signal: o?.signal, planner: true }),
     cancel: (id: string, o?: O) =>
-      request<PlannerResponse>('POST', `${s(id)}/cancel`, { idempotent: true, signal: o?.signal }),
+      request<PlannerResponse>('POST', `${s(id)}/cancel`, { idempotent: true, signal: o?.signal, planner: true }),
   }
 }
 

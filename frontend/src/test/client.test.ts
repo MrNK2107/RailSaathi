@@ -1,4 +1,4 @@
-import { ApiError, createApiClient, errorFromResponse } from '../api/client'
+import { ApiError, PLANNER_TIMEOUT_MS, READ_TIMEOUT_MS, createApiClient, errorFromResponse } from '../api/client'
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
   Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } }))
@@ -118,6 +118,59 @@ describe('api client', () => {
     const api = createApiClient({ baseUrl: 'http://api', fetchImpl, timeoutMs: 5, retryDelayMs: 0 })
     await expect(api.health()).rejects.toMatchObject({ code: 'timeout' })
     expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the timeout armed while the response body is read', async () => {
+    const fetchImpl = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => Promise.resolve({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: () => new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+      }),
+    } as unknown as Response))
+    const api = createApiClient({ baseUrl: 'http://api', fetchImpl, timeoutMs: 5 })
+    await expect(api.health()).rejects.toMatchObject({ code: 'timeout' })
+  })
+
+  it('a caller abort during the body read is reported as aborted', async () => {
+    const controller = new AbortController()
+    const fetchImpl = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => Promise.resolve({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: () => new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+        setTimeout(() => controller.abort(), 0)
+      }),
+    } as unknown as Response))
+    const api = createApiClient({ baseUrl: 'http://api', fetchImpl })
+    await expect(api.getSession('s1', { signal: controller.signal })).rejects.toMatchObject({ code: 'aborted' })
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
+
+  it('planner calls get a timeout above the backend lock wait + LLM deadline budget', async () => {
+    // Backend defaults: SESSION_LOCK_WAIT_SECONDS=10, LLM_OVERALL_DEADLINE_SECONDS=20 (+ journey search);
+    // Cloud Run request timeout is 60 s (deploy.yml). backend/tests/test_timeout_budget.py checks the same numbers.
+    expect(PLANNER_TIMEOUT_MS).toBeGreaterThanOrEqual((10 + 20 + 10) * 1000)
+    expect(PLANNER_TIMEOUT_MS).toBeLessThan(60_000)
+    expect(READ_TIMEOUT_MS).toBeLessThanOrEqual(PLANNER_TIMEOUT_MS)
+    vi.useFakeTimers()
+    try {
+      const fetchImpl = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+      }))
+      const api = createApiClient({ baseUrl: 'http://api', fetchImpl })
+      const settled = vi.fn()
+      const pending = api.sendMessage('s1', 'hi', 'en').catch((e: ApiError) => { settled(e.code); return e })
+      await vi.advanceTimersByTimeAsync(READ_TIMEOUT_MS + 1)
+      expect(settled).not.toHaveBeenCalled() // a slow LLM turn is still within budget
+      await vi.advanceTimersByTimeAsync(PLANNER_TIMEOUT_MS)
+      await pending
+      expect(settled).toHaveBeenCalledWith('timeout')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('stores the session token from createSession and sends it on later calls', async () => {

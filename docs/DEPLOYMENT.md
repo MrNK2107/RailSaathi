@@ -21,10 +21,14 @@ Two containers, both on Cloud Run:
 - Every replica signs and verifies session tokens with the same `SESSION_SIGNING_KEY` (required in production;
   the app refuses to start without it).
 - Gemini runs on **Vertex AI** with the Cloud Run runtime service account (`LLM_PROVIDER=gemini`,
-  `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`); no API key. Any LLM failure or timeout degrades to the
-  rule-based extractor / rule-based ticketing agent, never a 500. `LLM_OVERALL_DEADLINE_SECONDS` (default 20)
-  bounds a whole planner or agent turn, and the session lock TTL (`SESSION_LOCK_TTL_MS`, default 45 s) is
-  validated to outlive it.
+  `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`); no API key. LLM problems never produce a 500:
+  - planner intent extraction falls back to the rule-based extractor on any LLM failure or timeout;
+  - the ticketing agent uses the rule-based agent only when Gemini is **not configured**; if a configured Gemini
+    fails or times out mid-turn, `/api/chat` returns 200 with `status: "service_unavailable"` and an apology.
+  `LLM_OVERALL_DEADLINE_SECONDS` (default 20) bounds the LLM work of a planner or agent turn (calls, retries and
+  backoff); the session lock TTL (`SESSION_LOCK_TTL_MS`, default 45 s) is validated to outlive it. Other work in a
+  turn (RailRadar searches) has its own timeouts. The browser's planner timeout (45 s) and the Cloud Run request
+  timeout (60 s) sit above that budget; `backend/tests/test_timeout_budget.py` keeps them consistent.
 - Demo data mode (`RAILWAY_DATA_MODE=demo`) is the default. Set the `RAILWAY_DATA_MODE=railradar` repository
   variable and the `RAILRADAR_API_KEY` secret for live train data.
 - The backend data directory is **not** served. The only station assets exposed are
