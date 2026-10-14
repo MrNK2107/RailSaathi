@@ -553,12 +553,50 @@ def test_generated_suffixes_after_an_allowed_url(prefix, suffix):
     _assert_only_allowed_links(sanitize_output(prefix + suffix))
 
 
+# --- review round 5: code points unassigned in Python's Unicode database (letters to newer renderers) ----------
+
+_UNASSIGNED_HERE = chr(0x2EBF0)  # CJK Extension I (Unicode 15.1): a letter to linkify-it / browsers
+_UNASSIGNED_SYMBOL = chr(0x1CC00)  # Unicode 16 block
+_PRIVATE_USE = chr(0xE000)
+ROUND5_VECTORS = [
+    f"see evil{_UNASSIGNED_HERE}.com/p now",
+    f"{_UNASSIGNED_HERE}.com",
+    f"x{_UNASSIGNED_SYMBOL}.com",
+    f"a{_UNASSIGNED_HERE}.b{_UNASSIGNED_HERE}.com",
+    f"x{_PRIVATE_USE}.com",
+    f"see irctc.co.in{_UNASSIGNED_HERE}.evil.com",
+    f"{_UNASSIGNED_HERE}irctc.co.in",
+    f"https://irctc.co.in{_UNASSIGNED_HERE}@evil.com/p",
+]
+
+
+@pytest.mark.parametrize("payload", ROUND5_VECTORS)
+def test_round5_unassigned_and_private_use_code_points_cannot_form_foreign_hosts(payload):
+    out = sanitize_output(payload)
+    assert _UNASSIGNED_HERE not in out and _UNASSIGNED_SYMBOL not in out and _PRIVATE_USE not in out
+    assert "evil" not in out and LINK_REMOVED in out, out
+    _assert_only_allowed_links(out)
+
+
+def test_unassigned_code_points_become_replacement_characters():
+    assert sanitize_output(f"RAC{_UNASSIGNED_HERE}{_PRIVATE_USE} berth") == "RAC" + chr(0xFFFD) * 2 + " berth"
+
+
+@settings(max_examples=600, deadline=None)
+@given(st.lists(st.one_of(st.sampled_from(_PIECES),
+                          st.characters(categories=["Cn", "Co"]),
+                          st.text(st.characters(categories=["Cn", "Co"]), min_size=1, max_size=3)),
+                max_size=20).map("".join))
+def test_generated_text_with_unassigned_and_private_use_code_points(text):
+    _assert_only_allowed_links(sanitize_output(text))
+
+
 @settings(max_examples=300, deadline=None)
 @given(st.text(max_size=60))
 def test_arbitrary_unicode_text(text):
     _assert_only_allowed_links(sanitize_output(text))
 
 
-@pytest.mark.parametrize("payload", ROUND1_VECTORS + ROUND2_VECTORS + ROUND3_VECTORS + ROUND4_VECTORS + INJECTIONS)
+@pytest.mark.parametrize("payload", ROUND1_VECTORS + ROUND2_VECTORS + ROUND3_VECTORS + ROUND4_VECTORS + ROUND5_VECTORS + INJECTIONS)
 def test_corpus_satisfies_the_generative_invariant(payload):
     _assert_only_allowed_links(sanitize_output(payload))

@@ -93,7 +93,8 @@ def fence_tool_output(name: str, result: dict[str, Any], max_chars: int = MAX_FE
 # text is canonicalised first and every later step works on exactly the string the renderer will see:
 # 1. decode HTML entities, NFKC-normalise, map every control / separator character (Unicode Cc, Zs, Zl, Zp and
 #    anything `str.isspace` accepts) except `\n` to an ASCII space and delete every format character (Cf:
-#    zero-width, bidi, soft hyphen ...); repeat until stable (bounded; if it never stabilises every `&` is escaped).
+#    zero-width, bidi, soft hyphen ...) and replace every Cn / Co / Cs code point with U+FFFD (Python's Unicode
+#    database may be older than the renderer's, which can treat them as letters); repeat until stable (bounded; if it never stabilises every `&` is escaped).
 #    Afterwards the only whitespace left is ` ` and `\n`, which every renderer treats as a link terminator;
 # 2. neutralise ALL raw HTML: every `<` / `>` becomes the visible `‹` / `›`;
 # 3. neutralise ALL reference definitions (`]` + optional whitespace + `:` is broken) and demote `![` to `[`;
@@ -138,7 +139,8 @@ _FILE_EXTENSIONS = frozenset({"pdf", "html", "htm", "jsp", "php", "aspx", "txt",
 
 
 class _SeparatorMap(dict):
-    """str.translate table: controls and separators (except newline) become a space, format characters vanish."""
+    """str.translate table: controls and separators (except newline) become a space, format characters vanish,
+    unassigned / private-use / surrogate code points become U+FFFD (a newer Unicode may call them letters)."""
 
     def __missing__(self, code: int) -> int | str | None:
         ch = chr(code)
@@ -148,6 +150,8 @@ class _SeparatorMap(dict):
             value = " "
         elif category == "Cf":
             value = None
+        elif category in ("Cn", "Co", "Cs"):  # unassigned here may be a letter to a newer renderer / browser
+            value = "\ufffd"
         self[code] = value
         return value
 
