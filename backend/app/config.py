@@ -50,7 +50,10 @@ class Settings(BaseSettings):
     max_agent_rounds: int = 4
     max_tool_calls: int = 6
     max_input_length: int = 2000
-    max_history_messages: int = 20
+    max_history_messages: int = Field(default=20, ge=2)  # stored ticketing-chat messages per conversation
+    # Knowledge SQLite: built by `python -m app.knowledge.ingest` at image-build time, opened read-only at runtime.
+    # Outside production a missing or stale file is rebuilt at startup.
+    knowledge_db_path: Path = DB_PATH
 
     # Planning policy
     max_passengers: int = Field(default=6, ge=1, le=20)

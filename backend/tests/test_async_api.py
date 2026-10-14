@@ -42,7 +42,7 @@ def test_chat_degrades_when_the_llm_fails():
     llm = MockChatLLM([LLMError(LLMErrorKind.THROTTLED)])
     r = make_client(chat_llm=llm).post("/api/chat", json={"message": "What is RAC?"})
     assert r.status_code == 200
-    assert r.json()["status"] == "service_unavailable"
+    assert r.json()["status"] == "unavailable"
 
 
 def test_chat_without_llm_uses_rule_based_agent_and_health_says_so():

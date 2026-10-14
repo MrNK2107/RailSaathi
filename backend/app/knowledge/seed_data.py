@@ -1,478 +1,261 @@
 """
 RailSathi AI — Curated Ticketing Knowledge Seed Data
 
-Source-backed Indian Railways ticketing guidance.
-Each guidance record references an authoritative source.
+Guidance, not official policy. Every record is attributed to a public page on an official Indian Railways
+domain (irctc.co.in / indianrail.gov.in) and carries `as_of`, the date the record was written (2026-10-14).
+Rules change: answers built on these records must tell passengers to verify the linked official page before acting.
 
-IMPORTANT: All source URLs and content are based on publicly available
-Indian Railways and IRCTC information. Verification dates reflect the
-date this data was curated, not necessarily the current policy date.
-Users should always verify current rules at official sources.
+Deliberately NOT included: fares, Tatkal surcharges, and exact cancellation amounts or time slabs. These are revised
+from time to time and stating them from memory would risk giving passengers wrong numbers; records point to the
+official refund rules instead.
 """
+
+AS_OF = "2026-10-14"
+
+_IR_STATIC = "https://www.indianrail.gov.in/enquiry/StaticPages/StaticEnquiry.jsp?StaticPage="
+
+_SOURCE_DEFAULTS = {
+    "source_type": "official_web_page",
+    "retrieved_at": AS_OF,
+    "last_verified_at": AS_OF,
+    "as_of": AS_OF,
+    "publication_date": None,
+    "effective_from": None,
+    "effective_until": None,
+    "verification_status": "curated_guidance",
+    "retrieval_status": "success",
+}
 
 SOURCES = [
     {
-        "source_id": "src-irctc-classes",
-        "title": "IRCTC Train Classes and Accommodation Types",
-        "publisher": "IRCTC / Indian Railways",
-        "source_url": "https://www.irctc.co.in/nget/train-list",
-        "source_type": "official_documentation",
-        "retrieved_at": "2026-01-15",
-        "last_verified_at": "2026-01-15",
-        "publication_date": None,
-        "effective_from": None,
-        "effective_until": None,
-        "verification_status": "manually_verified",
-        "retrieval_status": "success",
-        "notes": "Information about Indian Railways travel classes compiled from official IRCTC booking interface and Indian Railways documentation.",
-    },
-    {
-        "source_id": "src-irctc-booking",
-        "title": "IRCTC Online Ticket Booking Process",
+        **_SOURCE_DEFAULTS,
+        "source_id": "src-irctc-train-search",
+        "title": "IRCTC Next Generation e-Ticketing: train search and booking",
         "publisher": "IRCTC",
         "source_url": "https://www.irctc.co.in/nget/train-search",
-        "source_type": "official_documentation",
-        "retrieved_at": "2026-01-15",
-        "last_verified_at": "2026-01-15",
-        "verification_status": "manually_verified",
-        "retrieval_status": "success",
-        "notes": "Official IRCTC online booking steps and requirements.",
+        "notes": "Official IRCTC booking site. Travel classes, quotas and the booking flow are shown in the search "
+                 "and booking screens. Guidance compiled by RailSaathi; verify on the site.",
     },
     {
-        "source_id": "src-irctc-reservation",
-        "title": "Indian Railways Reservation Status Terminology",
-        "publisher": "Indian Railways",
-        "source_url": "https://www.indianrail.gov.in/enquiry/StaticPages/StaticEnquiry.jsp?StaticPage=PNR_help.html",
-        "source_type": "official_documentation",
-        "retrieved_at": "2026-01-15",
-        "last_verified_at": "2026-01-15",
-        "verification_status": "manually_verified",
-        "retrieval_status": "success",
-        "notes": "PNR status terminology and reservation status explanations.",
+        **_SOURCE_DEFAULTS,
+        "source_id": "src-ir-pnr-enquiry",
+        "title": "Indian Railways Passenger Reservation Enquiry: PNR status",
+        "publisher": "Indian Railways (CRIS)",
+        "source_url": "https://www.indianrail.gov.in/enquiry/PNR/PnrEnquiry.html?locale=en",
+        "notes": "Official PNR enquiry, which shows booking and current status (CNF / RAC / WL).",
     },
     {
-        "source_id": "src-irctc-refund",
-        "title": "Indian Railways Cancellation and Refund Rules",
-        "publisher": "Indian Railways",
-        "source_url": "https://www.irctc.co.in/nget/cancellation-refund-rules",
-        "source_type": "official_documentation",
-        "retrieved_at": "2026-01-15",
-        "last_verified_at": "2026-01-15",
-        "verification_status": "manually_verified",
-        "retrieval_status": "success",
-        "notes": "Cancellation charges and refund rules for tickets booked through IRCTC. Rules may be updated by Indian Railways; passengers should verify current rules before cancellation.",
+        **_SOURCE_DEFAULTS,
+        "source_id": "src-ir-quota-codes",
+        "title": "Indian Railways Passenger Reservation Enquiry: quota codes",
+        "publisher": "Indian Railways (CRIS)",
+        "source_url": _IR_STATIC + "quota_Code.html&locale=en",
+        "notes": "Official list of reservation quota codes, linked from the enquiry portal's View Codes menu.",
+    },
+    {
+        **_SOURCE_DEFAULTS,
+        "source_id": "src-ir-tatkal-scheme",
+        "title": "Indian Railways Passenger Reservation Enquiry: Tatkal scheme",
+        "publisher": "Indian Railways (CRIS)",
+        "source_url": _IR_STATIC + "tatkal_Scheme.html&locale=en",
+        "notes": "Official Tatkal scheme page, linked from the enquiry portal's View Codes menu.",
+    },
+    {
+        **_SOURCE_DEFAULTS,
+        "source_id": "src-ir-refund-rules",
+        "title": "Indian Railways Passenger Reservation Enquiry: refund rules",
+        "publisher": "Indian Railways (CRIS)",
+        "source_url": _IR_STATIC + "refund_Rules.html&locale=en",
+        "notes": "Official cancellation and refund rules, linked from the enquiry portal's Rules menu. Charges and "
+                 "time windows are revised from time to time; this page is the authority.",
     },
 ]
 
+
+def _rule(guidance_id: str, topic: str, question: str, answer: str, source_id: str, excerpt: str,
+          conditions: list[str] | None = None, exceptions: list[str] | None = None) -> dict:
+    return {
+        "guidance_id": guidance_id,
+        "topic": topic,
+        "question": question,
+        "answer_text": answer,
+        "conditions": conditions or [],
+        "exceptions": exceptions or [],
+        "source_id": source_id,
+        "source_excerpt": excerpt,
+        "last_verified_at": AS_OF,
+        "as_of": AS_OF,
+        "status": "active",
+    }
+
+
+_CLASSES = "src-irctc-train-search"
+_STATUS = "src-ir-pnr-enquiry"
+_REFUND = "src-ir-refund-rules"
+
 GUIDANCE_RECORDS = [
     # === TICKET CLASSES ===
-    {
-        "guidance_id": "tc-sl",
-        "topic": "ticket_class",
-        "question": "What is Sleeper (SL) class?",
-        "answer_text": (
-            "Sleeper Class (SL) is one of the most popular and economical classes in Indian Railways "
-            "for long-distance travel. It provides sleeping berths arranged in a three-tier configuration. "
-            "Each bay has 6 berths: 2 lower, 2 middle, and 2 upper berths, plus 2 side berths (upper and lower). "
-            "SL class does not have air conditioning. Bedding is not provided; passengers typically carry their own. "
-            "Sleeper class is available on most Mail, Express, and Superfast trains."
-        ),
-        "conditions": [
-            "No air conditioning is provided",
-            "Bedding and linen are not included",
-            "Available on Mail, Express, and Superfast trains",
-            "Reservation is mandatory",
-        ],
-        "exceptions": [
-            "Not available on Rajdhani, Shatabdi, or fully AC trains",
-        ],
-        "source_id": "src-irctc-classes",
-        "source_excerpt": "SL — Sleeper Class: Non-AC sleeping accommodation with three-tier berths.",
-        "last_verified_at": "2026-01-15",
-        "status": "active",
-    },
-    {
-        "guidance_id": "tc-3a",
-        "topic": "ticket_class",
-        "question": "What is Third AC (3A) class?",
-        "answer_text": (
-            "Third AC (3A) is an air-conditioned class with three-tier sleeping berths. "
-            "The layout is similar to Sleeper class with 6 berths per bay plus 2 side berths, "
-            "but all compartments are air-conditioned. Bedding (blanket, pillow, and bed sheet) is "
-            "provided by Indian Railways. Curtains are available for privacy. "
-            "3A is more affordable than 2A and 1A while offering AC comfort. "
-            "It is available on most long-distance Mail, Express, Superfast, and Rajdhani trains."
-        ),
-        "conditions": [
-            "Air-conditioned with three-tier berths",
-            "Bedding and linen are provided",
-            "Available on most long-distance trains",
-            "Reservation is mandatory",
-        ],
-        "exceptions": [],
-        "source_id": "src-irctc-classes",
-        "source_excerpt": "3A — Third AC: Air-conditioned sleeper with three-tier berths and bedding provided.",
-        "last_verified_at": "2026-01-15",
-        "status": "active",
-    },
-    {
-        "guidance_id": "tc-2a",
-        "topic": "ticket_class",
-        "question": "What is Second AC (2A) class?",
-        "answer_text": (
-            "Second AC (2A) is an air-conditioned class with two-tier sleeping berths. "
-            "Each bay has 4 berths: 2 lower and 2 upper, plus 2 side berths. "
-            "It offers more space and privacy than 3A, with thick curtains separating each bay. "
-            "Bedding (blanket, pillow, and bed sheet) is provided. "
-            "2A is a premium class available on most long-distance trains including "
-            "Rajdhani, Duronto, and Superfast trains."
-        ),
-        "conditions": [
-            "Air-conditioned with two-tier berths",
-            "Bedding and linen are provided",
-            "More spacious than 3A",
-            "Curtains provided for privacy",
-            "Reservation is mandatory",
-        ],
-        "exceptions": [],
-        "source_id": "src-irctc-classes",
-        "source_excerpt": "2A — Second AC: Air-conditioned sleeper with two-tier berths, bedding, and curtains.",
-        "last_verified_at": "2026-01-15",
-        "status": "active",
-    },
-    {
-        "guidance_id": "tc-1a",
-        "topic": "ticket_class",
-        "question": "What is First AC (1A) class?",
-        "answer_text": (
-            "First AC (1A) is the most premium class in Indian Railways. "
-            "It features private cabins (coupes) with lockable doors, accommodating 2 or 4 passengers. "
-            "It is fully air-conditioned with bedding, linen, and individual reading lights. "
-            "1A offers the highest level of privacy and comfort. "
-            "It is available on select long-distance trains and Rajdhani Express services."
-        ),
-        "conditions": [
-            "Air-conditioned with private lockable cabins",
-            "Bedding, linen, and individual reading lights provided",
-            "Most expensive reserved class",
-            "Limited availability — not on all trains",
-            "Reservation is mandatory",
-        ],
-        "exceptions": [],
-        "source_id": "src-irctc-classes",
-        "source_excerpt": "1A — First AC: Premium AC class with private lockable cabins.",
-        "last_verified_at": "2026-01-15",
-        "status": "active",
-    },
-    {
-        "guidance_id": "tc-cc",
-        "topic": "ticket_class",
-        "question": "What is AC Chair Car (CC) class?",
-        "answer_text": (
-            "AC Chair Car (CC) is an air-conditioned seating class available on shorter-distance "
-            "trains such as Shatabdi Express, Jan Shatabdi, and some Intercity trains. "
-            "It provides reserved, reclining, cushioned seats arranged in rows (typically 3+2 configuration). "
-            "It does not have sleeping berths. Suitable for daytime journeys."
-        ),
-        "conditions": [
-            "Air-conditioned seating only — no sleeping berths",
-            "Available on Shatabdi, Jan Shatabdi, and select day trains",
-            "Reservation is mandatory",
-        ],
-        "exceptions": [],
-        "source_id": "src-irctc-classes",
-        "source_excerpt": "CC — AC Chair Car: Air-conditioned reserved seating for day travel.",
-        "last_verified_at": "2026-01-15",
-        "status": "active",
-    },
-    {
-        "guidance_id": "tc-3e",
-        "topic": "ticket_class",
-        "question": "What is Third AC Economy (3E) class?",
-        "answer_text": (
-            "Third AC Economy (3E) is a relatively newer class introduced on select trains. "
-            "It has a layout similar to 3A but with modifications to accommodate more passengers — "
-            "typically with side berths arranged in a three-tier (instead of two-tier) configuration on "
-            "one side. It is air-conditioned and bedding may be provided, though policies may vary. "
-            "3E is priced lower than standard 3A."
-        ),
-        "conditions": [
-            "Air-conditioned with modified three-tier layout",
-            "Available on select trains only",
-            "Priced lower than 3A",
-            "Reservation is mandatory",
-        ],
-        "exceptions": [
-            "Bedding policy may vary by train — verify at the time of booking",
-        ],
-        "source_id": "src-irctc-classes",
-        "source_excerpt": "3E — Third AC Economy: AC class with higher capacity at reduced fare.",
-        "last_verified_at": "2026-01-15",
-        "status": "active",
-    },
+    _rule("tc-codes", "ticket_class", "What do the class codes 1A, 2A, 3A, 3E, SL, CC, EC and 2S mean?",
+          "Indian Railways travel classes are shown by short codes when you search for trains: "
+          "1A = AC First Class, 2A = AC 2 Tier, 3A = AC 3 Tier, 3E = AC 3 Tier Economy, SL = Sleeper Class, "
+          "CC = AC Chair Car, EC = Executive Chair Car, 2S = Second Sitting. Not every train has every class; "
+          "the classes a train offers are listed when you search for it on IRCTC.",
+          _CLASSES, "Class codes: 1A, 2A, 3A, 3E, SL, CC, EC, 2S.",
+          ["The classes available differ from train to train"]),
+    _rule("tc-sl", "ticket_class", "What is Sleeper (SL) class?",
+          "Sleeper Class (SL) is the non-air-conditioned reserved class with three-tier sleeping berths (lower, "
+          "middle and upper, plus side berths). It is the most economical reserved sleeping class on long-distance "
+          "Mail and Express trains. Bedding is not supplied in Sleeper Class.",
+          _CLASSES, "SL: Sleeper Class, non-AC three-tier berths.",
+          ["No air conditioning", "Bedding is not supplied", "Reservation is required"],
+          ["Fully air-conditioned trains do not have Sleeper Class"]),
+    _rule("tc-3a", "ticket_class", "What is AC 3 Tier (3A) class?",
+          "AC 3 Tier (3A) is an air-conditioned class with three-tier sleeping berths (lower, middle and upper, "
+          "plus side berths). Bedding is normally supplied. It costs more than Sleeper and less than AC 2 Tier.",
+          _CLASSES, "3A: AC 3 Tier, air-conditioned three-tier berths.",
+          ["Air-conditioned three-tier berths", "Reservation is required"]),
+    _rule("tc-3e", "ticket_class", "What is AC 3 Tier Economy (3E) class?",
+          "AC 3 Tier Economy (3E) is an air-conditioned three-tier sleeping class whose coaches carry more berths "
+          "than a standard 3A coach, and it is priced below 3A. It is offered only on some trains, and amenities can "
+          "differ from 3A; check the train's details on IRCTC.",
+          _CLASSES, "3E: AC 3 Tier Economy, offered on selected trains.",
+          ["Available on selected trains only"], ["Amenities may differ from 3A; verify for your train"]),
+    _rule("tc-2a", "ticket_class", "What is AC 2 Tier (2A) class?",
+          "AC 2 Tier (2A) is an air-conditioned class with two-tier sleeping berths (lower and upper, plus side "
+          "berths), giving more headroom and privacy than 3A. Bedding is normally supplied.",
+          _CLASSES, "2A: AC 2 Tier, air-conditioned two-tier berths.",
+          ["Air-conditioned two-tier berths", "Reservation is required"]),
+    _rule("tc-1a", "ticket_class", "What is AC First Class (1A)?",
+          "AC First Class (1A) is the highest regular class: air-conditioned lockable cabins (two-berth coupes and "
+          "four-berth cabins) with bedding supplied. It is offered only on some trains.",
+          _CLASSES, "1A: AC First Class, lockable cabins and coupes.",
+          ["Offered only on some trains", "Reservation is required"]),
+    _rule("tc-cc", "ticket_class", "What is AC Chair Car (CC)?",
+          "AC Chair Car (CC) is an air-conditioned reserved seating class (no berths), used on day trains such as "
+          "Shatabdi, Jan Shatabdi, Vande Bharat and some Intercity services.",
+          _CLASSES, "CC: AC Chair Car, air-conditioned reserved seats.",
+          ["Seats only, no berths", "Reservation is required"]),
+    _rule("tc-ec", "ticket_class", "What is Executive Chair Car (EC)?",
+          "Executive Chair Car (EC) is the premium air-conditioned seating class on day trains such as Shatabdi "
+          "and Vande Bharat, with wider seats than AC Chair Car.",
+          _CLASSES, "EC: Executive Chair Car, premium AC seating.",
+          ["Seats only, no berths", "Offered only on some day trains"]),
+    _rule("tc-2s", "ticket_class", "What is Second Sitting (2S)?",
+          "Second Sitting (2S) is the non-air-conditioned reserved seating class: a reserved seat, no berth. "
+          "It is the most economical reserved class.",
+          _CLASSES, "2S: Second Sitting, non-AC reserved seats.",
+          ["No air conditioning", "Seats only, no berths"]),
     # === RESERVATION STATUS ===
-    {
-        "guidance_id": "rs-cnf",
-        "topic": "reservation_status",
-        "question": "What does CNF (Confirmed) status mean?",
-        "answer_text": (
-            "CNF (Confirmed) means that the ticket has a confirmed seat or berth allocation. "
-            "The passenger has a guaranteed place on the train and can travel on the ticket. "
-            "A confirmed ticket will show the specific coach number and berth/seat number on the "
-            "reservation chart. The passenger can board the assigned coach and occupy the allotted berth."
-        ),
-        "conditions": [
-            "Passenger has a guaranteed berth or seat",
-            "Coach and berth number are assigned",
-            "Passenger can travel on the booked train",
-        ],
-        "exceptions": [],
-        "source_id": "src-irctc-reservation",
-        "source_excerpt": "CNF/Confirmed — Ticket with confirmed seat/berth allocation.",
-        "last_verified_at": "2026-01-15",
-        "status": "active",
-    },
-    {
-        "guidance_id": "rs-rac",
-        "topic": "reservation_status",
-        "question": "What does RAC (Reservation Against Cancellation) status mean?",
-        "answer_text": (
-            "RAC (Reservation Against Cancellation) means the passenger has a partial reservation. "
-            "RAC passengers are allowed to board the train and are typically given a shared berth "
-            "(usually a side-lower berth shared between two RAC passengers as sitting accommodation). "
-            "If confirmed passengers cancel their tickets, RAC tickets may get upgraded to CNF status. "
-            "RAC passengers can travel on the train — they are not denied boarding."
-        ),
-        "conditions": [
-            "Passenger is allowed to board and travel",
-            "Typically assigned shared sitting accommodation (side-lower berth)",
-            "May be upgraded to confirmed if cancellations occur",
-            "RAC status can change up to chart preparation time",
-        ],
-        "exceptions": [
-            "The specific sharing arrangement may vary by train type",
-        ],
-        "source_id": "src-irctc-reservation",
-        "source_excerpt": "RAC — Reservation Against Cancellation: Passenger can board with shared berth; may be upgraded to confirmed.",
-        "last_verified_at": "2026-01-15",
-        "status": "active",
-    },
-    {
-        "guidance_id": "rs-wl",
-        "topic": "reservation_status",
-        "question": "What does WL (Waitlisted) status mean?",
-        "answer_text": (
-            "WL (Waitlisted) means the passenger does not currently have a confirmed seat or berth. "
-            "Waitlisted passengers are placed in a queue. If passengers ahead in the queue cancel "
-            "their tickets, the waitlist moves up. If a WL ticket does not move to RAC or CNF status "
-            "before the final chart preparation, the ticket is automatically cancelled and the fare is "
-            "refunded (for e-tickets booked through IRCTC). Waitlisted passengers whose tickets remain "
-            "WL after chart preparation are generally not permitted to board the train."
-        ),
-        "conditions": [
-            "No confirmed seat or berth — passenger is in a queue",
-            "May move to RAC or CNF if cancellations occur",
-            "E-tickets booked via IRCTC are auto-cancelled if still WL after chart preparation",
-            "Passengers with WL status after chart preparation should not board",
-        ],
-        "exceptions": [
-            "Counter tickets (booked at railway station) have different WL handling rules",
-            "Different waitlist types exist: GNWL, RLWL, PQWL, etc., with different queue priorities",
-        ],
-        "source_id": "src-irctc-reservation",
-        "source_excerpt": "WL — Waitlisted: No confirmed berth; auto-cancelled for e-tickets if not confirmed by chart time.",
-        "last_verified_at": "2026-01-15",
-        "status": "active",
-    },
-    {
-        "guidance_id": "rs-wl-types",
-        "topic": "reservation_status",
-        "question": "What are the different types of waitlists (GNWL, RLWL, PQWL)?",
-        "answer_text": (
-            "Indian Railways maintains several waitlist queues:\n\n"
-            "• GNWL (General Waitlist): The main waitlist for the entire journey from originating station. "
-            "This typically has the best chance of confirmation.\n\n"
-            "• RLWL (Remote Location Waitlist): For passengers boarding from an intermediate station. "
-            "Moves independently and generally has lower confirmation chances than GNWL.\n\n"
-            "• PQWL (Pooled Quota Waitlist): For journeys between intermediate stations. "
-            "Has a separate, usually smaller, quota and lower confirmation chances.\n\n"
-            "The type of waitlist depends on the boarding and destination stations relative to "
-            "the train's originating and terminating stations."
-        ),
-        "conditions": [
-            "GNWL generally has the best confirmation chances",
-            "RLWL and PQWL have independent, typically smaller quotas",
-            "Waitlist type is determined by your boarding and destination stations",
-        ],
-        "exceptions": [
-            "Some trains have additional quota types (ladies, defence, tatkal, etc.)",
-        ],
-        "source_id": "src-irctc-reservation",
-        "source_excerpt": "Waitlist types include GNWL, RLWL, PQWL based on boarding/destination stations.",
-        "last_verified_at": "2026-01-15",
-        "status": "active",
-    },
+    _rule("rs-cnf", "reservation_status", "What does CNF (confirmed) status mean?",
+          "CNF means the ticket has a confirmed berth or seat. Once the reservation chart is prepared, the coach "
+          "and berth or seat number are shown against the PNR.",
+          _STATUS, "CNF: confirmed berth or seat.",
+          ["You can board and use the allotted berth or seat"]),
+    _rule("rs-rac", "reservation_status", "What does RAC (Reservation Against Cancellation) mean?",
+          "RAC means you may board and travel, but you are given a shared berth (typically one side-lower berth "
+          "shared by two RAC passengers) rather than a full berth. If confirmed passengers cancel, an RAC ticket can "
+          "move up to CNF before the chart is prepared.",
+          _STATUS, "RAC: may board with shared accommodation; can be upgraded to confirmed.",
+          ["RAC passengers may board and travel", "The status can change until the chart is prepared"]),
+    _rule("rs-wl", "reservation_status", "What does WL (waitlisted) status mean?",
+          "WL means you do not have a berth or seat yet; you are in a queue that moves up as others cancel. A "
+          "waitlisted e-ticket (booked on IRCTC) that is still fully waitlisted when the chart is prepared is "
+          "cancelled automatically and the refund goes to the original payment account. Passengers whose e-ticket "
+          "is still fully waitlisted after charting are not allowed to travel on it.",
+          _STATUS, "WL: waitlisted; fully waitlisted e-tickets are dropped at charting and refunded.",
+          ["Check the latest status with your PNR before going to the station",
+           "Fully waitlisted e-tickets are cancelled automatically at chart preparation"],
+          ["Counter (paper) tickets are handled differently from e-tickets",
+           "The refund for an automatically cancelled e-ticket can be subject to a small clerkage charge; "
+           "see the official refund rules"]),
+    _rule("rs-wl-types", "reservation_status", "What are GNWL, RLWL and PQWL waitlists?",
+          "Trains keep separate waitlists depending on where you board and get off. GNWL (general waitlist) is for "
+          "journeys from or near the train's origin and usually clears most often. RLWL (remote location waitlist) "
+          "is for journeys from certain intermediate stations, and PQWL (pooled quota waitlist) is for shorter "
+          "journeys between intermediate stations; these have smaller quotas and usually clear less often. "
+          "Quota codes are listed on the official enquiry portal.",
+          "src-ir-quota-codes", "Waitlist types follow the quota the ticket is booked under: GNWL, RLWL, PQWL.",
+          ["Which waitlist you join depends on your boarding and destination stations"],
+          ["Other quotas (for example Tatkal, ladies, senior citizen) have their own rules"]),
+    _rule("rs-chart", "reservation_status", "When does my waitlisted or RAC status become final?",
+          "Status keeps changing until the reservation chart is prepared before the train departs. After charting, "
+          "the PNR shows the final status and, for confirmed passengers, the coach and berth. Check your PNR on the "
+          "official enquiry site close to departure.",
+          _STATUS, "Status is final once the reservation chart is prepared.",
+          ["Check the PNR status close to departure"]),
     # === BOOKING PROCESS ===
-    {
-        "guidance_id": "bp-irctc-online",
-        "topic": "booking_process",
-        "question": "How do I book a train ticket online through IRCTC?",
-        "answer_text": (
-            "To book a train ticket online through IRCTC:\n\n"
-            "1. Visit the official IRCTC website (https://www.irctc.co.in) or use the IRCTC Rail Connect mobile app.\n\n"
-            "2. Log in with your registered IRCTC account. If you don't have one, register first by providing your "
-            "name, email, phone number, and creating a username and password.\n\n"
-            "3. On the booking page, enter: From station, To station, Date of journey, Class preference, "
-            "and Quota (General, Tatkal, Ladies, etc.).\n\n"
-            "4. Search for available trains. Review the train options, availability status, and fares.\n\n"
-            "5. Select a train and class. Click 'Book Now'.\n\n"
-            "6. Enter passenger details: Name, Age, Gender, Berth preference (optional), and ID card type "
-            "for the journey.\n\n"
-            "7. Review the booking summary and proceed to payment.\n\n"
-            "8. Complete payment through the available payment options (UPI, net banking, credit/debit card, etc.).\n\n"
-            "9. Upon successful payment, you will receive an e-ticket with PNR number via email and SMS.\n\n"
-            "Note: This is guidance on the official process. RailSathi does not perform actual bookings."
-        ),
-        "conditions": [
-            "A registered IRCTC account is required",
-            "A valid email and phone number are required for registration",
-            "Booking opens at specific times depending on quota (e.g., Tatkal at 10:00 AM for AC, 11:00 AM for non-AC)",
-            "Payment must be completed within the allotted time",
-            "Maximum 6 passengers per booking (subject to rules)",
-        ],
-        "exceptions": [
-            "Tatkal booking has specific timing and additional charges",
-            "Foreign tourists may have different registration requirements",
-        ],
-        "source_id": "src-irctc-booking",
-        "source_excerpt": "IRCTC online booking: Register → Search trains → Enter passenger details → Pay → Receive e-ticket.",
-        "last_verified_at": "2026-01-15",
-        "status": "active",
-    },
-    {
-        "guidance_id": "bp-counter",
-        "topic": "booking_process",
-        "question": "How do I book a ticket at a railway station counter?",
-        "answer_text": (
-            "To book a ticket at a railway station reservation counter:\n\n"
-            "1. Visit the nearest railway station with a computerized reservation counter.\n\n"
-            "2. Obtain a reservation form from the counter or designated forms area.\n\n"
-            "3. Fill in the reservation form with: Train number/name, Date of journey, From and To stations, "
-            "Class, Passenger details (name, age, gender), and contact information.\n\n"
-            "4. Submit the form at the counter.\n\n"
-            "5. Pay the fare in cash or through accepted payment methods.\n\n"
-            "6. Collect your printed ticket with PNR number.\n\n"
-            "Counter booking is subject to the reservation counter's operating hours. "
-            "Some stations have separate counters for current booking and advance reservation."
-        ),
-        "conditions": [
-            "Reservation counters have specific operating hours",
-            "A filled reservation form is required",
-            "Advance reservation is available up to 120 days before the journey date (subject to rules)",
-            "Payment can typically be made in cash",
-        ],
-        "exceptions": [
-            "Counter-booked tickets have different cancellation rules than e-tickets",
-            "Some stations may have limited counter availability",
-        ],
-        "source_id": "src-irctc-booking",
-        "source_excerpt": "Counter booking: Fill reservation form → Submit at counter → Pay → Collect ticket.",
-        "last_verified_at": "2026-01-15",
-        "status": "active",
-    },
+    _rule("bp-irctc-online", "booking_process", "How do I book a train ticket online on IRCTC?",
+          "1. Open the official IRCTC site (https://www.irctc.co.in) or the IRCTC Rail Connect app and log in with "
+          "your registered IRCTC account (register first if you do not have one).\n"
+          "2. Enter the from and to stations, journey date, class and quota (for example General or Tatkal), then "
+          "search.\n"
+          "3. Check the availability shown for each train and class (AVAILABLE, RAC or WL) and pick one.\n"
+          "4. Enter passenger details and review the summary.\n"
+          "5. Pay with one of the offered payment options. The e-ticket and PNR are sent by SMS and e-mail.\n"
+          "RailSaathi only gives guidance; it never books or pays for tickets.",
+          _CLASSES, "IRCTC online booking: log in, search, choose train and class, add passengers, pay.",
+          ["A registered IRCTC account is required",
+           "Bookings open only within the advance reservation period"],
+          ["Tatkal booking has its own opening times and rules"]),
+    _rule("bp-advance-period", "booking_process", "How many days in advance can I book a train ticket?",
+          "For most trains, general-quota reservations open 60 days in advance, not counting the date of journey "
+          "(this window was reduced from 120 days with effect from 1 November 2024). Some trains, such as certain "
+          "day trains, have shorter windows. The IRCTC search only offers dates that are open for booking.",
+          _CLASSES, "Advance reservation period: 60 days excluding the date of journey (from 1 November 2024).",
+          ["The window does not count the date of journey"],
+          ["Some trains have a shorter advance reservation period", "Foreign tourist quota rules differ"]),
+    _rule("bp-counter", "booking_process", "How do I book a ticket at a railway station counter?",
+          "At a computerised reservation counter, fill in a reservation requisition form (train, date, stations, "
+          "class and passenger details), hand it in at the counter and pay. You receive a printed ticket with the "
+          "PNR. Counter tickets follow the same advance reservation period as online bookings.",
+          _CLASSES, "Counter booking: requisition form, pay at the counter, printed ticket with PNR.",
+          ["Counters have fixed opening hours"],
+          ["Counter tickets are cancelled at a counter, and some refund rules differ from e-tickets"]),
+    _rule("bp-tatkal-window", "booking_process", "When does Tatkal booking open?",
+          "Tatkal booking opens one day before the date of journey (not counting the journey date, counted from the "
+          "train's originating station): at 10:00 for AC classes and at 11:00 for non-AC classes. Tatkal tickets "
+          "cost more than general-quota tickets and are limited in number, so they often sell out within minutes.",
+          "src-ir-tatkal-scheme", "Tatkal: opens one day in advance, 10:00 for AC classes, 11:00 for non-AC.",
+          ["One day in advance, excluding the date of journey", "AC classes 10:00, non-AC classes 11:00",
+           "Tatkal charges are added to the fare"],
+          ["Check the official Tatkal scheme page for current identity and passenger-limit rules"]),
     # === CANCELLATION & REFUND ===
-    {
-        "guidance_id": "cr-general",
-        "topic": "cancellation_refund",
-        "question": "What are the general cancellation and refund rules for Indian Railways tickets?",
-        "answer_text": (
-            "General cancellation and refund rules for Indian Railways:\n\n"
-            "• Confirmed tickets (CNF): Cancellation charges are deducted from the fare based on "
-            "how much time before departure the cancellation is made. The remaining amount is refunded.\n\n"
-            "• RAC tickets: Can be cancelled with applicable cancellation charges similar to confirmed tickets.\n\n"
-            "• Waitlisted (WL) e-tickets: If still waitlisted at chart preparation, the ticket is "
-            "automatically cancelled and a full refund is processed. If you cancel a WL e-ticket before "
-            "chart preparation, a nominal cancellation charge may apply.\n\n"
-            "• Cancellation charges typically increase as the departure time approaches.\n\n"
-            "• Tatkal tickets have different (typically higher) cancellation charges and restrictions.\n\n"
-            "IMPORTANT: Cancellation charges and refund amounts are subject to change by Indian Railways. "
-            "Always verify the current rules on the IRCTC website or at the railway station before cancelling."
-        ),
-        "conditions": [
-            "Cancellation charges vary based on time before departure",
-            "Charges vary by class and ticket type",
-            "E-ticket cancellation can be done online through IRCTC",
-            "Counter-ticket cancellation must be done at a railway station counter",
-            "Refund processing time may vary",
-        ],
-        "exceptions": [
-            "Tatkal tickets have special cancellation rules with higher charges or no refund in some cases",
-            "Partially confirmed group tickets have specific rules",
-            "Train cancellation by railways entitles a full refund",
-        ],
-        "source_id": "src-irctc-refund",
-        "source_excerpt": "Cancellation charges vary by time before departure, class, and ticket type. WL e-tickets are auto-refunded.",
-        "last_verified_at": "2026-01-15",
-        "status": "active",
-    },
-    {
-        "guidance_id": "cr-eticket",
-        "topic": "cancellation_refund",
-        "question": "How do I cancel an e-ticket booked through IRCTC?",
-        "answer_text": (
-            "To cancel an e-ticket booked through IRCTC:\n\n"
-            "1. Log in to the IRCTC website (https://www.irctc.co.in) or IRCTC Rail Connect app.\n\n"
-            "2. Go to 'My Transactions' or 'Booked Ticket History'.\n\n"
-            "3. Find the ticket you want to cancel using the PNR number or booking date.\n\n"
-            "4. Click on 'Cancel Ticket'. You can cancel individual passengers or the entire ticket.\n\n"
-            "5. Confirm the cancellation.\n\n"
-            "6. The refund (after deducting applicable cancellation charges) is processed to the "
-            "original payment method. Refund processing time varies.\n\n"
-            "Note: Online cancellation through IRCTC is available up to a certain time before departure. "
-            "After that window, you may need to file a TDR (Ticket Deposit Receipt) for a refund claim."
-        ),
-        "conditions": [
-            "Must be logged into the IRCTC account that booked the ticket",
-            "Online cancellation available up to a specified time before departure",
-            "Refund is processed to the original payment method",
-            "Cancellation charges are deducted from the refund",
-        ],
-        "exceptions": [
-            "After chart preparation, only specific cancellation scenarios may be eligible",
-            "TDR can be filed for special cases like train cancellation or late arrival",
-        ],
-        "source_id": "src-irctc-refund",
-        "source_excerpt": "E-ticket cancellation: Log in to IRCTC → My Transactions → Cancel Ticket → Refund to original payment method.",
-        "last_verified_at": "2026-01-15",
-        "status": "active",
-    },
-    {
-        "guidance_id": "cr-tatkal",
-        "topic": "cancellation_refund",
-        "question": "What are the cancellation rules for Tatkal tickets?",
-        "answer_text": (
-            "Tatkal ticket cancellation rules are generally stricter than regular tickets:\n\n"
-            "• Confirmed Tatkal tickets: Refund is generally NOT provided for cancellation of "
-            "confirmed Tatkal tickets by the passenger. The ticket is treated as a no-refund cancellation.\n\n"
-            "• Waitlisted Tatkal e-tickets: If the ticket remains waitlisted and is auto-cancelled at "
-            "chart preparation, a full refund of the fare (including Tatkal charges) is provided.\n\n"
-            "• If the train is cancelled or significantly delayed by Indian Railways, Tatkal passengers "
-            "may be eligible for a refund through TDR.\n\n"
-            "IMPORTANT: These rules are subject to change. Verify the current Tatkal cancellation policy "
-            "on the IRCTC website before booking."
-        ),
-        "conditions": [
-            "Confirmed Tatkal tickets generally have no refund on passenger-initiated cancellation",
-            "Waitlisted Tatkal e-tickets auto-cancelled at chart time get a full refund",
-            "Tatkal charges are in addition to the base fare",
-        ],
-        "exceptions": [
-            "Railway-side cancellations or significant delays may allow TDR-based refund",
-            "Rules may differ between AC and non-AC Tatkal",
-        ],
-        "source_id": "src-irctc-refund",
-        "source_excerpt": "Tatkal confirmed tickets: generally no refund on passenger cancellation. WL Tatkal: full refund if auto-cancelled.",
-        "last_verified_at": "2026-01-15",
-        "status": "active",
-    },
+    _rule("cr-general", "cancellation_refund", "How are cancellation charges and refunds worked out?",
+          "For a confirmed ticket, the cancellation charge depends on the class and on how long before the train's "
+          "scheduled departure you cancel: cancelling earlier costs less, and close to departure the refund can be "
+          "small or nil. RAC and waitlisted tickets have a separate, lower charge if cancelled in time. These time "
+          "windows and charges are revised from time to time, so RailSaathi does not quote amounts: check the "
+          "current slabs on the official refund rules page before you cancel.",
+          _REFUND, "Cancellation charges depend on class and time before departure; see the official slabs.",
+          ["Charges vary by class and by time before scheduled departure",
+           "E-tickets are cancelled online; counter tickets at a counter"],
+          ["Tatkal tickets have their own rules", "A train cancelled by the railways gets a full refund"]),
+    _rule("cr-eticket", "cancellation_refund", "How do I cancel an IRCTC e-ticket?",
+          "Log in to the IRCTC site or app with the account that booked the ticket, open your booked tickets "
+          "(My Transactions / Booked Ticket History), select the PNR and the passengers to cancel, and confirm. "
+          "The refund, after any cancellation charge, goes back to the original payment method. If online "
+          "cancellation is no longer allowed for your case, a TDR (Ticket Deposit Receipt) may be filed instead.",
+          _REFUND, "E-ticket cancellation: IRCTC account, booked tickets, cancel; refund to the original payment.",
+          ["Use the IRCTC account that booked the ticket", "Refunds go to the original payment method"],
+          ["Some situations need a TDR instead of a normal cancellation"]),
+    _rule("cr-tatkal", "cancellation_refund", "Can I get a refund if I cancel a confirmed Tatkal ticket?",
+          "No refund is given when you cancel a confirmed Tatkal ticket yourself. Waitlisted Tatkal tickets can be "
+          "cancelled with the applicable charge, and a refund may be claimed in specific cases such as the train "
+          "being cancelled or running very late; see the official refund rules.",
+          _REFUND, "Confirmed Tatkal tickets: no refund on cancellation by the passenger.",
+          ["Confirmed Tatkal: no refund on passenger cancellation"],
+          ["Train cancellation or very late running can allow a refund claim"]),
+    _rule("cr-train-cancelled", "cancellation_refund", "What if the railways cancel my train?",
+          "If the railways cancel the train, passengers are entitled to a full refund of the fare. For IRCTC "
+          "e-tickets on a fully cancelled train the ticket is normally cancelled and refunded automatically to the "
+          "original payment method; check your booked ticket history, and follow the official refund rules if it "
+          "is not.",
+          _REFUND, "Train cancelled by the railways: full refund.",
+          ["Full refund when the railways cancel the train"]),
+    _rule("cr-tdr", "cancellation_refund", "What is a TDR (Ticket Deposit Receipt)?",
+          "A TDR is the request you file (online from your IRCTC booked tickets for e-tickets) to claim a refund in "
+          "situations a normal cancellation does not cover, for example when you could not travel because the train "
+          "ran very late. Whether a refund is due, and how much, is decided under the official refund rules.",
+          _REFUND, "TDR: the claim filed for refunds outside normal cancellation.",
+          ["TDRs have their own filing deadlines; see the official rules"]),
 ]

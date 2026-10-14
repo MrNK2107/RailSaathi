@@ -30,6 +30,8 @@ ABBREVIATIONS = {
     "1a": "first AC 1A",
     "cc": "chair car CC",
     "3e": "third economy 3E",
+    "ec": "executive chair car EC",
+    "2s": "second sitting 2S",
     "cnf": "confirmed CNF",
     "rac": "reservation against cancellation RAC",
     "wl": "waitlisted waitlist WL",
@@ -104,6 +106,7 @@ def search_guidance(
             "total_found": 0,
             "retrieval_status": "error",
             "error": "Query cannot be empty",
+            "error_code": "invalid_arguments",
             "evidence_sufficient": False,
         }
 
@@ -115,13 +118,24 @@ def search_guidance(
             "total_found": 0,
             "retrieval_status": "error",
             "error": f"Unsupported topic: {topic}. Supported: {SUPPORTED_TOPICS}",
+            "error_code": "invalid_arguments",
             "evidence_sufficient": False,
         }
 
     # Normalize query for better recall
     normalized = normalize_query(query)
 
-    conn = get_connection(db_path)
+    try:
+        conn = get_connection(db_path)
+    except sqlite3.Error:
+        return {
+            "results": [],
+            "total_found": 0,
+            "retrieval_status": "error",
+            "error": "Knowledge base unavailable",
+            "error_code": "unavailable",
+            "evidence_sufficient": False,
+        }
     try:
         results = _execute_fts_search(conn, normalized, topic, limit)
 
@@ -149,6 +163,9 @@ def search_guidance(
                 "exceptions": _parse_json_field(row.get("exceptions")),
                 "source_excerpt": row.get("source_excerpt"),
                 "last_verified_at": row.get("last_verified_at"),
+                "as_of": row.get("as_of"),
+                "source_id": row["source_id"],
+                "source_url": source.get("source_url") if source else None,
                 "freshness": freshness,
                 "source": source,
             }
@@ -187,7 +204,7 @@ def _execute_fts_search(
     """Execute FTS5 search with optional topic filter."""
     # Build FTS query — use simple token matching
     fts_query = " OR ".join(
-        f'"{w}"' for w in query.split() if len(w) > 1
+        '"' + w.replace('"', '""') + '"' for w in query.split() if len(w) > 1
     )
     if not fts_query:
         return []

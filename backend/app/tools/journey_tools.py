@@ -74,9 +74,10 @@ def _request(args: dict) -> GoalPlanRequest:
 def execute_journey_tool(tool_name: str, args: dict, goal_planner: "GoalPlanner | None" = None) -> dict[str, Any]:
     valid, err = validate_journey_tool_args(tool_name, args)
     if not valid:
-        return {"status": "error", "error": err, "tool_name": tool_name}
+        return {"status": "error", "error": err, "error_code": "invalid_arguments", "tool_name": tool_name}
     if goal_planner is None:
-        return {"status": "error", "error": "Journey planning is not available.", "tool_name": tool_name}
+        return {"status": "error", "error": "Journey planning is not available.", "error_code": "unavailable",
+                "tool_name": tool_name}
     try:
         request = _request(args)
         req, missing = goal_planner.requirements_from_request(request)
@@ -85,9 +86,9 @@ def execute_journey_tool(tool_name: str, args: dict, goal_planner: "GoalPlanner 
         return {"status": "success", "journey_plan": plan.model_dump(mode="json"), "tool_name": tool_name}
     except ValidationError:
         return {"status": "error", "error": "Some journey details are invalid (check the date and time format).",
-                "tool_name": tool_name}
+                "error_code": "invalid_arguments", "tool_name": tool_name}
     except PlannerError as exc:
-        return {"status": "error", "error": exc.message, "tool_name": tool_name}
+        return {"status": "error", "error": exc.message, "error_code": "invalid_arguments", "tool_name": tool_name}
     except Exception as exc:  # noqa: BLE001 - tool failures are reported, never raised into the agent loop
         logger.error("Journey tool %s failed: %s", tool_name, type(exc).__name__, exc_info=True)
         return {"status": "error", "error": "The tool failed to run.", "tool_name": tool_name}

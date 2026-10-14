@@ -61,6 +61,8 @@ def _readyz(c: Container) -> JSONResponse:
     llm = llm_status(c)
     if c.settings.llm_configured and not llm.get("active", False):
         degraded.append("llm")
+    if not c.settings.knowledge_db_path.exists():
+        degraded.append("knowledge")
     if c.data_provider_status.get("active") == "railradar" and not c.data_provider_status.get("configured"):
         degraded.append("railradar")
     ready = all(checks.values())

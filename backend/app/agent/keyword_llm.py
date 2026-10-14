@@ -22,7 +22,7 @@ class KeywordChatLLM:
         last = messages[-1] if messages else None
         if last is not None and last.role == "tool" and last.tool_results:
             first = last.tool_results[0]
-            return self._synthesize_answer(first.response, first.name)
+            return self._synthesize_answer(first.data if first.data is not None else first.response, first.name)
         user_text = next((m.text for m in reversed(messages) if m.role == "user" and m.text), "")
         return self._plan_tool_call(user_text)
 

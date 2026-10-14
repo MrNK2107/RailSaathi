@@ -193,7 +193,7 @@ def test_agent_turn_is_bounded_by_the_overall_deadline():
     started = time.monotonic()
     res = controller.process_message("What is RAC?")
     assert time.monotonic() - started < 1.0
-    assert res.status == "service_unavailable"
+    assert res.status == "unavailable"
     assert "abc" not in res.answer
 
 

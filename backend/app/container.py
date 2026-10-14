@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 
 from redis import Redis
 
+from app.agent.conversation_store import ConversationStore, InMemoryConversationStore, RedisConversationStore
 from app.audit.log import AuditLog
 from app.clock import Clock, FixedClock, SystemClock
 from app.config import Settings
@@ -52,6 +53,7 @@ class Container:
     chat_llm_reason: str | None = None
     goal_planner: GoalPlanner | None = None
     plan_store: PlanStore | None = None
+    conversations: ConversationStore | None = None  # ticketing-agent history
 
     @property
     def agent_llm(self) -> ChatLLM:
@@ -188,6 +190,29 @@ def build_plan_store(settings: Settings, redis: Redis | None) -> PlanStore:
     return InMemoryPlanStore(ttl)
 
 
+def build_conversation_store(settings: Settings, redis: Redis | None) -> ConversationStore:
+    ttl = settings.session_ttl_minutes * 60
+    if redis is not None:
+        return RedisConversationStore(redis, ttl, settings.max_history_messages, settings.redis_key_prefix)
+    return InMemoryConversationStore(ttl, settings.max_history_messages)
+
+
+def prepare_knowledge_db(settings: Settings) -> None:
+    """Production opens the image-built file read-only and never writes. Development and tests (re)build a missing
+    or stale file so a fresh checkout works without a manual ingest step."""
+    path = settings.knowledge_db_path
+    if settings.is_production:
+        if not path.exists():
+            log.error("Knowledge base %s is missing; ticketing guidance will report no evidence", path)
+        return
+    try:
+        from app.knowledge.ingest import ensure_knowledge_db
+
+        ensure_knowledge_db(path)
+    except Exception as exc:  # noqa: BLE001 - never fail startup over the knowledge base
+        log.warning("Could not build the knowledge base (%s)", type(exc).__name__)
+
+
 def build_container(settings: Settings, clock: Clock | None = None,
                     llm: IntentLLM | None = None, use_configured_llm: bool = True,
                     redis: Redis | None = None, chat_llm: ChatLLM | None = None) -> Container:
@@ -219,5 +244,7 @@ def build_container(settings: Settings, clock: Clock | None = None,
     )
     goal_planner = GoalPlanner(provider, resolver, load_venues(), clock, settings.timezone,
                                settings.max_planning_days)
+    prepare_knowledge_db(settings)
     return Container(settings, clock, provider, disruptions, resolver, extractor, audit, planner, data_status, redis, signer,
-                     chat_llm, chat_reason, goal_planner, build_plan_store(settings, redis))
+                     chat_llm, chat_reason, goal_planner, build_plan_store(settings, redis),
+                     build_conversation_store(settings, redis))

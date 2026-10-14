@@ -2,6 +2,10 @@
 RailSathi AI — Knowledge Database Schema & Initialization
 
 SQLite database for storing ticketing guidance with full source provenance.
+
+The database is built once by `knowledge/ingest.py` (at image-build time in the backend Dockerfile) and the
+running service only ever opens it read-only (`get_connection`: `file:...?mode=ro` URI, no WAL pragma), so the
+container needs no writable filesystem. `get_writable_connection` is for the ingest build only.
 """
 
 import sqlite3
@@ -11,17 +15,25 @@ from pathlib import Path
 
 
 def get_connection(db_path: str | Path) -> sqlite3.Connection:
-    """Create a database connection with row factory enabled."""
+    """Read-only connection (row factory enabled). Raises sqlite3.OperationalError if the file does not exist.
+    Callers must close it (use `contextlib.closing`; sqlite3's own context manager does not close)."""
+    uri = Path(db_path).resolve().as_uri() + "?mode=ro"
+    conn = sqlite3.connect(uri, uri=True)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def get_writable_connection(db_path: str | Path) -> sqlite3.Connection:
+    """Read-write connection used only while building the database."""
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
 
 def init_database(db_path: str | Path) -> None:
     """Initialize the database schema. Safe to call multiple times."""
-    conn = get_connection(db_path)
+    conn = get_writable_connection(db_path)
     try:
         conn.executescript(SCHEMA_SQL)
         conn.commit()
@@ -35,6 +47,12 @@ def content_hash(text: str) -> str:
 
 
 SCHEMA_SQL = """
+-- Build metadata (e.g. the hash of the seed data the file was built from)
+CREATE TABLE IF NOT EXISTS meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
 -- Sources: authoritative documents that back guidance records
 CREATE TABLE IF NOT EXISTS sources (
     source_id       TEXT PRIMARY KEY,
@@ -50,7 +68,8 @@ CREATE TABLE IF NOT EXISTS sources (
     content_hash    TEXT,
     verification_status TEXT NOT NULL DEFAULT 'manually_verified',
     retrieval_status    TEXT NOT NULL DEFAULT 'success',
-    notes           TEXT
+    notes           TEXT,
+    as_of           TEXT
 );
 
 -- Guidance records: individual Q&A entries with source provenance
@@ -65,6 +84,7 @@ CREATE TABLE IF NOT EXISTS guidance (
     source_excerpt  TEXT,
     last_verified_at TEXT NOT NULL,
     status          TEXT NOT NULL DEFAULT 'active',
+    as_of           TEXT,
     FOREIGN KEY (source_id) REFERENCES sources(source_id)
 );
 
@@ -112,8 +132,8 @@ def insert_source(conn: sqlite3.Connection, source: dict) -> None:
            (source_id, title, publisher, source_url, source_type,
             retrieved_at, last_verified_at, publication_date,
             effective_from, effective_until, content_hash,
-            verification_status, retrieval_status, notes)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            verification_status, retrieval_status, notes, as_of)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             source["source_id"],
             source["title"],
@@ -129,6 +149,7 @@ def insert_source(conn: sqlite3.Connection, source: dict) -> None:
             source.get("verification_status", "manually_verified"),
             source.get("retrieval_status", "success"),
             source.get("notes"),
+            source.get("as_of"),
         ),
     )
 
@@ -141,8 +162,8 @@ def insert_guidance(conn: sqlite3.Connection, guidance: dict) -> None:
     conn.execute(
         """INSERT OR REPLACE INTO guidance
            (guidance_id, topic, question, answer_text, conditions,
-            exceptions, source_id, source_excerpt, last_verified_at, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            exceptions, source_id, source_excerpt, last_verified_at, status, as_of)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             guidance["guidance_id"],
             guidance["topic"],
@@ -154,6 +175,7 @@ def insert_guidance(conn: sqlite3.Connection, guidance: dict) -> None:
             guidance.get("source_excerpt"),
             guidance["last_verified_at"],
             guidance.get("status", "active"),
+            guidance.get("as_of"),
         ),
     )
 

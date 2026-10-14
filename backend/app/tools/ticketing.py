@@ -248,12 +248,14 @@ def _handle_ticket_class(args: dict, db_path: str) -> dict:
         return {
             "status": "error",
             "error": f"Unsupported class code: {class_code}. Known codes: {sorted(VALID_CLASS_CODES)}",
+            "error_code": "invalid_arguments",
         }
 
     if comparison_class and comparison_class not in VALID_CLASS_CODES:
         return {
             "status": "error",
             "error": f"Unsupported comparison class code: {comparison_class}. Known codes: {sorted(VALID_CLASS_CODES)}",
+            "error_code": "invalid_arguments",
         }
 
     # Search for the primary class
@@ -311,6 +313,7 @@ def _handle_reservation_status(args: dict, db_path: str) -> dict:
         return {
             "status": "error",
             "error": f"Unsupported status code: {status_code}. Known codes: {sorted(VALID_STATUS_CODES)}",
+            "error_code": "invalid_arguments",
         }
 
     # Search for status explanation

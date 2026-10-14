@@ -83,8 +83,11 @@ class ToolCall:
 @dataclass(frozen=True)
 class ToolResult:
     name: str
-    response: dict[str, Any]
+    response: dict[str, Any]  # what the model sees (the agent sends a fenced, sanitised payload)
     call_id: str | None = None
+    # The structured, unfenced result for trusted deterministic code (the rule-based KeywordChatLLM). Never sent
+    # to a model.
+    data: dict[str, Any] | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)

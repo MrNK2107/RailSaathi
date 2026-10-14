@@ -20,6 +20,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY app ./app
 COPY data ./data
 
+# Build the ticketing knowledge base from app/knowledge/seed_data.py. The runtime opens it read-only.
+RUN .venv/bin/python -m app.knowledge.ingest data/knowledge/railsaathi.db
+
 
 FROM python:3.12-slim-bookworm AS runtime
 

@@ -1,59 +1,87 @@
 """
-RailSathi AI — Knowledge Ingestion Script
+RailSathi AI — Knowledge Ingestion
 
-Initializes the database and loads seed data from curated sources.
-Safe to run multiple times (uses INSERT OR REPLACE).
+Builds the knowledge SQLite file from `seed_data.py`. Runs at image-build time in the backend Dockerfile
+(`python -m app.knowledge.ingest`); the running service opens the result read-only.
+
+The file is built from scratch in a temporary file next to the target and moved into place atomically, so a
+rebuild never leaves removed records behind and readers never see a half-written database. The hash of the seed
+data is stored in the `meta` table; `ensure_knowledge_db` (development and tests only) rebuilds when the file is
+missing or was built from different seed data.
 """
 
+import hashlib
+import json
+import logging
+import os
+import sqlite3
 import sys
+from contextlib import closing
 from pathlib import Path
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-
-from app.knowledge.database import init_database, insert_source, insert_guidance, get_connection, content_hash
-from app.knowledge.seed_data import SOURCES, GUIDANCE_RECORDS
 from app.config import DB_PATH
+from app.knowledge.database import (
+    content_hash,
+    get_connection,
+    get_writable_connection,
+    init_database,
+    insert_guidance,
+    insert_source,
+)
+from app.knowledge.seed_data import GUIDANCE_RECORDS, SOURCES
+
+log = logging.getLogger("railsaathi.knowledge")
+
+
+def seed_hash() -> str:
+    blob = json.dumps({"sources": SOURCES, "guidance": GUIDANCE_RECORDS}, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
 def ingest(db_path: Path | None = None) -> dict:
-    """
-    Initialize the database and load all seed data.
-
-    Returns a summary dict with counts of loaded sources and guidance records.
-    """
-    target = db_path or DB_PATH
-
-    # Ensure the directory exists
+    """Build the database at `db_path` (default: DB_PATH) from the seed data. Returns the loaded counts."""
+    target = Path(db_path or DB_PATH)
     target.parent.mkdir(parents=True, exist_ok=True)
-
-    print(f"Initializing database at: {target}")
-    init_database(target)
-
-    conn = get_connection(target)
+    tmp = target.with_name(f"{target.name}.{os.getpid()}.tmp")
+    tmp.unlink(missing_ok=True)
     try:
-        source_count = 0
-        for source in SOURCES:
-            # Compute content hash if not present
-            if not source.get("content_hash"):
-                source = {**source, "content_hash": content_hash(source["title"])}
-            insert_source(conn, source)
-            source_count += 1
-            print(f"  Source: {source['source_id']} — {source['title']}")
-
-        guidance_count = 0
-        for record in GUIDANCE_RECORDS:
-            insert_guidance(conn, record)
-            guidance_count += 1
-            print(f"  Guidance: {record['guidance_id']} — {record['question'][:60]}...")
-
-        conn.commit()
-        print(f"\nIngestion complete: {source_count} sources, {guidance_count} guidance records.")
-        return {"sources_loaded": source_count, "guidance_loaded": guidance_count}
-
+        init_database(tmp)
+        with closing(get_writable_connection(tmp)) as conn:
+            for source in SOURCES:
+                insert_source(conn, {**source, "content_hash": source.get("content_hash")
+                                     or content_hash(source["title"])})
+            for record in GUIDANCE_RECORDS:
+                insert_guidance(conn, record)
+            conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('seed_hash', ?)", (seed_hash(),))
+            conn.commit()
+        os.replace(tmp, target)
     finally:
-        conn.close()
+        tmp.unlink(missing_ok=True)
+    return {"sources_loaded": len(SOURCES), "guidance_loaded": len(GUIDANCE_RECORDS)}
+
+
+def is_current(db_path: Path) -> bool:
+    """True when `db_path` exists and was built from the current seed data."""
+    try:
+        with closing(get_connection(db_path)) as conn:
+            row = conn.execute("SELECT value FROM meta WHERE key = 'seed_hash'").fetchone()
+    except sqlite3.Error:
+        return False
+    return row is not None and row["value"] == seed_hash()
+
+
+def ensure_knowledge_db(db_path: Path) -> bool:
+    """Development/test convenience: (re)build the file when it is missing or stale. Returns True if built.
+    Never called in production, where the file comes from the image build and is read-only."""
+    if is_current(db_path):
+        return False
+    log.info("Building the knowledge base at %s", db_path)
+    ingest(db_path)
+    return True
 
 
 if __name__ == "__main__":
-    ingest()
+    out = Path(sys.argv[1]) if len(sys.argv) > 1 else DB_PATH
+    counts = ingest(out)
+    print(f"Knowledge base built at {out}: {counts['sources_loaded']} sources, "
+          f"{counts['guidance_loaded']} guidance records.")
