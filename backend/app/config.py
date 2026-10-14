@@ -57,7 +57,7 @@ class Settings(BaseSettings):
 
     # Planning policy
     max_passengers: int = Field(default=6, ge=1, le=20)
-    max_planning_days: int = Field(default=120, ge=1)
+    max_planning_days: int = Field(default=60, ge=1)  # the Indian Railways advance reservation period
     min_transfer_minutes: int = Field(default=30, ge=0)
     session_ttl_minutes: int = Field(default=120, ge=1)
     recommendation_ttl_minutes: int = Field(default=30, ge=1)

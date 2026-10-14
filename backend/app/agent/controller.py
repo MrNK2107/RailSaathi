@@ -45,6 +45,8 @@ UNAVAILABLE_ANSWER = ("AI ticketing guidance is unavailable right now. Please us
                       "IRCTC links below, or try again later.")
 LIMIT_ANSWER = "I reached my processing limit for this question. Please ask a more specific question."
 EMPTY_ANSWER = "I wasn't able to generate a response. Please try rephrasing your question."
+LLM_FAILED_NOTE = "The AI guidance service could not answer; use the official links."
+INCOMPLETE_NOTE = "Ticketing guidance could not be completed; use the official links."
 GUIDANCE_NOTE = "AI guidance, not official. Verify current rules on the cited official pages before acting."
 
 _IR_STATIC = "https://www.indianrail.gov.in/enquiry/StaticPages/StaticEnquiry.jsp?StaticPage="
@@ -172,7 +174,7 @@ class AgentController:
         except Exception as e:  # noqa: BLE001 - never a 500; degrade honestly
             self._add_trace("error", detail=f"Unexpected error: {type(e).__name__}")
             logger.error("[%s] Controller error: %s", trace_id, type(e).__name__, exc_info=True)
-            return self._unavailable(trace_id, state)
+            return self._unavailable(trace_id, state, INCOMPLETE_NOTE)
 
     # --- steps ----------------------------------------------------------------------------------------------
 
@@ -261,7 +263,7 @@ class AgentController:
             provenance=self._provenance(mode, note),
         )
 
-    def _unavailable(self, trace_id: str, state: dict) -> AgentResponse:
+    def _unavailable(self, trace_id: str, state: dict, note: str | None = None) -> AgentResponse:
         return AgentResponse(
             answer=UNAVAILABLE_ANSWER,
             status="unavailable",
@@ -271,8 +273,7 @@ class AgentController:
             trace=self._export_trace(),
             tool_calls_made=state["tool_calls"],
             evidence_sufficient=False,
-            provenance=self._provenance(DataMode.UNAVAILABLE,
-                                        "The AI guidance service could not answer; use the official links."),
+            provenance=self._provenance(DataMode.UNAVAILABLE, note or LLM_FAILED_NOTE),
         )
 
     # --- trace ----------------------------------------------------------------------------------------------

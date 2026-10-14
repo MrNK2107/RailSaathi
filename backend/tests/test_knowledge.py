@@ -115,3 +115,9 @@ def test_tool_results_carry_citations(db, tool, args, source_id):
         assert _official(source["source_url"]) and source["as_of"] == AS_OF
     entries = result.get("results") or result["primary_class"]["results"]
     assert all(e["source_url"] and e["as_of"] == AS_OF for e in entries)
+
+
+def test_output_url_allowlist_matches_the_official_source_domains():
+    from app.agent.fencing import ALLOWED_URL_DOMAINS
+
+    assert set(ALLOWED_URL_DOMAINS) == set(OFFICIAL_DOMAINS)

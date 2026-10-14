@@ -15,4 +15,7 @@ htmlcov/
 data/stations/*/station.draft.json
 data/stations/*/backups/
 data/knowledge/*.db
+data/knowledge/*.db-*
+**/*.db-shm
+**/*.db-wal
 data/knowledge/*.tmp

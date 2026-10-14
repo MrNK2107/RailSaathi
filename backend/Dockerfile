@@ -36,6 +36,8 @@ RUN groupadd --system app && useradd --system --gid app --home-dir /app --shell 
 
 WORKDIR /app
 COPY --from=builder --chown=app:app /app /app
+# Defence in depth: the knowledge base is opened read-only by the app and is also not writable by its user.
+RUN chown -R root:root /app/data/knowledge && chmod -R a-w,a+rX /app/data/knowledge
 
 USER app
 EXPOSE 8080

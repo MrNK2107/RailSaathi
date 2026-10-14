@@ -190,3 +190,27 @@ def test_history_is_bounded():
     for i in range(1, 6):
         c.post("/api/chat", json={"message": f"q{i}", "conversation_id": first["conversation_id"]}, headers=headers)
     assert len(llm.calls[-1]) == 5  # 4 stored messages + the new question
+
+
+def test_tool_code_crash_is_not_reported_as_an_ai_failure(db, monkeypatch):
+    import app.agent.controller as controller_module
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("tool bug")
+
+    monkeypatch.setattr(controller_module, "execute_tool", boom)
+    res = controller(MockChatLLM([[RAC_CALL]]), db).process_message("RAC?")
+    assert res.status == "unavailable"
+    assert res.provenance["note"] == controller_module.INCOMPLETE_NOTE
+    assert "AI" not in res.provenance["note"]
+
+
+def test_llm_failure_note_names_the_ai_service(db):
+    import app.agent.controller as controller_module
+
+    res = controller(MockChatLLM([LLMError(LLMErrorKind.TIMEOUT)]), db).process_message("RAC?")
+    assert res.provenance["note"] == controller_module.LLM_FAILED_NOTE
+
+
+def test_planning_window_matches_the_advance_reservation_period():
+    assert Settings(_env_file=None).max_planning_days == 60
