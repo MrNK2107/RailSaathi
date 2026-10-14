@@ -9,14 +9,13 @@ view. This module:
   spelling of the delimiter keyword is removed. The payload is capped at `MAX_FENCED_CHARS`.
 - `sanitize_tool_result`: maps tool errors to short typed codes (`ToolErrorCode`) so free text from a failing tool
   (which may echo model-chosen arguments) never reaches the model.
-- `sanitize_output`: code-enforced allowlist for URLs in model output. Only https/http URLs on irctc.co.in,
-  indianrail.gov.in, indianrailways.gov.in and their subdomains survive. Raw HTML tags and comments are removed;
-  reference definitions pointing elsewhere are dropped; every image (inline or reference-style) is turned into text
-  or a plain link (images load without a click and are a classic exfiltration channel); any other URL candidate
-  (scheme URLs, protocol-relative `//host`, `www.`, autolinks, `javascript:`/`data:` URIs) becomes
+- `sanitize_output`: code-enforced allowlist for URLs in model output (irctc.co.in, indianrail.gov.in,
+  indianrailways.gov.in and subdomains, https only). It decodes entities and normalises first, then neutralises all
+  raw HTML, reference definitions and images structurally, and replaces every other URL candidate with
   `[link removed]`. Bare domains without scheme, `//` or `www.` are not autolinked by GFM and are left as text.
 """
 
+import html
 import json
 import re
 import unicodedata
@@ -87,38 +86,47 @@ def fence_tool_output(name: str, result: dict[str, Any], max_chars: int = MAX_FE
 
 
 # --- output URL allowlist -------------------------------------------------------------------------------------
+#
+# Structural, not vector-by-vector:
+# 1. decode HTML entities until stable (bounded) and NFKC-normalise, so nothing hides behind `&sol;`, `&#47;`,
+#    fullwidth or zero-width characters;
+# 2. neutralise ALL raw HTML: every `<` / `>` becomes the visible `‹` / `›`, so no tag can survive or recombine;
+# 3. neutralise ALL reference definitions: `]:` never survives (we never emit reference-style links), and `![`
+#    is demoted to `[` so no image syntax remains;
+# 4. inline links `[text](url)` keep only allowlisted targets; every other URL candidate - anything with a scheme,
+#    every `//host` (also right after `:`), `www.` and `javascript:`/`data:`/`vbscript:`/`file:` - is replaced
+#    unless it is an https URL whose authority is a plain ASCII hostname on an allowed domain.
 
-_HTML_COMMENT = re.compile(r"<!--.*?(?:-->|$)", re.DOTALL)
-# Any raw HTML tag (also an unterminated one at the end of a line). Autolinks (<https://...>) do not match because
-# the "tag name" is followed by ':'.
-_HTML_TAG = re.compile(r"</?[A-Za-z][A-Za-z0-9-]*(?=[\s/>]|$)[^<>\n]*>?")
-_REF_DEF = re.compile(r"^[ \t]{0,3}\[[^\]\n]+\]:[ \t]*<?([^\s>]*)>?.*$", re.MULTILINE)
-_MD_LINK = re.compile(r"(!?)\[([^\]\n]{0,500})\]\(\s*<?([^)\s>]*)>?(?:\s+(?:\"[^\"]*\"|'[^']*'))?\s*\)")
-_BARE_URL = re.compile(
-    r"(?i)(?:\b[a-z][a-z0-9+.\-]{1,20}://|(?<![\w:/])//(?=[a-z0-9\[])|\bwww\.|\b(?:javascript|data|vbscript|file):)"
-    r"[^\s<>()\[\]\"'`]*")
+_MAX_UNESCAPE_PASSES = 5
+_MD_LINK = re.compile(r"\[([^\[\]\n]{0,500})\]\(\s*([^()\s]*)(?:\s+(?:\"[^\"\n]*\"|'[^'\n]*'))?\s*\)")
+_URL_BODY = r"[^\s<>()\[\]\"'`‹›]*"
+_URL_CANDIDATE = re.compile(
+    r"(?i)(?:\b[a-z][a-z0-9+.\-]*:)?//" + _URL_BODY
+    + r"|\bwww\." + _URL_BODY
+    + r"|\b(?:javascript|data|vbscript|file):" + _URL_BODY)
+_REF_DEF_COLON = re.compile(r"\](\s*):")
+_HOSTNAME = re.compile(r"^[A-Za-z0-9.-]+$")
 _TRAILING = ".,;:!?*_~"
 
 
 def is_allowed_url(url: str) -> bool:
-    """https/http (protocol-relative `//host` is resolved as https), no credentials, no port, no backslash, and the
-    host equals or is a subdomain of an allowed domain."""
-    if not url or "\\" in url or any(ord(ch) < 33 for ch in url):
+    """https only (a protocol-relative `//host` is resolved as https). The authority must be a plain ASCII
+    hostname (no userinfo, port, `&`, `%`, `\\` or other characters) equal to or under an allowed domain."""
+    if not url or "\\" in url or not url.isascii() or any(ord(ch) < 33 for ch in url):
         return False
     if url.startswith("//"):
         url = "https:" + url
     try:
         parts = urlsplit(url)
-        port = parts.port
     except ValueError:
         return False
-    if parts.scheme.lower() not in ("https", "http") or "@" in parts.netloc or port is not None:
+    if parts.scheme.lower() != "https" or not _HOSTNAME.match(parts.netloc or ""):
         return False
-    host = (parts.hostname or "").lower().rstrip(".")
+    host = parts.netloc.lower().rstrip(".")
     return any(host == d or host.endswith("." + d) for d in ALLOWED_URL_DOMAINS)
 
 
-def _bare_url(match: re.Match) -> str:
+def _url_candidate(match: re.Match) -> str:
     raw = match.group(0)
     url = raw.rstrip(_TRAILING)
     tail = raw[len(url):]
@@ -126,37 +134,36 @@ def _bare_url(match: re.Match) -> str:
 
 
 def _strip_urls(text: str) -> str:
-    return _BARE_URL.sub(_bare_url, text)
+    return _URL_CANDIDATE.sub(_url_candidate, text)
 
 
-def _md_link(match: re.Match) -> str:
-    bang, text, url = match.groups()
-    text = _strip_urls(text)
-    if bang:  # images are never rendered
-        return text or LINK_REMOVED
-    if is_allowed_url(url):
-        return f"[{text}]({url})"
-    return f"{text} {LINK_REMOVED}" if text else LINK_REMOVED
-
-
-def _ref_def(match: re.Match) -> str:
-    return match.group(0) if is_allowed_url(match.group(1)) else ""
+def _decode(text: str) -> str:
+    for _ in range(_MAX_UNESCAPE_PASSES):
+        decoded = html.unescape(text)
+        if decoded == text:
+            break
+        text = decoded
+    return normalise(text)
 
 
 def sanitize_output(text: str) -> str:
-    """Strip raw HTML, images and every non-allowlisted URL from model output. Allowed links are kept verbatim."""
+    """Neutralise HTML, images and reference definitions, and remove every non-allowlisted URL from model output.
+    Allowed inline links `[text](https://allowed/...)` are kept."""
     if not text:
         return text
-    text = text.replace("\x00", "")
-    text = _HTML_TAG.sub("", _HTML_COMMENT.sub("", text))
-    text = _REF_DEF.sub(_ref_def, text)
+    text = _decode(text.replace("\x00", "")).replace("\x00", "")
+    text = text.replace("<", "‹").replace(">", "›")
+    text = _REF_DEF_COLON.sub(lambda m: "]" + m.group(1) + " :", text)
+    text = text.replace("![", "[")
     kept: list[str] = []
 
     def stash(match: re.Match) -> str:
-        kept.append(_md_link(match))
+        label, url = match.group(1), match.group(2)
+        label = _strip_urls(label)
+        kept.append(f"[{label}]({url})" if is_allowed_url(url) else (f"{label} {LINK_REMOVED}" if label
+                                                                    else LINK_REMOVED))
         return f"\x00{len(kept) - 1}\x00"
 
     stashed = _MD_LINK.sub(stash, text)
-    stashed = stashed.replace("![", "[")  # reference-style and shortcut images become links/text, never images
     cleaned = _strip_urls(stashed)
     return re.sub(r"\x00(\d+)\x00", lambda m: kept[int(m.group(1))], cleaned)
