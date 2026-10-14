@@ -4,6 +4,8 @@ import json
 import re
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from app.agent.controller import AgentController
 from app.agent.fencing import (
@@ -189,7 +191,7 @@ def test_reference_definitions_are_always_neutralised_but_allowed_urls_stay_visi
     out = sanitize_output("See [refunds][r] or //www.indianrail.gov.in/x.\n\n[r]: https://www.indianrail.gov.in/")
     assert "]:" not in out
     assert "https://www.indianrail.gov.in/" in out
-    assert "//www.indianrail.gov.in/x." in out
+    assert "or [link removed]." in out  # protocol-relative URLs are not https: removed even for allowed hosts
 
 
 def test_plain_http_is_rejected_even_for_allowed_hosts():
@@ -199,7 +201,7 @@ def test_plain_http_is_rejected_even_for_allowed_hosts():
 
 def test_indianrailways_domain_is_allowed():
     assert is_allowed_url("https://indianrailways.gov.in/railwayboard/")
-    assert is_allowed_url("//www.indianrailways.gov.in/")
+    assert not is_allowed_url("//www.indianrailways.gov.in/")  # strict grammar: https:// only
 
 
 @pytest.mark.parametrize("attack", [
@@ -271,3 +273,114 @@ def test_property_no_html_and_no_foreign_host_after_slashes(payload):
 
 def test_html_is_rendered_as_visible_text_not_tags():
     assert sanitize_output("Use <b>RAC</b> rules") == "Use ‹b›RAC‹/b› rules"
+
+
+# --- review round 3: whole-token validation (no prefix approval), e-mails, balanced-paren destinations ---------
+
+ROUND3_VECTORS = [
+    "[x](https://irctc.co.in(@evil.com/p))",
+    "https://irctc.co.in\"@evil.com/p",
+    "https://irctc.co.in'@evil.com/p",
+    "https://irctc.co.in]@evil.com/p",
+    "https://irctc.co.in`@evil.com/p",
+    "https://irctc.co.in(@evil.com/p)",
+    "https://irctc.co.in<@evil.com/p",
+    "https://irctc.co.in‹@evil.com/p",
+    "https://irctc.co.in\\@evil.com/p",
+    "(https://irctc.co.in)@evil.com/p",
+    "[x](https://irctc.co.in)@evil.com/p",
+    "write to a@evil.com today",
+    "mailto:a@evil.com",
+    "[x](javascript:alert(1))",
+    "[x](https://irctc.co.in/p \"t\")@evil.com",
+    "https://irctc.co.in:443@evil.com/",
+    "https://evil.com#https://irctc.co.in/",
+]
+
+
+@pytest.mark.parametrize("payload", ROUND3_VECTORS)
+def test_round3_prefix_and_email_vectors_are_removed_whole(payload):
+    out = sanitize_output(payload)
+    assert "evil" not in out.lower(), out
+    assert "javascript" not in out.lower() and "alert" not in out
+    assert LINK_REMOVED in out
+
+
+def test_javascript_destination_with_parens_is_removed_as_a_whole_link():
+    assert sanitize_output("[x](javascript:alert(1))") == f"x {LINK_REMOVED}"
+
+
+def test_allowed_urls_in_parentheses_and_sentences_survive():
+    text = "Open the IRCTC site (https://www.irctc.co.in) or https://www.indianrail.gov.in/enquiry/PNR/x.html?a=1&b=2."
+    assert sanitize_output(text) == text
+
+
+def test_balanced_paren_destination_must_be_fully_allowed():
+    assert sanitize_output("[x](https://www.irctc.co.in/a_(b))") == f"x {LINK_REMOVED}"
+
+
+# --- generative test (Hypothesis) -------------------------------------------------------------------------------
+
+_STRICT = re.compile(r"https://([A-Za-z0-9.-]+)(?:[/?#][A-Za-z0-9\-._~/?#=&%+]*)?")
+_ALLOWED_HOST = re.compile(r"(?:[A-Za-z0-9-]+\.)*(?:irctc\.co\.in|indianrail\.gov\.in|indianrailways\.gov\.in)\.?",
+                           re.IGNORECASE)
+_KEPT_LINK_FULL = re.compile(r"\[([^\[\]\n]*)\]\((https://[^()\s]*)\)")
+_LINKISH_CHECK = re.compile(r"(?i)[a-z][a-z0-9+.\-]*:\S|//|www\.|@[^\s@]*[A-Za-z0-9-]\.[A-Za-z0-9]")
+
+_PIECES = [
+    "https://", "http://", "//", "www.", "mailto:", "javascript:", "data:", "x:",
+    "irctc.co.in", "www.irctc.co.in", "indianrail.gov.in", "indianrailways.gov.in", ".irctc.co.in",
+    "evil.com", "evil", ".com", "a", "1",
+    "@", ".", "/", "\\", "(", ")", "[", "]", "\"", "'", "`", "<", ">", "‹", "›", "&", ";", "#", ":", "?", "=",
+    "%", "%2F", "%40", "&sol;", "&#47;", "&#64;", "&amp;", "&lt;", "&gt;", "!", "![", "](", "]:", "／",
+    "​", " ", "\n", "\t", "-", "_", "~", "+",
+]
+
+
+def _strict_allowed(url: str) -> bool:
+    match = _STRICT.fullmatch(url)
+    return bool(match) and bool(_ALLOWED_HOST.fullmatch(match.group(1)))
+
+
+def _check_plain(text: str, out: str) -> None:
+    for token in text.split():
+        if not _LINKISH_CHECK.search(token):
+            continue
+        core = token[1:] if token.startswith("(") else token
+        core = core.rstrip(".,;:!?")
+        if core.endswith((")", "]")):
+            core = core[:-1].rstrip(".,;:!?")
+        assert _strict_allowed(core), (token, out)
+
+
+def _assert_only_allowed_links(out: str) -> None:
+    assert "<" not in out and ">" not in out
+
+    def kept(match: re.Match) -> str:
+        assert _strict_allowed(match.group(2)), out  # surviving inline links have a strictly allowed destination
+        _check_plain(match.group(1), out)
+        return " "
+
+    marked = _KEPT_LINK_FULL.sub(kept, out.replace(LINK_REMOVED, " "))
+    _check_plain(marked, out)
+    for authority in re.findall(r"//([^/?#\s]*)", marked):
+        assert _ALLOWED_HOST.fullmatch(authority), (authority, out)
+    assert not re.search(r"@[^\s@]*[A-Za-z0-9-]\.[A-Za-z0-9]", marked), out
+
+
+@settings(max_examples=1500, deadline=None)
+@given(st.lists(st.sampled_from(_PIECES), max_size=25).map("".join))
+def test_generated_text_only_keeps_strictly_allowlisted_links(text):
+    _assert_only_allowed_links(sanitize_output(text))
+
+
+@settings(max_examples=500, deadline=None)
+@given(st.lists(st.sampled_from(_PIECES), max_size=12).map("".join),
+       st.lists(st.sampled_from(_PIECES), max_size=12).map("".join))
+def test_generated_markdown_links_only_keep_allowed_destinations(label, destination):
+    _assert_only_allowed_links(sanitize_output(f"[{label}]({destination})"))
+
+
+@pytest.mark.parametrize("payload", ROUND1_VECTORS + ROUND2_VECTORS + ROUND3_VECTORS + INJECTIONS)
+def test_corpus_satisfies_the_generative_invariant(payload):
+    _assert_only_allowed_links(sanitize_output(payload))

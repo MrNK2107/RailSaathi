@@ -23,6 +23,7 @@ dev = [
     "pytest-asyncio>=0.24",
     "fakeredis>=2.26",
     "ruff>=0.6",
+    "hypothesis>=6.169.1",
 ]
 
 [tool.pytest.ini_options]
