@@ -65,8 +65,13 @@ def plan_journey(request: Request, payload: GoalPlanRequest):
 
 
 @router.post("/refine")
-def refine_journey(data: Dict[str, Any]):
+def refine_journey(request: Request, data: Dict[str, Any]):
     """Refine existing trip requirements (e.g. buffer, class, time)."""
+    for prefix, values in (("", data), ("requirements.", data.get("requirements"))):
+        if isinstance(values, dict):
+            for name, value in values.items():
+                if isinstance(value, str):
+                    enforce_message_limit(request, value, f"{prefix}{name}")
     base_req_data = data.get("requirements") or {}
     trace_id = data.get("trace_id") or f"refine-{uuid.uuid4().hex[:10]}"
     try:

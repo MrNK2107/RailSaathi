@@ -11,6 +11,13 @@ map $http_x_forwarded_proto $forwarded_proto {
     ""      $scheme;
 }
 
+# The real client IP is the LAST X-Forwarded-For entry: the one Google Front End appended. Everything to its
+# left is client-supplied and spoofable. Falls back to the socket peer (Docker Compose, direct access).
+map $http_x_forwarded_for $real_client_ip {
+    default                         $remote_addr;
+    "~(?<last>[^,\s]+)\s*$"         $last;
+}
+
 server {
     listen ${PORT};
     server_name _;
@@ -38,7 +45,7 @@ server {
         proxy_ssl_server_name on;
         proxy_set_header Host $proxy_host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-For $real_client_ip;  # overwrite, never append
         proxy_set_header X-Forwarded-Proto $forwarded_proto;
         proxy_set_header X-Request-Id $http_x_request_id;
         proxy_read_timeout 60s;

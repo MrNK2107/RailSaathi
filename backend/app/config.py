@@ -8,7 +8,7 @@ from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import AliasChoices, Field, SecretStr
+from pydantic import AliasChoices, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -17,6 +17,7 @@ DATA_DIR = BACKEND_ROOT / "data"
 DB_PATH = DATA_DIR / "knowledge" / "railsaathi.db"
 DELAYS_CSV_PATH = DATA_DIR / "ml" / "train_delays.csv"
 STATIONS_DIR = DATA_DIR / "stations"
+LOCK_TTL_MARGIN_SECONDS = 10
 
 
 class Settings(BaseSettings):
@@ -66,8 +67,16 @@ class Settings(BaseSettings):
     redis_url: str | None = None
     redis_key_prefix: str = "rs"
     redis_socket_timeout_seconds: float = Field(default=2.0, gt=0)
-    session_lock_ttl_ms: int = Field(default=30_000, ge=1000)
+    # The session lock is held across a whole request (including LLM calls), so its TTL must outlive the
+    # overall LLM deadline plus a margin (validated below); otherwise a slow turn could lose its lock.
+    llm_overall_deadline_seconds: float = Field(default=20.0, gt=0)
+    session_lock_ttl_ms: int = Field(default=45_000, ge=1000)
     session_lock_wait_seconds: float = Field(default=10.0, gt=0)
+    # Number of trusted reverse proxies in front of the app, used to pick the client IP from X-Forwarded-For
+    # counted from the right (0 = ignore the header, use the socket peer). Cloud Run: browser -> GFE -> nginx ->
+    # GFE -> backend. nginx overwrites the header with the real client IP and the backend's GFE appends nginx's
+    # egress IP, so the client is the 2nd entry from the right: 2.
+    trusted_proxy_hops: int = Field(default=0, ge=0, le=10)
     # HMAC key for session tokens. Required when APP_ENV=production; a random per-process key is used otherwise.
     session_signing_key: SecretStr | None = None
 
@@ -92,6 +101,14 @@ class Settings(BaseSettings):
 
     # Logging
     log_message_content: bool = False
+
+    @model_validator(mode="after")
+    def _lock_outlives_llm_deadline(self) -> "Settings":
+        needed = int((self.llm_overall_deadline_seconds + LOCK_TTL_MARGIN_SECONDS) * 1000)
+        if self.session_lock_ttl_ms < needed:
+            raise ValueError(f"SESSION_LOCK_TTL_MS ({self.session_lock_ttl_ms}) must be at least the LLM overall "
+                             f"deadline plus {LOCK_TTL_MARGIN_SECONDS}s margin ({needed} ms)")
+        return self
 
     @property
     def is_production(self) -> bool:

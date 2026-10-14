@@ -34,15 +34,15 @@ class SessionTokenSigner:
 
     def verify(self, token: str | None) -> str:
         """Return the session id the token was issued for, or raise InvalidSessionToken."""
-        if not token or "." not in token or len(token) > 256:
+        if not token or "." not in token or len(token) > 256 or not token.isascii():
             raise InvalidSessionToken("malformed")
         session_id, _, sig = token.rpartition(".")
-        if not session_id or not hmac.compare_digest(sig, self._sig(session_id)):
+        if not session_id or not hmac.compare_digest(sig.encode(), self._sig(session_id).encode()):
             raise InvalidSessionToken("bad signature")
         return session_id
 
     def verify_for(self, token: str | None, session_id: str) -> None:
-        if not hmac.compare_digest(self.verify(token), session_id):
+        if not hmac.compare_digest(self.verify(token).encode(), session_id.encode()):
             raise InvalidSessionToken("session mismatch")
 
 

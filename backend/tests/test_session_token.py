@@ -60,3 +60,16 @@ def test_session_routes_require_matching_token():
     other = new_session(make_client())
     assert c.get(f"/api/planner/sessions/{other}", headers={"X-Session-Token": token}).status_code == 401
     assert c.get(f"/api/planner/sessions/{sid}/audit").status_code == 401
+
+
+def test_non_ascii_token_is_rejected_not_500():
+    s = SessionTokenSigner(KEY)
+    for bad in ("abc.éé", "ébc." + s.issue("x").split(".")[1]):
+        with pytest.raises(InvalidSessionToken):
+            s.verify(bad)
+    c = make_client()
+    created = c.post("/api/planner/sessions", json={}).json()
+    url = f"/api/planner/sessions/{created['session_id']}"
+    r = c.get(url, headers={"X-Session-Token": "abc.é".encode("utf-8")})
+    assert r.status_code == 401
+    assert c.get("/api/planner/reference", headers={"X-Session-Token": "é.é".encode("utf-8")}).status_code == 200

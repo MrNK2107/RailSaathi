@@ -24,6 +24,7 @@ from app.api.live import router as live_router
 from app.config import Settings, get_settings
 from app.container import Container, build_container
 from app.harness.errors import PlannerError
+from app.sessions.redis_store import SessionLockTimeout
 from app.security.rate_limit import InMemoryRateLimiter, RedisRateLimiter
 
 log = logging.getLogger("railsaathi")
@@ -47,7 +48,8 @@ def create_app(settings: Settings | None = None, container: Container | None = N
                else InMemoryRateLimiter(settings.rate_limit_max_keys))
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_body_bytes)
     app.add_middleware(RateLimitMiddleware, limiter=limiter, per_minute=settings.rate_limit_per_minute,
-                       llm_per_minute=settings.rate_limit_llm_per_minute, signer=c.signer)
+                       llm_per_minute=settings.rate_limit_llm_per_minute, signer=c.signer,
+                       trusted_hops=settings.trusted_proxy_hops)
     app.add_middleware(AccessLogMiddleware)
     origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
     app.add_middleware(
@@ -95,6 +97,13 @@ def _register_errors(app: FastAPI) -> None:
             status_code=exc.http_status,
             content={"error": {"code": exc.code, "message": exc.message, "details": exc.details}}
         )
+
+    @app.exception_handler(SessionLockTimeout)
+    async def session_busy(_: Request, __: SessionLockTimeout) -> JSONResponse:
+        return JSONResponse(
+            status_code=503, headers={"Retry-After": "2"},
+            content={"error": {"code": "session_busy", "message": "This session is busy. Please retry shortly.",
+                               "details": {}}})
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:

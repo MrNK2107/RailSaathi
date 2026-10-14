@@ -5,11 +5,13 @@ import logging
 import time
 import uuid
 
+import anyio
+import anyio.to_thread
 from starlette.datastructures import Headers
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from app.security.rate_limit import RateLimiter
+from app.security.rate_limit import Decision, RateLimiter
 from app.security.tokens import TOKEN_HEADER, InvalidSessionToken, SessionTokenSigner
 
 log = logging.getLogger("railsaathi.http")
@@ -30,11 +32,13 @@ def is_llm_route(method: str, path: str) -> bool:
     return path in ("/api/chat", "/api/journey/plan", "/api/journey/refine") or path.endswith("/messages")
 
 
-def client_ip(headers: Headers, scope: Scope) -> str:
-    """First X-Forwarded-For hop (the Cloud Run / load balancer front door), else the socket peer."""
-    first = headers.get("x-forwarded-for", "").split(",")[0].strip()
-    if first:
-        return first[:64]
+def client_ip(headers: Headers, scope: Scope, trusted_hops: int = 0) -> str:
+    """Client IP from X-Forwarded-For, taking the Nth entry from the right (entries added by trusted proxies;
+    anything to the left is client-controlled). 0 hops, or too few entries, means the socket peer."""
+    if trusted_hops > 0:
+        parts = [p.strip() for p in headers.get("x-forwarded-for", "").split(",") if p.strip()]
+        if len(parts) >= trusted_hops:
+            return parts[-trusted_hops][:64]
     client = scope.get("client")
     return client[0] if client else "unknown"
 
@@ -88,12 +92,15 @@ class RateLimitMiddleware:
     one per session. Health routes are exempt; LLM routes use the lower tier."""
 
     def __init__(self, app: ASGIApp, limiter: RateLimiter, per_minute: int, llm_per_minute: int,
-                 signer: SessionTokenSigner | None = None) -> None:
+                 signer: SessionTokenSigner | None = None, trusted_hops: int = 0,
+                 limiter_timeout: float = 1.0) -> None:
         self.app = app
         self._limiter = limiter
         self._limit = per_minute
         self._llm_limit = llm_per_minute
         self._signer = signer
+        self._hops = trusted_hops
+        self._timeout = limiter_timeout
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         path = scope.get("path", "")
@@ -102,18 +109,28 @@ class RateLimitMiddleware:
             return
         headers = Headers(scope=scope)
         tier, limit = ("llm", self._llm_limit) if is_llm_route(scope["method"], path) else ("std", self._limit)
-        keys = [f"{tier}:ip:{client_ip(headers, scope)}"]
+        keys = [f"{tier}:ip:{client_ip(headers, scope, self._hops)}"]
         session_id = self._session_of(headers.get(TOKEN_HEADER.lower()))
         if session_id:
             keys.append(f"{tier}:sid:{session_id}")
         for key in keys:
-            decision = self._limiter.hit(key, limit)
+            decision = await self._hit(key, limit)
             if not decision.allowed:
                 resp = error_json(429, "rate_limited", "Too many requests. Please wait a moment.",
                                   {"Retry-After": str(decision.retry_after)})
                 await resp(scope, receive, send)
                 return
         await self.app(scope, receive, send)
+
+    async def _hit(self, key: str, limit: int) -> Decision:
+        """Run the (possibly blocking Redis) limiter off the event loop; fail open if it is too slow."""
+        decision: Decision | None = None
+        with anyio.move_on_after(self._timeout):
+            decision = await anyio.to_thread.run_sync(self._limiter.hit, key, limit, abandon_on_cancel=True)
+        if decision is None:
+            log.warning("rate limiter timed out; failing open")
+            return Decision(True)
+        return decision
 
     def _session_of(self, token: str | None) -> str | None:
         if not token or self._signer is None:

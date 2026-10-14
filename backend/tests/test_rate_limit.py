@@ -13,6 +13,7 @@ REF = "/api/planner/reference"
 
 
 def make(redis=None, **overrides) -> TestClient:
+    overrides.setdefault("trusted_proxy_hops", 2)
     settings = Settings(_env_file=None, **overrides)
     container = build_container(settings, clock=FixedClock(FIXED_NOW), use_configured_llm=False, redis=redis)
     return TestClient(create_app(settings, container))
@@ -107,3 +108,43 @@ def test_redis_limiter_keys_expire_and_rejections_do_not_extend():
     assert [lim.hit("k", 2).allowed for _ in range(5)] == [True, True, False, False, False]
     assert r.zcard("rs:rl:k") == 2
     assert 0 < r.ttl("rs:rl:k") <= 61
+
+
+def test_spoofed_leading_xff_does_not_change_bucket(client_factory):
+    c = client_factory(rate_limit_per_minute=2)
+    # Real client 8.8.8.8 (second from right); the attacker rotates the client-controlled leading entries.
+    for i in range(2):
+        h = {"X-Forwarded-For": f"66.66.66.{i}, 8.8.8.8, 10.0.0.1"}
+        assert c.get(REF, headers=h).status_code == 200
+    assert c.get(REF, headers={"X-Forwarded-For": "77.7.7.7, 8.8.8.8, 10.0.0.1"}).status_code == 429
+
+
+def test_zero_hops_ignores_xff(client_factory):
+    c = client_factory(rate_limit_per_minute=1, trusted_proxy_hops=0)
+    assert c.get(REF, headers=xff("1.1.1.1")).status_code == 200
+    assert c.get(REF, headers=xff("2.2.2.2")).status_code == 429
+
+
+def test_too_few_xff_entries_falls_back_to_peer(client_factory):
+    c = client_factory(rate_limit_per_minute=1)
+    assert c.get(REF, headers={"X-Forwarded-For": "1.1.1.1"}).status_code == 200
+    assert c.get(REF, headers={"X-Forwarded-For": "2.2.2.2"}).status_code == 429
+
+
+def test_slow_limiter_fails_open():
+    import time
+
+    class Slow:
+        def hit(self, key, limit, window_seconds=60):
+            time.sleep(0.5)
+            raise AssertionError("should have been abandoned")
+
+    from app.api.middleware import RateLimitMiddleware
+
+    async def app(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    from starlette.testclient import TestClient as TC
+    mw = RateLimitMiddleware(app, Slow(), 1, 1, limiter_timeout=0.05)
+    assert TC(mw).get("/x").status_code == 200

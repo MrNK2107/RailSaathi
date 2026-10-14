@@ -69,6 +69,8 @@ jobs:
         id: backend
         run: |
           # Phase 1: sessions are in-process, so exactly one instance. Lifted in Phase 2 (Redis).
+          # TRUSTED_PROXY_HOPS=2: browser -> GFE -> nginx (overwrites X-Forwarded-For with the real client) -> GFE ->
+          # backend; the backend GFE appends the nginx egress IP, so the client is the 2nd entry from the right.
           gcloud run deploy "${BACKEND_SERVICE}" \
             --image "${{ steps.images.outputs.backend }}" \
             --region "${REGION}" \
@@ -78,7 +80,7 @@ jobs:
             --cpu 1 --memory 512Mi \
             --min-instances 0 --max-instances 1 --concurrency 40 \
             --timeout 60 \
-            --set-env-vars "APP_ENV=production,RAILWAY_DATA_MODE=${{ vars.RAILWAY_DATA_MODE || 'demo' }},LLM_PROVIDER=${{ vars.LLM_PROVIDER || 'none' }},CORS_ORIGINS=${{ vars.FRONTEND_ORIGIN || '' }}" \
+            --set-env-vars "APP_ENV=production,RAILWAY_DATA_MODE=${{ vars.RAILWAY_DATA_MODE || 'demo' }},LLM_PROVIDER=${{ vars.LLM_PROVIDER || 'none' }},TRUSTED_PROXY_HOPS=2,CORS_ORIGINS=${{ vars.FRONTEND_ORIGIN || '' }}" \
             --set-secrets "RAILRADAR_API_KEY=RAILRADAR_API_KEY:latest" \
             --quiet
           URL="$(gcloud run services describe "${BACKEND_SERVICE}" --region "${REGION}" --format 'value(status.url)')"
