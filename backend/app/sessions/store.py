@@ -1,6 +1,7 @@
 """Session persistence behind an interface (in-memory implementation for the prototype)."""
 
 import threading
+from contextlib import AbstractContextManager
 from datetime import datetime, timedelta
 from typing import Protocol
 
@@ -23,7 +24,7 @@ class SessionStore(Protocol):
 
     def save(self, state: SessionState) -> None: ...
 
-    def lock(self, session_id: str) -> threading.Lock: ...
+    def lock(self, session_id: str) -> AbstractContextManager[None]: ...
 
 
 class InMemorySessionStore:
@@ -58,7 +59,7 @@ class InMemorySessionStore:
                 raise SessionNotFoundError(state.session_id)
             self._data[state.session_id] = state
 
-    def lock(self, session_id: str) -> threading.Lock:
+    def lock(self, session_id: str) -> AbstractContextManager[None]:
         with self._guard:
             if session_id not in self._locks:
                 raise SessionNotFoundError(session_id)

@@ -59,6 +59,17 @@ class Settings(BaseSettings):
     max_body_bytes: int = Field(default=16_384, ge=1024)
     max_message_chars: int = Field(default=1000, ge=50)
     rate_limit_per_minute: int = Field(default=60, ge=1)
+    rate_limit_llm_per_minute: int = Field(default=20, ge=1)  # lower tier: chat / agent / planner-message routes
+    rate_limit_max_keys: int = Field(default=10_000, ge=100)  # bound for the in-memory limiter
+
+    # Shared state and session security
+    redis_url: str | None = None
+    redis_key_prefix: str = "rs"
+    redis_socket_timeout_seconds: float = Field(default=2.0, gt=0)
+    session_lock_ttl_ms: int = Field(default=30_000, ge=1000)
+    session_lock_wait_seconds: float = Field(default=10.0, gt=0)
+    # HMAC key for session tokens. Required when APP_ENV=production; a random per-process key is used otherwise.
+    session_signing_key: SecretStr | None = None
 
     # Railway data source: "demo" (bundled simulated data) or "railradar" (live third-party API).
     # Env var RAILWAY_DATA_MODE (preferred) or DATA_PROVIDER.

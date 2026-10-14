@@ -14,6 +14,8 @@ class PlannerError(Exception):
         "unknown_event": 404,
         "no_relevant_event": 409,
         "data_unavailable": 503,
+        "invalid_session_token": 401,
+        "message_too_long": 422,
     }
 
     def __init__(self, code: str, message: str, details: dict | None = None) -> None:

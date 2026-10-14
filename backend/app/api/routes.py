@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Request
+from fastapi import APIRouter, Body, Depends, Request
 
 from app.api.schemas import (
     ConfirmRequest,
@@ -17,6 +17,7 @@ from app.api.schemas import (
     SelectRequest,
     data_notice,
 )
+from app.api.deps import enforce_message_limit, verify_session_token
 from app.container import Container
 from app.domain.enums import (
     BudgetPriority,
@@ -28,7 +29,7 @@ from app.domain.enums import (
 from app.harness.errors import PlannerError
 from app.harness.planner import PlannerResult
 
-ERRORS = {code: {"model": ErrorResponse} for code in (404, 409, 410, 422, 429)}
+ERRORS = {code: {"model": ErrorResponse} for code in (401, 404, 409, 410, 422, 429)}
 router = APIRouter(prefix="/api")
 
 
@@ -84,21 +85,25 @@ def reference(request: Request) -> dict:
 
 @router.post("/planner/sessions", response_model=PlannerResponse, status_code=201, tags=["planner"])
 def create_session(request: Request, body: CreateSessionRequest = Body(default_factory=CreateSessionRequest)):
-    return _respond(_c(request).planner.create_session(body.language))
+    c = _c(request)
+    response = _respond(c.planner.create_session(body.language))
+    response.session_token = c.signer.issue(response.session_id)
+    return response
 
 
-@router.get("/planner/sessions/{session_id}", response_model=PlannerResponse, responses=ERRORS, tags=["planner"])
+@router.get("/planner/sessions/{session_id}", response_model=PlannerResponse, responses=ERRORS, dependencies=[Depends(verify_session_token)], tags=["planner"])
 def get_session(request: Request, session_id: UUID):
     state = _c(request).planner.get(str(session_id))
     return _respond(PlannerResult(state, ""))
 
 
-@router.post("/planner/sessions/{session_id}/messages", response_model=PlannerResponse, responses=ERRORS, tags=["planner"])
+@router.post("/planner/sessions/{session_id}/messages", response_model=PlannerResponse, responses=ERRORS, dependencies=[Depends(verify_session_token)], tags=["planner"])
 def post_message(request: Request, session_id: UUID, body: MessageRequest):
+    enforce_message_limit(request, body.message)
     return _respond(_c(request).planner.handle_message(str(session_id), body.message, body.language))
 
 
-@router.patch("/planner/sessions/{session_id}/journey", response_model=PlannerResponse, responses=ERRORS, tags=["planner"])
+@router.patch("/planner/sessions/{session_id}/journey", response_model=PlannerResponse, responses=ERRORS, dependencies=[Depends(verify_session_token)], tags=["planner"])
 def patch_journey(request: Request, session_id: UUID, body: JourneyPatch):
     provided = body.model_dump(exclude_unset=True)
     places = {k: provided.pop(k) for k in ("origin", "destination") if k in provided}
@@ -107,32 +112,32 @@ def patch_journey(request: Request, session_id: UUID, body: JourneyPatch):
     return _respond(_c(request).planner.patch_journey(str(session_id), {**provided, **clear_places}, resolve))
 
 
-@router.post("/planner/sessions/{session_id}/recommendations", response_model=PlannerResponse, responses=ERRORS, tags=["planner"])
+@router.post("/planner/sessions/{session_id}/recommendations", response_model=PlannerResponse, responses=ERRORS, dependencies=[Depends(verify_session_token)], tags=["planner"])
 def recommendations(request: Request, session_id: UUID):
     return _respond(_c(request).planner.recommend(str(session_id)))
 
 
-@router.post("/planner/sessions/{session_id}/select", response_model=PlannerResponse, responses=ERRORS, tags=["planner"])
+@router.post("/planner/sessions/{session_id}/select", response_model=PlannerResponse, responses=ERRORS, dependencies=[Depends(verify_session_token)], tags=["planner"])
 def select(request: Request, session_id: UUID, body: SelectRequest):
     return _respond(_c(request).planner.select(str(session_id), body.option_id))
 
 
-@router.post("/planner/sessions/{session_id}/confirm", response_model=PlannerResponse, responses=ERRORS, tags=["planner"])
+@router.post("/planner/sessions/{session_id}/confirm", response_model=PlannerResponse, responses=ERRORS, dependencies=[Depends(verify_session_token)], tags=["planner"])
 def confirm(request: Request, session_id: UUID, body: ConfirmRequest = Body(default_factory=ConfirmRequest)):
     return _respond(_c(request).planner.confirm(str(session_id), body.option_id))
 
 
-@router.post("/planner/sessions/{session_id}/reassess", response_model=PlannerResponse, responses=ERRORS, tags=["planner"])
+@router.post("/planner/sessions/{session_id}/reassess", response_model=PlannerResponse, responses=ERRORS, dependencies=[Depends(verify_session_token)], tags=["planner"])
 def reassess(request: Request, session_id: UUID, body: ReassessRequest = Body(default_factory=ReassessRequest)):
     return _respond(_c(request).planner.reassess(str(session_id), body.event_id))
 
 
-@router.post("/planner/sessions/{session_id}/cancel", response_model=PlannerResponse, responses=ERRORS, tags=["planner"])
+@router.post("/planner/sessions/{session_id}/cancel", response_model=PlannerResponse, responses=ERRORS, dependencies=[Depends(verify_session_token)], tags=["planner"])
 def cancel(request: Request, session_id: UUID):
     return _respond(_c(request).planner.cancel(str(session_id)))
 
 
-@router.get("/planner/sessions/{session_id}/handoff", responses=ERRORS, tags=["integration"])
+@router.get("/planner/sessions/{session_id}/handoff", responses=ERRORS, dependencies=[Depends(verify_session_token)], tags=["integration"])
 def handoff(request: Request, session_id: UUID) -> dict:
     state = _c(request).planner.get(str(session_id))
     if state.status != S.CONFIRMED or not state.confirmation:
@@ -140,7 +145,7 @@ def handoff(request: Request, session_id: UUID) -> dict:
     return state.confirmation.handoff
 
 
-@router.get("/planner/sessions/{session_id}/audit", responses=ERRORS, tags=["planner"])
+@router.get("/planner/sessions/{session_id}/audit", responses=ERRORS, dependencies=[Depends(verify_session_token)], tags=["planner"])
 def audit(request: Request, session_id: UUID) -> list[dict]:
     c = _c(request)
     c.planner.get(str(session_id))

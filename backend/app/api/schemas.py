@@ -37,7 +37,7 @@ class CreateSessionRequest(StrictModel):
 
 
 class MessageRequest(StrictModel):
-    message: str = Field(min_length=1, max_length=1000)
+    message: str = Field(min_length=1, max_length=10_000)  # hard cap; Settings.max_message_chars is enforced in the handler
     language: Language | None = None
 
 
@@ -82,6 +82,7 @@ class ExtractionInfo(BaseModel):
 
 class PlannerResponse(BaseModel):
     session_id: str
+    session_token: str | None = None  # issued only by session creation
     assistant_message: str
     status: WorkflowStatus
     state: SessionState

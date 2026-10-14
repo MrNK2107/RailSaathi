@@ -1,71 +1,154 @@
-"""Prototype-level request hardening: body size limit, rate limiting, access logs.
-
-The rate limiter is in-memory and per process; a deployment behind several
-workers should use a shared store or the gateway's limiter instead."""
+"""Request hardening: body size limit, rate limiting, access logs. Pure ASGI so bodies are never buffered whole."""
 
 import json
 import logging
-import threading
 import time
 import uuid
 
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
+from starlette.datastructures import Headers
+from starlette.responses import JSONResponse
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
+from app.security.rate_limit import RateLimiter
+from app.security.tokens import TOKEN_HEADER, InvalidSessionToken, SessionTokenSigner
 
 log = logging.getLogger("railsaathi.http")
 
+HEALTH_PATHS = frozenset({"/healthz", "/readyz", "/api/health"})
+BODY_METHODS = frozenset({"POST", "PUT", "PATCH"})
 
-def error_json(status: int, code: str, message: str) -> JSONResponse:
-    return JSONResponse(status_code=status, content={"error": {"code": code, "message": message, "details": {}}})
+
+def error_json(status: int, code: str, message: str, headers: dict[str, str] | None = None) -> JSONResponse:
+    return JSONResponse(status_code=status, headers=headers,
+                        content={"error": {"code": code, "message": message, "details": {}}})
 
 
-class BodySizeLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, max_bytes: int) -> None:
-        super().__init__(app)
+def is_llm_route(method: str, path: str) -> bool:
+    """Routes that can reach an LLM: ticketing chat, goal-planner prompt parsing and planner messages."""
+    if method != "POST":
+        return False
+    return path in ("/api/chat", "/api/journey/plan", "/api/journey/refine") or path.endswith("/messages")
+
+
+def client_ip(headers: Headers, scope: Scope) -> str:
+    """First X-Forwarded-For hop (the Cloud Run / load balancer front door), else the socket peer."""
+    first = headers.get("x-forwarded-for", "").split(",")[0].strip()
+    if first:
+        return first[:64]
+    client = scope.get("client")
+    return client[0] if client else "unknown"
+
+
+class BodySizeLimitMiddleware:
+    def __init__(self, app: ASGIApp, max_bytes: int) -> None:
+        self.app = app
         self._max = max_bytes
 
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        if request.method in ("POST", "PUT", "PATCH"):
-            length = request.headers.get("content-length")
-            if length and length.isdigit() and int(length) > self._max:
-                return error_json(413, "payload_too_large", "Request body is too large.")
-            body = await request.body()
-            if len(body) > self._max:
-                return error_json(413, "payload_too_large", "Request body is too large.")
-        return await call_next(request)
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope["method"] not in BODY_METHODS:
+            await self.app(scope, receive, send)
+            return
+        length = Headers(scope=scope).get("content-length")
+        too_large = error_json(413, "payload_too_large", "Request body is too large.")
+        if length and length.isdigit() and int(length) > self._max:
+            await too_large(scope, receive, send)
+            return
+
+        received = 0
+        exceeded = False
+
+        async def counting_receive() -> Message:
+            nonlocal received, exceeded
+            if exceeded:
+                return {"type": "http.disconnect"}
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > self._max:
+                    # Stop feeding the app; whatever it answers is replaced by the 413 below.
+                    exceeded = True
+                    return {"type": "http.disconnect"}
+            return message
+
+        async def guarded_send(message: Message) -> None:
+            if not exceeded:
+                await send(message)
+
+        try:
+            await self.app(scope, counting_receive, guarded_send)
+        except Exception:
+            if not exceeded:
+                raise
+        if exceeded:
+            await too_large(scope, receive, send)
 
 
-class RateLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, per_minute: int) -> None:
-        super().__init__(app)
+class RateLimitMiddleware:
+    """Two sliding-window buckets per request: one per client IP and, when a valid session token is presented,
+    one per session. Health routes are exempt; LLM routes use the lower tier."""
+
+    def __init__(self, app: ASGIApp, limiter: RateLimiter, per_minute: int, llm_per_minute: int,
+                 signer: SessionTokenSigner | None = None) -> None:
+        self.app = app
+        self._limiter = limiter
         self._limit = per_minute
-        self._hits: dict[str, tuple[int, int]] = {}
-        self._lock = threading.Lock()
+        self._llm_limit = llm_per_minute
+        self._signer = signer
 
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        if request.url.path.startswith("/api/") and request.url.path != "/api/health":
-            client = request.client.host if request.client else "unknown"
-            window = int(time.time() // 60)
-            with self._lock:
-                start, count = self._hits.get(client, (window, 0))
-                count = count + 1 if start == window else 1
-                self._hits[client] = (window, count)
-            if count > self._limit:
-                return error_json(429, "rate_limited", "Too many requests. Please wait a moment.")
-        return await call_next(request)
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        path = scope.get("path", "")
+        if scope["type"] != "http" or path in HEALTH_PATHS or scope["method"] == "OPTIONS":
+            await self.app(scope, receive, send)
+            return
+        headers = Headers(scope=scope)
+        tier, limit = ("llm", self._llm_limit) if is_llm_route(scope["method"], path) else ("std", self._limit)
+        keys = [f"{tier}:ip:{client_ip(headers, scope)}"]
+        session_id = self._session_of(headers.get(TOKEN_HEADER.lower()))
+        if session_id:
+            keys.append(f"{tier}:sid:{session_id}")
+        for key in keys:
+            decision = self._limiter.hit(key, limit)
+            if not decision.allowed:
+                resp = error_json(429, "rate_limited", "Too many requests. Please wait a moment.",
+                                  {"Retry-After": str(decision.retry_after)})
+                await resp(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
+    def _session_of(self, token: str | None) -> str | None:
+        if not token or self._signer is None:
+            return None
+        try:
+            return self._signer.verify(token)
+        except InvalidSessionToken:
+            return None
 
 
-class AccessLogMiddleware(BaseHTTPMiddleware):
-    """Logs method, path, status and latency only — never bodies or passenger messages."""
+class AccessLogMiddleware:
+    """Logs method, path, status and latency only; never bodies or passenger messages."""
 
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        request_id = request.headers.get("x-request-id") or uuid.uuid4().hex[:12]
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        request_id = Headers(scope=scope).get("x-request-id") or uuid.uuid4().hex[:12]
         started = time.perf_counter()
-        response = await call_next(request)
-        log.info(json.dumps({
-            "request_id": request_id, "method": request.method, "path": request.url.path,
-            "status": response.status_code, "ms": round((time.perf_counter() - started) * 1000, 1),
-        }))
-        response.headers["x-request-id"] = request_id
-        return response
+        status = 500
+
+        async def send_wrapper(message: Message) -> None:
+            nonlocal status
+            if message["type"] == "http.response.start":
+                status = message["status"]
+                message.setdefault("headers", []).append((b"x-request-id", request_id.encode()))
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_wrapper)
+        finally:
+            log.info(json.dumps({
+                "request_id": request_id, "method": scope["method"], "path": scope["path"],
+                "status": status, "ms": round((time.perf_counter() - started) * 1000, 1),
+            }))

@@ -400,7 +400,9 @@ def test_api_health_and_messages_label_live_mode():
     health = api.get("/api/health").json()
     assert health["data_mode"] == "live" and health["data_provider"]["active"] == "railradar"
     assert KEY not in str(health)
-    sid = api.post("/api/planner/sessions", json={}).json()["session_id"]
+    created = api.post("/api/planner/sessions", json={}).json()
+    sid = created["session_id"]
+    api.headers["X-Session-Token"] = created["session_token"]
     body = api.post(f"/api/planner/sessions/{sid}/messages",
                     json={"message": "from Coimbatore to Chennai on 2026-10-11, 1 passenger, fastest"}).json()
     assert body["data_mode"] == "live" and body["data_notice"].startswith("LIVE DATA from RailRadar")

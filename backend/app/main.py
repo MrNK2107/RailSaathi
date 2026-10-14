@@ -24,6 +24,7 @@ from app.api.live import router as live_router
 from app.config import Settings, get_settings
 from app.container import Container, build_container
 from app.harness.errors import PlannerError
+from app.security.rate_limit import InMemoryRateLimiter, RedisRateLimiter
 
 log = logging.getLogger("railsaathi")
 
@@ -40,9 +41,14 @@ def create_app(settings: Settings | None = None, container: Container | None = N
     app.state.container = container or build_container(settings)
 
     # Middlewares
-    app.add_middleware(AccessLogMiddleware)
-    app.add_middleware(RateLimitMiddleware, per_minute=settings.rate_limit_per_minute)
+    # Last added is outermost: CORS > access log > rate limit > body size limit.
+    c = app.state.container
+    limiter = (RedisRateLimiter(c.redis, settings.redis_key_prefix) if c.redis is not None
+               else InMemoryRateLimiter(settings.rate_limit_max_keys))
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_body_bytes)
+    app.add_middleware(RateLimitMiddleware, limiter=limiter, per_minute=settings.rate_limit_per_minute,
+                       llm_per_minute=settings.rate_limit_llm_per_minute, signer=c.signer)
+    app.add_middleware(AccessLogMiddleware)
     origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
     app.add_middleware(
         CORSMiddleware,

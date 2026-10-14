@@ -42,6 +42,8 @@ export function createApiClient(options: ApiClientOptions = {}) {
   const fetchImpl = options.fetchImpl ?? fetch.bind(globalThis)
   const retries = options.retries ?? 2
   const retryDelayMs = options.retryDelayMs ?? 400
+  // Signed token issued by session creation; sent on every call so session routes and rate limits can verify it.
+  let sessionToken: string | null = null
 
   async function request<T>(method: string, path: string, body?: unknown, idempotent = method === 'GET'): Promise<T> {
     let attempt = 0
@@ -65,7 +67,10 @@ export function createApiClient(options: ApiClientOptions = {}) {
     try {
       const res = await fetchImpl(`${baseUrl}${path}`, {
         method,
-        headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+        headers: {
+          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+          ...(sessionToken ? { 'X-Session-Token': sessionToken } : {}),
+        },
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: controller.signal,
       })
@@ -86,7 +91,11 @@ export function createApiClient(options: ApiClientOptions = {}) {
     baseUrl,
     health: () => request<HealthResponse>('GET', '/api/health'),
     reference: () => request<ReferenceData>('GET', '/api/planner/reference'),
-    createSession: (language: Language) => request<PlannerResponse>('POST', '/api/planner/sessions', { language }, true),
+    createSession: async (language: Language) => {
+      const res = await request<PlannerResponse>('POST', '/api/planner/sessions', { language }, true)
+      sessionToken = res.session_token ?? null
+      return res
+    },
     getSession: (id: string) => request<PlannerResponse>('GET', s(id)),
     sendMessage: (id: string, message: string, language: Language) =>
       request<PlannerResponse>('POST', `${s(id)}/messages`, { message, language }),

@@ -24,6 +24,7 @@ def client():
 def new_session(client, lang="en") -> str:
     r = client.post("/api/planner/sessions", json={"language": lang})
     assert r.status_code == 201
+    client.headers["X-Session-Token"] = r.json()["session_token"]
     return r.json()["session_id"]
 
 
@@ -112,9 +113,12 @@ def test_reassess_endpoint(client):
 
 def test_errors_are_structured(client):
     missing = str(uuid.uuid4())
-    r = client.post(f"/api/planner/sessions/{missing}/messages", json={"message": "hi"})
+    forged = client.app.state.container.signer.issue(missing)  # validly signed, but no such session
+    r = client.post(f"/api/planner/sessions/{missing}/messages", json={"message": "hi"},
+                    headers={"X-Session-Token": forged})
     assert r.status_code == 404 and r.json()["error"]["code"] == "session_not_found"
-    r = client.post("/api/planner/sessions/not-a-uuid/messages", json={"message": "hi"})
+    r = client.post("/api/planner/sessions/not-a-uuid/messages", json={"message": "hi"},
+                    headers={"X-Session-Token": client.app.state.container.signer.issue("not-a-uuid")})
     assert r.status_code == 422
     sid = new_session(client)
     r = client.post(f"/api/planner/sessions/{sid}/messages", json={"message": ""})

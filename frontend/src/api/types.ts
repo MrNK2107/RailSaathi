@@ -199,6 +199,7 @@ export interface SessionState {
 
 export interface PlannerResponse {
   session_id: string
+  session_token?: string | null
   assistant_message: string
   status: WorkflowStatus
   state: SessionState

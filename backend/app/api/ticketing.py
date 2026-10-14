@@ -5,9 +5,10 @@ Powered by local knowledge database and deterministic safety checks.
 
 import uuid
 from typing import Optional
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel, Field
 
+from app.api.deps import enforce_message_limit
 from app.config import DB_PATH
 from app.knowledge.database import get_all_sources, get_connection
 from app.agent.mock_llm import DevMockGeminiClient
@@ -17,7 +18,7 @@ router = APIRouter(prefix="/api", tags=["Ticketing Guidance"])
 
 
 class ChatRequest(BaseModel):
-    message: str
+    message: str = Field(min_length=1, max_length=10_000)
     conversation_id: Optional[str] = None
 
 
@@ -33,8 +34,9 @@ def list_sources():
 
 
 @router.post("/chat")
-def ticketing_chat(payload: ChatRequest):
+def ticketing_chat(request: Request, payload: ChatRequest):
     """Answer IRCTC rules, RAC/WL queries, Tatkal timings, and refunds."""
+    enforce_message_limit(request, payload.message)
     llm = DevMockGeminiClient()
     controller = AgentController(llm, str(DB_PATH))
     try:

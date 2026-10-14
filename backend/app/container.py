@@ -4,6 +4,8 @@ import logging
 from dataclasses import dataclass
 from zoneinfo import ZoneInfo
 
+from redis import Redis
+
 from app.audit.log import AuditLog
 from app.clock import Clock, FixedClock, SystemClock
 from app.config import Settings
@@ -19,7 +21,10 @@ from app.providers.demo import DemoDisruptionSource, DemoJourneyProvider
 from app.providers.railradar import RailRadarDisruptionSource, RailRadarJourneyProvider, UnconfiguredLiveProvider
 from app.providers.railradar_client import RailRadarClient
 from app.ranking.recommender import Recommender
-from app.sessions.store import InMemorySessionStore
+from app.infra.redis import build_redis
+from app.security.tokens import SessionTokenSigner, build_signer
+from app.sessions.redis_store import RedisSessionStore
+from app.sessions.store import InMemorySessionStore, SessionStore
 from app.stations.resolver import StationResolver
 
 log = logging.getLogger("railsaathi")
@@ -36,6 +41,8 @@ class Container:
     audit: AuditLog
     planner: PlannerService
     data_provider_status: dict
+    redis: Redis | None = None  # shared client; None when REDIS_URL is unset
+    signer: SessionTokenSigner | None = None
 
 
 def build_clock(settings: Settings) -> Clock:
@@ -95,9 +102,20 @@ def build_data_sources(settings: Settings) -> tuple[JourneyProvider, DisruptionS
         "requested": requested, "active": "demo", "configured": True, "reason": None}
 
 
+def build_session_store(settings: Settings, clock: Clock, redis: Redis | None) -> SessionStore:
+    if redis is not None:
+        return RedisSessionStore(redis, settings.session_ttl_minutes * 60, settings.redis_key_prefix,
+                                 settings.session_lock_ttl_ms, settings.session_lock_wait_seconds)
+    return InMemorySessionStore(clock, settings.session_ttl_minutes)
+
+
 def build_container(settings: Settings, clock: Clock | None = None,
-                    llm: IntentLLM | None = None, use_configured_llm: bool = True) -> Container:
+                    llm: IntentLLM | None = None, use_configured_llm: bool = True,
+                    redis: Redis | None = None) -> Container:
+    """`redis` lets tests inject fakeredis; otherwise a client is built from REDIS_URL (or None)."""
     clock = clock or build_clock(settings)
+    redis = redis if redis is not None else build_redis(settings)
+    signer = build_signer(settings)
     provider, disruptions, data_status = build_data_sources(settings)
     resolver = StationResolver(provider)
     reason = None
@@ -109,10 +127,10 @@ def build_container(settings: Settings, clock: Clock | None = None,
     engine = WorkflowEngine(settings, clock, audit, recommender, resolver)
     planner = PlannerService(
         engine=engine,
-        store=InMemorySessionStore(clock, settings.session_ttl_minutes),
+        store=build_session_store(settings, clock, redis),
         extractor=extractor,
         merger=JourneyMerger(resolver),
         disruption=DisruptionService(disruptions, recommender),
         data_mode=provider.data_mode,
     )
-    return Container(settings, clock, provider, disruptions, resolver, extractor, audit, planner, data_status)
+    return Container(settings, clock, provider, disruptions, resolver, extractor, audit, planner, data_status, redis, signer)

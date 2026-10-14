@@ -5,9 +5,10 @@ Evaluates timetable schedules against meeting deadlines and last-mile cab buffer
 
 import uuid
 from typing import Optional, Dict, Any
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from app.api.deps import enforce_message_limit
 from app.journey.planner import JourneyPlanner, parse_requirements_from_text
 from app.journey.models import TripRequirements
 
@@ -31,12 +32,13 @@ class GoalPlanRequest(BaseModel):
 
 
 @router.post("/plan")
-def plan_journey(payload: GoalPlanRequest):
+def plan_journey(request: Request, payload: GoalPlanRequest):
     """
     Accept free-text meeting prompt or structured constraints,
     deterministically evaluate timetables, buffers, and last-mile taxis,
     and output ranked train recommendations with IRCTC booking handoffs.
     """
+    enforce_message_limit(request, payload.prompt, "prompt")
     trace_id = f"plan-{uuid.uuid4().hex[:10]}"
     try:
         if payload.prompt and not payload.origin:

@@ -32,6 +32,17 @@ describe('api client', () => {
     await expect(api.health()).rejects.toMatchObject({ code: 'network_error' })
   })
 
+  it('stores the session token from createSession and sends it on later calls', async () => {
+    const fetchImpl = vi.fn()
+      .mockImplementationOnce(() => json(201, { session_id: 's1', session_token: 's1.sig' }))
+      .mockImplementationOnce(() => json(200, {}))
+    const api = createApiClient({ baseUrl: 'http://api', fetchImpl })
+    await api.createSession('en')
+    await api.getSession('s1')
+    const headers = (fetchImpl.mock.calls[1] as unknown as [string, RequestInit])[1].headers as Record<string, string>
+    expect(headers['X-Session-Token']).toBe('s1.sig')
+  })
+
   it('flags expired sessions', () => {
     expect(new ApiError(410, 'session_expired', 'x').isSessionGone).toBe(true)
   })
