@@ -1,3 +1,12 @@
+def safe_validation_errors(exc: ValueError) -> list[dict[str, str]]:
+    """[{field, message}] from a pydantic ValidationError: never the offending input values."""
+    errors = getattr(exc, "errors", None)
+    if not callable(errors):
+        return []
+    return [{"field": ".".join(str(p) for p in e.get("loc", ())), "message": str(e.get("msg", "invalid"))}
+            for e in errors(include_input=False, include_url=False)]
+
+
 class PlannerError(Exception):
     """Domain error with a stable code the API maps to an HTTP status."""
 

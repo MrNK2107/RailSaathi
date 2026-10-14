@@ -12,7 +12,7 @@ from app.domain.journey import REQUIRED_FIELDS, JourneyDetails
 from app.domain.state import ConfirmationRecord, SessionState
 from app.domain.transitions import InvalidTransitionError
 from app.harness.engine import Reply, WorkflowEngine, selected_recommendation
-from app.harness.errors import PlannerError
+from app.harness.errors import PlannerError, safe_validation_errors
 from app.harness.handoff import build_handoff
 from app.harness.i18n import field_label, msg
 from app.harness.merge import JourneyMerger, MergeResult, changed_fields
@@ -175,7 +175,7 @@ class PlannerService:
             try:
                 journey = JourneyDetails.model_validate({**merged.journey.model_dump(), **values})
             except ValueError as exc:
-                raise PlannerError("validation_failed", "Invalid journey values.", {"errors": str(exc)}) from exc
+                raise PlannerError("validation_failed", "Invalid journey values.", {"errors": safe_validation_errors(exc)}) from exc
             sources = {**journey.field_sources, **{k: FieldSource.EDITED for k in [*values, *resolve_places]}}
             journey = journey.model_copy(update={"field_sources": sources})
             merged = MergeResult(journey, merged.issues, merged.candidates, changed_fields(state.journey, journey))

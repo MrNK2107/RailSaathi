@@ -27,6 +27,7 @@ from redis.exceptions import RedisError
 log = logging.getLogger("railsaathi.railradar")
 
 WINDOW_SECONDS = 60
+OUTAGE_RETRY_AFTER = 5  # seconds suggested to callers while the quota store is down
 
 
 def key_fingerprint(api_key: str) -> str:
@@ -107,8 +108,9 @@ class InMemoryResponseCache:
 
 
 class RedisQuotaGate:
-    """Sliding window on a sorted set shared by all instances. If Redis is unreachable it falls back to a
-    per-process window so the quota can still never be exceeded by this instance."""
+    """Sliding window on a sorted set shared by all instances. If Redis is unreachable it FAILS CLOSED (reports
+    the quota as exhausted): a per-process fallback would let N replicas multiply the shared key's budget, so the
+    client serves its stale cache or reports the data as unavailable instead."""
 
     def __init__(self, client: Redis, api_key: str, rpm: int = 10, prefix: str = "rs",
                  clock: Callable[[], float] = time.time) -> None:
@@ -116,7 +118,6 @@ class RedisQuotaGate:
         self._rpm = rpm
         self._key = f"{prefix}:rr:quota:{key_fingerprint(api_key)}"
         self._clock = clock
-        self._local = InMemoryQuotaGate(rpm, clock)
 
     def _hit(self) -> QuotaDecision:
         now_ms = int(self._clock() * 1000)
@@ -138,8 +139,8 @@ class RedisQuotaGate:
         try:
             return await asyncio.to_thread(self._hit)
         except RedisError:
-            log.warning("RailRadar quota store unavailable; using a per-process window", exc_info=True)
-            return await self._local.acquire()
+            log.warning("RailRadar quota store unavailable; failing closed", exc_info=True)
+            return QuotaDecision(False, OUTAGE_RETRY_AFTER)
 
 
 class RedisResponseCache:

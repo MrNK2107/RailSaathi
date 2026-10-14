@@ -127,7 +127,7 @@ class AgentController:
                 try:
                     response = self.llm_client.generate(contents)
                 except Exception as e:
-                    self._add_trace("error", detail=f"LLM call failed: {type(e).__name__}: {str(e)}")
+                    self._add_trace("error", detail=f"LLM call failed: {type(e).__name__}")
                     logger.error(f"[{trace_id}] LLM error: {e}")
                     return AgentResponse(
                         answer="I'm sorry, the AI service is currently unavailable. Please try again later.",

@@ -5,9 +5,12 @@ async (httpx.AsyncClient, concurrent fan-out with gather). Every call into it go
 the AsyncClient's connection pool is always used from the same loop and no thread pool is created per request."""
 
 import asyncio
+import concurrent.futures
 import threading
 from collections.abc import Coroutine
 from typing import Any, TypeVar
+
+from app.providers.errors import ProviderError, ProviderErrorKind
 
 T = TypeVar("T")
 
@@ -35,7 +38,12 @@ class LoopThread:
 
     def run(self, coro: Coroutine[Any, Any, T], timeout: float | None = 90.0) -> T:
         """Block the calling (non-loop) thread until `coro` finishes on the bridge loop."""
-        return asyncio.run_coroutine_threadsafe(coro, self._ensure()).result(timeout)
+        future = asyncio.run_coroutine_threadsafe(coro, self._ensure())
+        try:
+            return future.result(timeout)
+        except concurrent.futures.TimeoutError as exc:
+            future.cancel()  # stop the coroutine on the loop instead of leaving it running
+            raise ProviderError(ProviderErrorKind.TIMEOUT, "The live data request took too long") from exc
 
 
 _bridge = LoopThread()

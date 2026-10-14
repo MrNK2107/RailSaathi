@@ -107,6 +107,28 @@ def test_supplied_request_id_is_echoed_and_unsafe_ones_replaced():
     assert replaced != "bad id with spaces" and len(replaced) == 16
 
 
+def test_validation_failed_details_exclude_input_values():
+    from pydantic import BaseModel, ValidationError
+    from app.harness.errors import safe_validation_errors
+
+    class M(BaseModel):
+        passengers: int
+
+    with pytest.raises(ValidationError) as exc:
+        M(passengers="my-private-value")
+    out = safe_validation_errors(exc.value)
+    assert out == [{"field": "passengers", "message": out[0]["message"]}]
+    assert "my-private-value" not in str(out)
+
+
+def test_patch_journey_invalid_values_do_not_echo_input():
+    c = make()
+    created = c.post("/api/planner/sessions", json={}).json()
+    res = c.patch(f"/api/planner/sessions/{created['session_id']}/journey",
+                  json={"passengers": 3}, headers={"X-Session-Token": created["session_token"]})
+    assert res.status_code in (200, 422) and "input_value" not in res.text and "pydantic" not in res.text
+
+
 def test_navigation_404_does_not_echo_exception_text():
     res = make().get("/api/stations/nowhere")
     body = assert_envelope(res, 404, "not_found")
