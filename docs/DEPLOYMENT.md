@@ -11,13 +11,22 @@ Two containers, both on Cloud Run:
 `backend/scripts/smoke.sh` and a frontend proxy check. The workflow is skipped until the
 `GCP_PROJECT_ID` repository variable exists.
 
-## Phase 1 constraints
+## Runtime topology
 
-- Planner sessions are still held in process, so the backend runs with **max instances 1**.
-  Phase 2 moves sessions, rate limits and the RailRadar quota to Redis and lifts this cap.
-- Demo data mode (`RAILWAY_DATA_MODE=demo`) and no LLM (`LLM_PROVIDER=none`) are the defaults.
-  Set the `RAILWAY_DATA_MODE=railradar` repository variable and the `RAILRADAR_API_KEY` secret
-  for live train data.
+- Planner sessions, rate-limit counters and the RailRadar quota and cache live in **Memorystore for Redis**
+  (`REDIS_URL`), so the backend runs on several instances (default **min 2, max 10**; override with the
+  `BACKEND_MIN_INSTANCES` / `BACKEND_MAX_INSTANCES` repository variables). Cloud Run reaches the private
+  Memorystore IP through **Direct VPC egress** (`--network/--subnet`, `--vpc-egress private-ranges-only`);
+  a Serverless VPC Access connector (`--vpc-connector`) works too if you already have one.
+- Every replica signs and verifies session tokens with the same `SESSION_SIGNING_KEY` (required in production;
+  the app refuses to start without it).
+- Gemini runs on **Vertex AI** with the Cloud Run runtime service account (`LLM_PROVIDER=gemini`,
+  `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`); no API key. Any LLM failure or timeout degrades to the
+  rule-based extractor / rule-based ticketing agent, never a 500. `LLM_OVERALL_DEADLINE_SECONDS` (default 20)
+  bounds a whole planner or agent turn, and the session lock TTL (`SESSION_LOCK_TTL_MS`, default 45 s) is
+  validated to outlive it.
+- Demo data mode (`RAILWAY_DATA_MODE=demo`) is the default. Set the `RAILWAY_DATA_MODE=railradar` repository
+  variable and the `RAILRADAR_API_KEY` secret for live train data.
 - The backend data directory is **not** served. The only station assets exposed are
   `GET /api/stations/{id}/map` and `GET /api/stations/{id}/info`.
 
@@ -32,27 +41,42 @@ export GITHUB_REPO=MrNK2107/gdg-devfest
 
 gcloud config set project "$PROJECT_ID"
 gcloud services enable run.googleapis.com artifactregistry.googleapis.com \
-  iamcredentials.googleapis.com secretmanager.googleapis.com
+  iamcredentials.googleapis.com secretmanager.googleapis.com \
+  redis.googleapis.com compute.googleapis.com aiplatform.googleapis.com
 
 # Image repository
 gcloud artifacts repositories create railsaathi --repository-format=docker --location="$REGION"
 
-# Secrets referenced by the backend service (create even if empty so the deploy does not fail)
+# Memorystore for Redis on the VPC the backend egresses to (here the "default" network; its regional
+# subnet "default" must be in $REGION). AUTH is on; traffic stays on the private VPC.
+gcloud redis instances create railsaathi --region="$REGION" --tier=standard --size=1 \
+  --redis-version=redis_7_2 --network=default --enable-auth
+REDIS_HOST="$(gcloud redis instances describe railsaathi --region="$REGION" --format 'value(host)')"
+REDIS_PORT="$(gcloud redis instances describe railsaathi --region="$REGION" --format 'value(port)')"
+REDIS_AUTH="$(gcloud redis instances get-auth-string railsaathi --region="$REGION" --format 'value(authString)')"
+
+# Secrets referenced by the backend service (RAILRADAR_API_KEY may be empty so the deploy does not fail)
 printf '' | gcloud secrets create RAILRADAR_API_KEY --data-file=-
 # later: printf 'real-key' | gcloud secrets versions add RAILRADAR_API_KEY --data-file=-
+printf 'redis://:%s@%s:%s/0' "$REDIS_AUTH" "$REDIS_HOST" "$REDIS_PORT" | gcloud secrets create REDIS_URL --data-file=-
+openssl rand -base64 48 | tr -d '\n' | gcloud secrets create SESSION_SIGNING_KEY --data-file=-
 
-# Deploy service account used by GitHub Actions
+# Deploy service account used by GitHub Actions (networkUser lets it attach the service to the VPC subnet)
 gcloud iam service-accounts create github-deployer --display-name "GitHub Actions deployer"
 SA="github-deployer@${PROJECT_ID}.iam.gserviceaccount.com"
-for ROLE in roles/run.admin roles/artifactregistry.writer roles/iam.serviceAccountUser; do
+for ROLE in roles/run.admin roles/artifactregistry.writer roles/iam.serviceAccountUser roles/compute.networkUser; do
   gcloud projects add-iam-policy-binding "$PROJECT_ID" --member "serviceAccount:$SA" --role "$ROLE"
 done
 
-# Let the Cloud Run runtime service account read the secret
+# Cloud Run runtime service account: read the secrets and call Gemini on Vertex AI
 PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format 'value(projectNumber)')"
-gcloud secrets add-iam-policy-binding RAILRADAR_API_KEY \
-  --member "serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
-  --role roles/secretmanager.secretAccessor
+RUNTIME_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+for SECRET in RAILRADAR_API_KEY REDIS_URL SESSION_SIGNING_KEY; do
+  gcloud secrets add-iam-policy-binding "$SECRET" \
+    --member "serviceAccount:${RUNTIME_SA}" --role roles/secretmanager.secretAccessor
+done
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member "serviceAccount:${RUNTIME_SA}" --role roles/aiplatform.user
 
 # Workload Identity Federation (keyless auth from GitHub Actions)
 gcloud iam workload-identity-pools create github --location global --display-name "GitHub"
@@ -79,6 +103,10 @@ Then add these **repository variables** in GitHub (Settings, Secrets and variabl
 | `GCP_SERVICE_ACCOUNT` | printed by the script above |
 | `RAILWAY_DATA_MODE` | `demo` (default) or `railradar` |
 | `FRONTEND_ORIGIN` | optional; leave empty, the nginx proxy makes API calls same-origin |
+| `LLM_PROVIDER` | `gemini` (default), `bedrock` (intent extraction only) or `none` |
+| `GOOGLE_CLOUD_LOCATION` | Vertex AI region for Gemini, default `us-central1` |
+| `VPC_NETWORK` / `VPC_SUBNET` | network and subnet (in `GCP_REGION`) used for Direct VPC egress to Memorystore; default `default` / `default` |
+| `BACKEND_MIN_INSTANCES` / `BACKEND_MAX_INSTANCES` | backend scaling bounds, default `2` / `10` |
 
 Push to `main` or run the workflow manually. The job prints both service URLs at the end.
 

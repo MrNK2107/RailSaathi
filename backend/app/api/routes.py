@@ -18,7 +18,7 @@ from app.api.schemas import (
     data_notice,
 )
 from app.api.health import dependency_status
-from app.api.deps import enforce_message_limit, verify_session_token
+from app.api.deps import enforce_message_limit, offload, verify_session_token
 from app.container import Container
 from app.domain.enums import (
     BudgetPriority,
@@ -58,21 +58,28 @@ def _respond(result: PlannerResult) -> PlannerResponse:
 
 
 @router.get("/health", response_model=HealthResponse, tags=["system"])
-def health(request: Request) -> HealthResponse:
-    c = _c(request)
+async def health(request: Request) -> HealthResponse:
+    return await offload(_health, _c(request))
+
+
+def _health(c: Container) -> HealthResponse:
     return HealthResponse(
         status="ok", api_version=c.settings.api_version, data_mode=c.provider.data_mode,
         data_provider=c.data_provider_status,
         ai={"llm_provider_setting": c.settings.llm_provider, "bedrock_configured": c.settings.bedrock_configured,
-            **c.extractor.llm_status, "fallback": "rule_based_extractor"},
+            "gemini_configured": c.settings.gemini_configured,
+            **c.extractor.llm_status, "fallback": "rule_based_extractor", "chat": c.chat_llm_status},
         **dependency_status(c),
     )
 
 
 @router.get("/planner/reference", tags=["planner"])
-def reference(request: Request) -> dict:
+async def reference(request: Request) -> dict:
     """Lookup values for the frontend edit form (places, classes, needs, demo events)."""
-    c = _c(request)
+    return await offload(_reference, _c(request))
+
+
+def _reference(c: Container) -> dict:
     return {
         "places": [p.model_dump() for p in c.resolver.all_places()],
         "classes": [t.value for t in TravelClass],
@@ -86,74 +93,76 @@ def reference(request: Request) -> dict:
 
 
 @router.post("/planner/sessions", response_model=PlannerResponse, status_code=201, tags=["planner"])
-def create_session(request: Request, body: CreateSessionRequest = Body(default_factory=CreateSessionRequest)):
+async def create_session(request: Request, body: CreateSessionRequest = Body(default_factory=CreateSessionRequest)):
     c = _c(request)
-    response = _respond(c.planner.create_session(body.language))
+    response = _respond(await offload(c.planner.create_session, body.language))
     response.session_token = c.signer.issue(response.session_id)
     return response
 
 
 @router.get("/planner/sessions/{session_id}", response_model=PlannerResponse, responses=ERRORS, dependencies=[Depends(verify_session_token)], tags=["planner"])
-def get_session(request: Request, session_id: UUID):
-    state = _c(request).planner.get(str(session_id))
+async def get_session(request: Request, session_id: UUID):
+    state = await offload(_c(request).planner.get, str(session_id))
     return _respond(PlannerResult(state, ""))
 
 
 @router.post("/planner/sessions/{session_id}/messages", response_model=PlannerResponse, responses=ERRORS, dependencies=[Depends(verify_session_token)], tags=["planner"])
-def post_message(request: Request, session_id: UUID, body: MessageRequest):
+async def post_message(request: Request, session_id: UUID, body: MessageRequest):
     enforce_message_limit(request, body.message)
-    return _respond(_c(request).planner.handle_message(str(session_id), body.message, body.language))
+    return _respond(await offload(_c(request).planner.handle_message, str(session_id), body.message, body.language))
 
 
 @router.patch("/planner/sessions/{session_id}/journey", response_model=PlannerResponse, responses=ERRORS, dependencies=[Depends(verify_session_token)], tags=["planner"])
-def patch_journey(request: Request, session_id: UUID, body: JourneyPatch):
+async def patch_journey(request: Request, session_id: UUID, body: JourneyPatch):
     provided = body.model_dump(exclude_unset=True)
     places = {k: provided.pop(k) for k in ("origin", "destination") if k in provided}
     clear_places = {k: None for k, v in places.items() if v is None}
     resolve = {k: v for k, v in places.items() if v is not None}
-    return _respond(_c(request).planner.patch_journey(str(session_id), {**provided, **clear_places}, resolve))
+    return _respond(await offload(_c(request).planner.patch_journey, str(session_id), {**provided, **clear_places},
+                                  resolve))
 
 
 @router.post("/planner/sessions/{session_id}/recommendations", response_model=PlannerResponse, responses=ERRORS, dependencies=[Depends(verify_session_token)], tags=["planner"])
-def recommendations(request: Request, session_id: UUID):
-    return _respond(_c(request).planner.recommend(str(session_id)))
+async def recommendations(request: Request, session_id: UUID):
+    return _respond(await offload(_c(request).planner.recommend, str(session_id)))
 
 
 @router.post("/planner/sessions/{session_id}/select", response_model=PlannerResponse, responses=ERRORS, dependencies=[Depends(verify_session_token)], tags=["planner"])
-def select(request: Request, session_id: UUID, body: SelectRequest):
-    return _respond(_c(request).planner.select(str(session_id), body.option_id))
+async def select(request: Request, session_id: UUID, body: SelectRequest):
+    return _respond(await offload(_c(request).planner.select, str(session_id), body.option_id))
 
 
 @router.post("/planner/sessions/{session_id}/confirm", response_model=PlannerResponse, responses=ERRORS, dependencies=[Depends(verify_session_token)], tags=["planner"])
-def confirm(request: Request, session_id: UUID, body: ConfirmRequest = Body(default_factory=ConfirmRequest)):
-    return _respond(_c(request).planner.confirm(str(session_id), body.option_id))
+async def confirm(request: Request, session_id: UUID, body: ConfirmRequest = Body(default_factory=ConfirmRequest)):
+    return _respond(await offload(_c(request).planner.confirm, str(session_id), body.option_id))
 
 
 @router.post("/planner/sessions/{session_id}/reassess", response_model=PlannerResponse, responses=ERRORS, dependencies=[Depends(verify_session_token)], tags=["planner"])
-def reassess(request: Request, session_id: UUID, body: ReassessRequest = Body(default_factory=ReassessRequest)):
-    return _respond(_c(request).planner.reassess(str(session_id), body.event_id))
+async def reassess(request: Request, session_id: UUID, body: ReassessRequest = Body(default_factory=ReassessRequest)):
+    return _respond(await offload(_c(request).planner.reassess, str(session_id), body.event_id))
 
 
 @router.post("/planner/sessions/{session_id}/cancel", response_model=PlannerResponse, responses=ERRORS, dependencies=[Depends(verify_session_token)], tags=["planner"])
-def cancel(request: Request, session_id: UUID):
-    return _respond(_c(request).planner.cancel(str(session_id)))
+async def cancel(request: Request, session_id: UUID):
+    return _respond(await offload(_c(request).planner.cancel, str(session_id)))
 
 
 @router.get("/planner/sessions/{session_id}/handoff", responses=ERRORS, dependencies=[Depends(verify_session_token)], tags=["integration"])
-def handoff(request: Request, session_id: UUID) -> dict:
-    state = _c(request).planner.get(str(session_id))
+async def handoff(request: Request, session_id: UUID) -> dict:
+    state = await offload(_c(request).planner.get, str(session_id))
     if state.status != S.CONFIRMED or not state.confirmation:
         raise PlannerError("not_ready", "No confirmed plan is available for handoff.")
     return state.confirmation.handoff
 
 
 @router.get("/planner/sessions/{session_id}/audit", responses=ERRORS, dependencies=[Depends(verify_session_token)], tags=["planner"])
-def audit(request: Request, session_id: UUID) -> list[dict]:
+async def audit(request: Request, session_id: UUID) -> list[dict]:
     c = _c(request)
-    c.planner.get(str(session_id))
+    await offload(c.planner.get, str(session_id))
     return [e.model_dump(mode="json") for e in c.audit.list(str(session_id))]
 
 
 @router.get("/planner/disruption-events", tags=["planner"])
-def disruption_events(request: Request) -> list[dict]:
-    return [e.model_dump(mode="json") for e in _c(request).disruptions.list_events()]
+async def disruption_events(request: Request) -> list[dict]:
+    events = await offload(_c(request).disruptions.list_events)
+    return [e.model_dump(mode="json") for e in events]

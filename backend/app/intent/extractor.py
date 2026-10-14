@@ -15,7 +15,7 @@ PAUSE_SECONDS = 300
 @dataclass(frozen=True)
 class ExtractionResult:
     update: IntentUpdate
-    source: str  # "bedrock" | "rules"
+    source: str  # "gemini" | "bedrock" | "<provider>+rules" | "rules"
     fallback_reason: str | None = None
 
 

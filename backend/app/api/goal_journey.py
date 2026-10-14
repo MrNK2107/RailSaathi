@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from app.api.deps import enforce_message_limit
+from app.api.deps import enforce_message_limit, offload
 from app.journey.planner import JourneyPlanner, parse_requirements_from_text
 from app.journey.models import TripRequirements
 
@@ -34,7 +34,7 @@ class GoalPlanRequest(BaseModel):
 
 
 @router.post("/plan")
-def plan_journey(request: Request, payload: GoalPlanRequest):
+async def plan_journey(request: Request, payload: GoalPlanRequest):
     """
     Accept free-text meeting prompt or structured constraints,
     deterministically evaluate timetables, buffers, and last-mile taxis,
@@ -58,7 +58,7 @@ def plan_journey(request: Request, payload: GoalPlanRequest):
                 budget_max=payload.budget_max,
             )
 
-        res = journey_planner.plan_journey(req, trace_id=trace_id)
+        res = await offload(journey_planner.plan_journey, req, trace_id=trace_id)
         plan_dict = res.model_dump()
         journey_plans_store[trace_id] = plan_dict
         return plan_dict
@@ -68,7 +68,7 @@ def plan_journey(request: Request, payload: GoalPlanRequest):
 
 
 @router.post("/refine")
-def refine_journey(request: Request, data: Dict[str, Any]):
+async def refine_journey(request: Request, data: Dict[str, Any]):
     """Refine existing trip requirements (e.g. buffer, class, time)."""
     for prefix, values in (("", data), ("requirements.", data.get("requirements"))):
         if isinstance(values, dict):
@@ -88,7 +88,7 @@ def refine_journey(request: Request, data: Dict[str, Any]):
         if data.get("budget_max") is not None:
             req.budget_max = float(data["budget_max"]) if data["budget_max"] != "" else None
 
-        res = journey_planner.plan_journey(req, trace_id=trace_id)
+        res = await offload(journey_planner.plan_journey, req, trace_id=trace_id)
         plan_dict = res.model_dump()
         journey_plans_store[trace_id] = plan_dict
         return plan_dict
@@ -98,7 +98,7 @@ def refine_journey(request: Request, data: Dict[str, Any]):
 
 
 @router.get("/options/{request_id}")
-def get_journey_option(request_id: str):
+async def get_journey_option(request_id: str):
     plan = journey_plans_store.get(request_id)
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")

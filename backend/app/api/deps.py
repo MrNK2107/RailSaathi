@@ -1,9 +1,23 @@
-"""Shared request dependencies: session-token verification and settings-driven message limits."""
+"""Shared request dependencies: session-token verification, settings-driven message limits and `offload` for
+running blocking work (Redis, SQLite, model inference, LLM calls) off the event loop."""
 
+import functools
+from collections.abc import Callable
+from typing import Any, TypeVar
+
+import anyio.to_thread
 from fastapi import Request
 
 from app.harness.errors import PlannerError
 from app.security.tokens import TOKEN_HEADER, InvalidSessionToken
+
+T = TypeVar("T")
+
+
+async def offload(fn: Callable[..., T], *args: Any, **kwargs: Any) -> T:
+    """Run blocking `fn` in the worker thread pool so async handlers never block the event loop.
+    Context variables (request id) are carried into the thread."""
+    return await anyio.to_thread.run_sync(functools.partial(fn, *args, **kwargs))
 
 
 def verify_session_token(request: Request) -> None:

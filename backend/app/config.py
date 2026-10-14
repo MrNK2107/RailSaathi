@@ -39,9 +39,12 @@ class Settings(BaseSettings):
     walking_speed_mps: float = 1.2
     max_backups: int = 50
 
-    # Knowledge & LLM
+    # Knowledge & LLM. Gemini runs on Vertex AI (GOOGLE_CLOUD_PROJECT / GOOGLE_CLOUD_LOCATION) with the service
+    # account's credentials. GEMINI_API_KEY is only honoured outside production when no project is set.
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"
+    gemini_timeout_seconds: float = Field(default=10.0, gt=0)  # per call; always clipped to the turn deadline
+    gemini_max_retries: int = Field(default=2, ge=0, le=5)  # retries on 429 / 5xx / transport errors
     gemini_temperature: float = 0.3
     gemini_max_output_tokens: int = 2048
     max_agent_rounds: int = 4
@@ -93,7 +96,7 @@ class Settings(BaseSettings):
     # How long a cached RailRadar response may still be served (labelled STALE) when the quota is exhausted.
     railradar_stale_seconds: int = Field(default=21_600, ge=0)
 
-    # LLM (optional). "bedrock" or "none".
+    # LLM (optional). "gemini", "bedrock" or "none".
     llm_provider: str = "none"
     aws_region: str | None = None
     bedrock_model_id: str | None = None
@@ -106,6 +109,8 @@ class Settings(BaseSettings):
     log_format: str = "json"  # "json" (Cloud Logging) or "text"
     gcp_project: str | None = Field(default=None, validation_alias=AliasChoices("GOOGLE_CLOUD_PROJECT", "GCP_PROJECT",
                                                                               "gcp_project"))
+    gcp_location: str = Field(default="us-central1", validation_alias=AliasChoices("GOOGLE_CLOUD_LOCATION",
+                                                                                "GCP_LOCATION", "gcp_location"))
 
     @model_validator(mode="after")
     def _lock_outlives_llm_deadline(self) -> "Settings":
@@ -127,6 +132,16 @@ class Settings(BaseSettings):
     def railradar_configured(self) -> bool:
         key = self.railradar_api_key.get_secret_value().strip() if self.railradar_api_key else ""
         return self.data_provider.lower() == "railradar" and bool(key)
+
+    @property
+    def gemini_configured(self) -> bool:
+        if self.llm_provider.lower() != "gemini":
+            return False
+        return bool(self.gcp_project) or (bool(self.gemini_api_key) and not self.is_production)
+
+    @property
+    def llm_configured(self) -> bool:
+        return self.gemini_configured or self.bedrock_configured
 
     @property
     def bedrock_configured(self) -> bool:

@@ -7,7 +7,10 @@ name: Deploy to Cloud Run
 # Optional repository variables:
 #   GAR_REPOSITORY (default: railsaathi), BACKEND_SERVICE (default: railsaathi-backend),
 #   FRONTEND_SERVICE (default: railsaathi-frontend), RAILWAY_DATA_MODE (default: demo),
-#   LLM_PROVIDER (default: none)
+#   LLM_PROVIDER (default: gemini), GOOGLE_CLOUD_LOCATION (Vertex AI region, default: us-central1),
+#   VPC_NETWORK / VPC_SUBNET (Direct VPC egress to Memorystore, default: default / default),
+#   BACKEND_MIN_INSTANCES (default: 2), BACKEND_MAX_INSTANCES (default: 10)
+# Secret Manager secrets referenced by the backend: RAILRADAR_API_KEY, REDIS_URL, SESSION_SIGNING_KEY.
 
 on:
   push:
@@ -68,7 +71,9 @@ jobs:
       - name: Deploy backend
         id: backend
         run: |
-          # Phase 1: sessions are in-process, so exactly one instance. Lifted in Phase 2 (Redis).
+          # Sessions, rate limits and the RailRadar quota live in Memorystore Redis (REDIS_URL, reached through
+          # Direct VPC egress), so the backend runs several instances; every replica shares SESSION_SIGNING_KEY.
+          # Gemini runs on Vertex AI as the runtime service account (GOOGLE_CLOUD_PROJECT/LOCATION), no API key.
           # TRUSTED_PROXY_HOPS=2: browser -> GFE -> nginx (overwrites X-Forwarded-For with the real client) -> GFE ->
           # backend; the backend GFE appends the nginx egress IP, so the client is the 2nd entry from the right.
           gcloud run deploy "${BACKEND_SERVICE}" \
@@ -78,10 +83,14 @@ jobs:
             --allow-unauthenticated \
             --port 8080 \
             --cpu 1 --memory 512Mi \
-            --min-instances 0 --max-instances 1 --concurrency 40 \
+            --min-instances "${{ vars.BACKEND_MIN_INSTANCES || '2' }}" \
+            --max-instances "${{ vars.BACKEND_MAX_INSTANCES || '10' }}" \
+            --concurrency 40 \
             --timeout 60 \
-            --set-env-vars "APP_ENV=production,RAILWAY_DATA_MODE=${{ vars.RAILWAY_DATA_MODE || 'demo' }},LLM_PROVIDER=${{ vars.LLM_PROVIDER || 'none' }},TRUSTED_PROXY_HOPS=2,CORS_ORIGINS=${{ vars.FRONTEND_ORIGIN || '' }}" \
-            --set-secrets "RAILRADAR_API_KEY=RAILRADAR_API_KEY:latest" \
+            --network "${{ vars.VPC_NETWORK || 'default' }}" --subnet "${{ vars.VPC_SUBNET || 'default' }}" \
+            --vpc-egress private-ranges-only \
+            --set-env-vars "APP_ENV=production,RAILWAY_DATA_MODE=${{ vars.RAILWAY_DATA_MODE || 'demo' }},LLM_PROVIDER=${{ vars.LLM_PROVIDER || 'gemini' }},GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${{ vars.GOOGLE_CLOUD_LOCATION || 'us-central1' }},TRUSTED_PROXY_HOPS=2,CORS_ORIGINS=${{ vars.FRONTEND_ORIGIN || '' }}" \
+            --set-secrets "RAILRADAR_API_KEY=RAILRADAR_API_KEY:latest,REDIS_URL=REDIS_URL:latest,SESSION_SIGNING_KEY=SESSION_SIGNING_KEY:latest" \
             --quiet
           URL="$(gcloud run services describe "${BACKEND_SERVICE}" --region "${REGION}" --format 'value(status.url)')"
           echo "url=${URL}" >> "$GITHUB_OUTPUT"

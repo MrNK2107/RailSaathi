@@ -1,98 +1,32 @@
-"""
-RailSathi AI — Development Mock LLM Client
-
-Enables local development, testing, and UI evaluation when GEMINI_API_KEY
-is not yet set in the environment. Follows the exact GeminiClient protocol.
+"""Rule-based `ChatLLM` used by the ticketing agent when no real LLM is configured (or LLM_PROVIDER=bedrock,
+which has no chat adapter). It picks a deterministic tool from keywords in the question and phrases the tool's
+grounded result; it never invents facts beyond what the tools return. Also used in tests and local development.
 """
 
 import re
-from typing import Any
-try:
-    from google.genai import types
-except ImportError:
-    class DummyPart:
-        def __init__(self, text=None, function_call=None):
-            self.text = text
-            self.function_call = function_call
-        @classmethod
-        def from_text(cls, text=""):
-            return cls(text=text)
+from collections.abc import Sequence
 
-    class DummyContent:
-        def __init__(self, role="", parts=None):
-            self.role = role
-            self.parts = parts or []
-
-    class DummyTypes:
-        Part = DummyPart
-        Content = DummyContent
-
-    types = DummyTypes()
+from app.llm.base import ChatMessage, Deadline, LLMTurn, ToolCall, ToolSpec
 
 
-class DevMockResponse:
-    def __init__(self, text: str = "", function_calls: list[dict] | None = None):
-        self.parts = []
-        if function_calls:
-            for fc in function_calls:
-                call_mock = type("MockFunctionCall", (), {
-                    "name": fc["name"],
-                    "args": fc.get("args", {}),
-                })()
-                self.parts.append(type("MockPart", (), {
-                    "function_call": call_mock,
-                    "text": None,
-                })())
-        elif text:
-            self.parts.append(type("MockPart", (), {
-                "function_call": None,
-                "text": text,
-            })())
-
-        content = types.Content(
-            role="model",
-            parts=[types.Part.from_text(text=text)] if text else [],
-        )
-        content.parts = self.parts
-        self.candidates = [type("MockCandidate", (), {"content": content})()]
+def _call(name: str, args: dict) -> LLMTurn:
+    return LLMTurn(tool_calls=(ToolCall(name=name, args=args),))
 
 
-class DevMockGeminiClient:
-    """
-    Intelligent mock client for development mode.
-    Dispatches tool calls based on user question keywords so the
-    entire agent tool execution and evidence flow can be demonstrated.
-    """
+class KeywordChatLLM:
+    """Deterministic keyword router: user question -> one tool call; tool result -> formatted answer."""
 
-    def __init__(self, model_name: str = "mock-gemini-2.0-flash"):
-        self.model_name = model_name
+    name = "rules"
 
-    def generate(self, contents: list[types.Content]) -> DevMockResponse:
-        # Check if the last content is a function response from a tool execution
-        last_content = contents[-1] if contents else None
-        if last_content and last_content.parts:
-            # Check if any part is a function response
-            for part in last_content.parts:
-                fn_resp = getattr(part, "function_response", None)
-                if fn_resp:
-                    resp_dict = fn_resp.response if hasattr(fn_resp, "response") else {}
-                    # Synthesize final answer from tool evidence
-                    return self._synthesize_answer(resp_dict, fn_resp.name)
-
-        # Otherwise this is a user query: decide which tool to call
-        user_text = ""
-        for c in reversed(contents):
-            if c.role == "user" and c.parts:
-                for p in c.parts:
-                    if getattr(p, "text", None):
-                        user_text = p.text
-                        break
-            if user_text:
-                break
-
+    def generate(self, messages: Sequence[ChatMessage], tools: Sequence[ToolSpec], deadline: Deadline) -> LLMTurn:
+        last = messages[-1] if messages else None
+        if last is not None and last.role == "tool" and last.tool_results:
+            first = last.tool_results[0]
+            return self._synthesize_answer(first.response, first.name)
+        user_text = next((m.text for m in reversed(messages) if m.role == "user" and m.text), "")
         return self._plan_tool_call(user_text)
 
-    def _plan_tool_call(self, text: str) -> DevMockResponse:
+    def _plan_tool_call(self, text: str) -> LLMTurn:
         t = text.lower()
 
         # Goal-Based Train Journey Planning queries
@@ -101,58 +35,58 @@ class DevMockGeminiClient:
             "journey", "best train", "find a train", "find train", "train from", "train to", "exam", "reach by",
             "reach before", "buffer"
         ]):
-            return DevMockResponse(function_calls=[{
-                "name": "plan_goal_based_journey",
-                "args": {"passenger_prompt": text},
-            }])
+            return _call(
+                name="plan_goal_based_journey",
+                args={"passenger_prompt": text},
+            )
 
         # Ticket class comparison
         classes_found = re.findall(r"\b(1a|2a|3a|3e|sl|cc|2s|ec|ea)\b", t)
         if len(classes_found) >= 2:
-            return DevMockResponse(function_calls=[{
-                "name": "explain_ticket_class",
-                "args": {
+            return _call(
+                name="explain_ticket_class",
+                args={
                     "class_code": classes_found[0].upper(),
                     "comparison_class": classes_found[1].upper(),
                 },
-            }])
+            )
         elif len(classes_found) == 1:
-            return DevMockResponse(function_calls=[{
-                "name": "explain_ticket_class",
-                "args": {"class_code": classes_found[0].upper()},
-            }])
+            return _call(
+                name="explain_ticket_class",
+                args={"class_code": classes_found[0].upper()},
+            )
 
         # Reservation statuses
         status_match = re.search(r"\b(cnf|rac|wl|gnwl|rlwl|pqwl|waitlist|confirmed)\b", t)
         if status_match:
             code = status_match.group(1).upper()
-            return DevMockResponse(function_calls=[{
-                "name": "explain_reservation_status",
-                "args": {"status_code": code, "question": text},
-            }])
+            return _call(
+                name="explain_reservation_status",
+                args={"status_code": code, "question": text},
+            )
 
         # Booking process
         if any(w in t for w in ["how to book", "booking step", "counter", "irctc online", "book a train"]):
             channel = "counter" if "counter" in t else "irctc_online"
-            return DevMockResponse(function_calls=[{
-                "name": "get_booking_steps",
-                "args": {"booking_channel": channel, "question": text},
-            }])
+            return _call(
+                name="get_booking_steps",
+                args={"booking_channel": channel, "question": text},
+            )
 
         # Cancellation / Refund / Tatkal refund
         if any(w in t for w in ["cancel", "refund", "tdr", "deduction", "clerkage"]):
-            return DevMockResponse(function_calls=[{
-                "name": "get_cancellation_refund_guidance",
-                "args": {"question": text},
-            }])
+            return _call(
+                name="get_cancellation_refund_guidance",
+                args={"question": text},
+            )
 
         # Default fallback to knowledge search
-        return DevMockResponse(function_calls=[{
-            "name": "search_ticketing_guidance",
-            "args": {"query": text},
-        }])
+        return _call(
+            name="search_ticketing_guidance",
+            args={"query": text},
+        )
 
-    def _synthesize_answer(self, tool_result: dict, tool_name: str) -> DevMockResponse:
+    def _synthesize_answer(self, tool_result: dict, tool_name: str) -> LLMTurn:
         """Synthesize a structured guidance answer using evidence from tool result."""
         # Case 0: plan_goal_based_journey
         if tool_name == "plan_goal_based_journey":
@@ -207,7 +141,7 @@ class DevMockGeminiClient:
                         f"👉 [{bh.get('official_provider')}]({bh.get('booking_url')})\n\n"
                         f"*(Data source: Indian Railways NTES Timetable repository)*"
                     )
-                return DevMockResponse(text=answer)
+                return LLMTurn(text=answer)
             else:
                 summary = plan.get("summary", "No direct train options found meeting the arrival deadline.")
                 answer = f"### ⚠️ No Feasible Same-Day Trains Found\n\n{summary}\n\n"
@@ -219,7 +153,7 @@ class DevMockGeminiClient:
                         its = inf.get("train_service", {})
                         reasons = " ".join(inf.get("hard_constraint_violations", []))
                         answer += f"- **{its.get('train_name')} ({its.get('train_number')}):** {reasons}\n"
-                return DevMockResponse(text=answer)
+                return LLMTurn(text=answer)
 
         # Case 2: explain_reservation_status
         if tool_name == "explain_reservation_status":
@@ -232,7 +166,7 @@ class DevMockGeminiClient:
                     for c in results[0]["conditions"]:
                         answer += f"- {c}\n"
                 answer += "\n*(Verified from official Indian Railways Reservation Rules)*"
-                return DevMockResponse(text=answer)
+                return LLMTurn(text=answer)
 
         # Case 3: general search / booking / refund
         results = tool_result.get("results", [])
@@ -248,52 +182,9 @@ class DevMockGeminiClient:
                 for ex in first["exceptions"]:
                     answer += f"- {ex}\n"
             answer += "\n*(Information retrieved from verified Indian Railways / IRCTC repository)*"
-            return DevMockResponse(text=answer)
+            return LLMTurn(text=answer)
 
-        return DevMockResponse(text=(
+        return LLMTurn(text=(
             "I checked the official RailSathi knowledge base, but could not find specific rules matching your exact query. "
             "Please check current notices directly on the official IRCTC portal (https://www.irctc.co.in) or at a station reservation counter."
         ))
-
-    def is_function_call(self, response: Any) -> bool:
-        if not response.candidates:
-            return False
-        parts = response.candidates[0].content.parts
-        return any(bool(getattr(p, "function_call", None)) for p in parts if p)
-
-    def get_function_calls(self, response: Any) -> list[dict]:
-        calls = []
-        if not response.candidates:
-            return calls
-        for part in response.candidates[0].content.parts:
-            if part and getattr(part, "function_call", None):
-                fc = part.function_call
-                calls.append({
-                    "name": fc.name,
-                    "args": dict(fc.args) if fc.args else {},
-                })
-        return calls
-
-    def get_text(self, response: Any) -> str:
-        if not response.candidates:
-            return ""
-        parts = response.candidates[0].content.parts
-        text_parts = [part.text for part in parts if part and getattr(part, "text", None)]
-        return "\n".join(text_parts)
-
-    def build_user_content(self, message: str) -> types.Content:
-        return types.Content(role="user", parts=[types.Part.from_text(text=message)])
-
-    def build_model_content(self, response: Any) -> types.Content:
-        if response.candidates:
-            return response.candidates[0].content
-        return types.Content(role="model", parts=[types.Part.from_text(text="")])
-
-    def build_function_response_content(self, function_responses: list[dict]) -> types.Content:
-        parts = []
-        for fr in function_responses:
-            parts.append(types.Part.from_function_response(
-                name=fr["name"],
-                response=fr["response"],
-            ))
-        return types.Content(role="user", parts=parts)

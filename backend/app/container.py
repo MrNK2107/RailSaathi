@@ -15,6 +15,7 @@ from app.harness.merge import JourneyMerger
 from app.harness.planner import PlannerService
 from app.intent.extractor import IntentExtractor
 from app.intent.llm import IntentLLM, LLMError
+from app.llm.base import ChatLLM
 from app.intent.rules import RuleBasedExtractor
 from app.providers.base import DisruptionSource, JourneyProvider
 from app.providers.demo import DemoDisruptionSource, DemoJourneyProvider
@@ -44,6 +45,21 @@ class Container:
     data_provider_status: dict
     redis: Redis | None = None  # shared client; None when REDIS_URL is unset
     signer: SessionTokenSigner | None = None
+    chat_llm: ChatLLM | None = None  # ticketing agent LLM; None -> rule-based KeywordChatLLM
+    chat_llm_reason: str | None = None
+
+    @property
+    def agent_llm(self) -> ChatLLM:
+        if self.chat_llm is not None:
+            return self.chat_llm
+        from app.agent.keyword_llm import KeywordChatLLM
+
+        return KeywordChatLLM()
+
+    @property
+    def chat_llm_status(self) -> dict:
+        return {"provider": self.agent_llm.name, "llm": self.chat_llm is not None,
+                "reason": self.chat_llm_reason}
 
 
 def build_clock(settings: Settings) -> Clock:
@@ -60,8 +76,21 @@ def build_clock(settings: Settings) -> Clock:
 
 
 def build_llm(settings: Settings) -> tuple[IntentLLM | None, str | None]:
-    """Return (provider, reason_if_unavailable). Never contacts AWS here."""
-    if settings.llm_provider.lower() != "bedrock":
+    """Planner intent extraction LLM: (provider, reason_if_unavailable). Never contacts AWS or Google here;
+    any failure degrades to rule-based extraction."""
+    choice = settings.llm_provider.lower()
+    if choice == "gemini":
+        if not settings.gemini_configured:
+            log.warning("LLM_PROVIDER=gemini but GOOGLE_CLOUD_PROJECT is missing; using rule-based extraction")
+            return None, "gemini_not_configured"
+        try:
+            from app.intent.gemini import GeminiIntentProvider
+
+            return GeminiIntentProvider(settings), None
+        except LLMError as err:
+            log.warning("Gemini unavailable (%s); using rule-based extraction", err.kind.value)
+            return None, f"gemini_{err.kind.value}"
+    if choice != "bedrock":
         return None, "llm_disabled"
     if not settings.bedrock_configured:
         log.warning("LLM_PROVIDER=bedrock but AWS_REGION/BEDROCK_MODEL_ID missing; using rule-based extraction")
@@ -73,6 +102,26 @@ def build_llm(settings: Settings) -> tuple[IntentLLM | None, str | None]:
     except LLMError as err:
         log.warning("Bedrock unavailable (%s); using rule-based extraction", err.kind.value)
         return None, f"bedrock_{err.kind.value}"
+
+
+def build_chat_llm(settings: Settings) -> tuple[ChatLLM | None, str | None]:
+    """Ticketing agent LLM: (llm, reason_if_unavailable). Only Gemini has a chat adapter; anything else (or a
+    construction failure) returns None and the agent uses the rule-based KeywordChatLLM. Never contacts Google."""
+    choice = settings.llm_provider.lower()
+    if choice == "bedrock":
+        return None, "chat_bedrock_not_supported"
+    if choice != "gemini":
+        return None, "llm_disabled"
+    if not settings.gemini_configured:
+        return None, "gemini_not_configured"
+    try:
+        from app.agent.prompt import SYSTEM_INSTRUCTION
+        from app.llm.gemini import GeminiChatLLM
+
+        return GeminiChatLLM(settings, system_instruction=SYSTEM_INSTRUCTION), None
+    except Exception as exc:  # noqa: BLE001 - degrade, never fail startup
+        log.warning("Gemini chat unavailable (%s); using the rule-based agent", type(exc).__name__)
+        return None, "gemini_unavailable"
 
 
 def build_data_sources(settings: Settings, redis: Redis | None = None) -> tuple[JourneyProvider, DisruptionSource, dict]:
@@ -122,7 +171,7 @@ def build_session_store(settings: Settings, clock: Clock, redis: Redis | None) -
 
 def build_container(settings: Settings, clock: Clock | None = None,
                     llm: IntentLLM | None = None, use_configured_llm: bool = True,
-                    redis: Redis | None = None) -> Container:
+                    redis: Redis | None = None, chat_llm: ChatLLM | None = None) -> Container:
     """`redis` lets tests inject fakeredis; otherwise a client is built from REDIS_URL (or None)."""
     clock = clock or build_clock(settings)
     redis = redis if redis is not None else build_redis(settings)
@@ -132,6 +181,11 @@ def build_container(settings: Settings, clock: Clock | None = None,
     reason = None
     if llm is None and use_configured_llm:
         llm, reason = build_llm(settings)
+    chat_reason = None
+    if chat_llm is None and use_configured_llm:
+        chat_llm, chat_reason = build_chat_llm(settings)
+    elif chat_llm is None:
+        chat_reason = "llm_disabled"
     extractor = IntentExtractor(RuleBasedExtractor(resolver), llm, reason or ("llm_disabled" if llm is None else None))
     audit = AuditLog()
     recommender = Recommender(provider, settings.min_transfer_minutes)
@@ -144,4 +198,5 @@ def build_container(settings: Settings, clock: Clock | None = None,
         disruption=DisruptionService(disruptions, recommender),
         data_mode=provider.data_mode,
     )
-    return Container(settings, clock, provider, disruptions, resolver, extractor, audit, planner, data_status, redis, signer)
+    return Container(settings, clock, provider, disruptions, resolver, extractor, audit, planner, data_status, redis, signer,
+                     chat_llm, chat_reason)

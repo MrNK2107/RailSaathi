@@ -11,6 +11,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from redis.exceptions import RedisError
 
+from app.api.deps import offload
 from app.container import Container
 from app.delay.engine import model_status
 
@@ -30,8 +31,8 @@ def redis_status(c: Container) -> dict[str, Any]:
 
 
 def llm_status(c: Container) -> dict[str, Any]:
-    return {"provider_setting": c.settings.llm_provider, "configured": c.settings.bedrock_configured,
-            **c.extractor.llm_status}
+    return {"provider_setting": c.settings.llm_provider, "configured": c.settings.llm_configured,
+            **c.extractor.llm_status, "chat": c.chat_llm_status}
 
 
 def dependency_status(c: Container) -> dict[str, Any]:
@@ -39,13 +40,16 @@ def dependency_status(c: Container) -> dict[str, Any]:
 
 
 @router.get("/healthz")
-def healthz() -> dict[str, str]:
+async def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
 
 @router.get("/readyz")
-def readyz(request: Request) -> JSONResponse:
-    c: Container = request.app.state.container
+async def readyz(request: Request) -> JSONResponse:
+    return await offload(_readyz, request.app.state.container)
+
+
+def _readyz(c: Container) -> JSONResponse:
     redis = redis_status(c)
     catalogue = len(c.provider.stations())
     checks = {
@@ -55,7 +59,7 @@ def readyz(request: Request) -> JSONResponse:
     }
     degraded = []
     llm = llm_status(c)
-    if c.settings.bedrock_configured and not llm.get("active", False):
+    if c.settings.llm_configured and not llm.get("active", False):
         degraded.append("llm")
     if c.data_provider_status.get("active") == "railradar" and not c.data_provider_status.get("configured"):
         degraded.append("railradar")

@@ -17,7 +17,7 @@ from app.harness.handoff import build_handoff
 from app.harness.i18n import field_label, msg
 from app.harness.merge import JourneyMerger, MergeResult, changed_fields
 from app.intent.extractor import ExtractionResult, IntentExtractor
-from app.intent.llm import ExtractionContext
+from app.intent.llm import Deadline, ExtractionContext
 from app.intent.patterns import RE_RESTART
 from app.intent.schema import IntentUpdate
 from app.providers.errors import ProviderError
@@ -78,13 +78,16 @@ class PlannerService:
     # ---- conversation --------------------------------------------------------
     def handle_message(self, session_id: str, message: str, language: Language | None) -> PlannerResult:
         with self._session(session_id) as h:
+            # One LLM budget for the whole turn, started once the session lock is held; the lock TTL is
+            # validated (config.py) to outlive it.
+            deadline = Deadline(self.engine.settings.llm_overall_deadline_seconds)
             state: SessionState = h["state"]
             if language and language != state.language:
                 state = state.model_copy(update={"language": language})
             if state.status == S.CANCELLED and not _is_restart(message):
                 h["state"] = state
                 return PlannerResult(state, msg(state.language, "session_cancelled"))
-            extraction = self._extract(state, message)
+            extraction = self._extract(state, message, deadline)
             try:
                 reply = self._dispatch(state, extraction.update)
             except PlannerError as exc:
@@ -98,12 +101,13 @@ class PlannerService:
             h["state"] = final
             return PlannerResult(final, reply.text, extraction.source, extraction.fallback_reason)
 
-    def _extract(self, state: SessionState, message: str):
+    def _extract(self, state: SessionState, message: str, deadline: Deadline | None = None):
         update = self._candidate_choice(state, message)
         if update is not None:
             return ExtractionResult(update, "rules", None)
         ctx = ExtractionContext(language=state.language.value, today_iso=self.engine.clock.now().date().isoformat(),
-                                pending_field=state.pending_question, captured_fields=_captured(state.journey))
+                                pending_field=state.pending_question, captured_fields=_captured(state.journey),
+                                deadline=deadline)
         return self.extractor.extract(message, ctx)
 
     @staticmethod

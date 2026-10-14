@@ -72,7 +72,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
     app.include_router(health_router)
 
     @app.get("/")
-    def platform_root():
+    async def platform_root():
         return {
             "name": "RailSaathi AI — Unified Rail Platform API",
             "version": settings.api_version,

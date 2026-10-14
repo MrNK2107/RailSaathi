@@ -104,7 +104,7 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
 
 
 @router.get("/stations/search")
-def search_stations(q: str = Query(..., min_length=1, description="Station name or code prefix")):
+async def search_stations(q: str = Query(..., min_length=1, description="Station name or code prefix")):
     query = q.strip().upper()
     matches = []
     for code, info in STATIONS_MAP.items():
@@ -116,7 +116,7 @@ def search_stations(q: str = Query(..., min_length=1, description="Station name 
 
 
 @router.get("/stations/nearest")
-def get_nearest_station(
+async def get_nearest_station(
     lat: float = Query(..., description="User latitude"),
     lon: float = Query(..., description="User longitude")
 ):
@@ -131,7 +131,7 @@ def get_nearest_station(
 
 
 @router.get("/stations/{station_code}/live")
-def get_station_live(station_code: str, hours: int = Query(2, ge=1, le=4)):
+async def get_station_live(station_code: str, hours: int = Query(2, ge=1, le=4)):
     code = station_code.strip().upper()
     station_meta = STATIONS_MAP.get(code, {"code": code, "name": code, "latitude": 13.0825, "longitude": 80.2750})
 
@@ -177,7 +177,7 @@ def get_station_live(station_code: str, hours: int = Query(2, ge=1, le=4)):
 
 
 @router.get("/trains/{train_number}/schedule")
-def get_train_schedule(train_number: str):
+async def get_train_schedule(train_number: str):
     t_no = train_number.strip()
     if ntes:
         try:
@@ -223,7 +223,7 @@ def get_train_schedule(train_number: str):
 
 
 @router.get("/plan/journey")
-def plan_direct_journey(
+async def plan_direct_journey(
     from_station: str = Query(..., description="Origin station code"),
     to_station: str = Query(..., description="Destination station code")
 ):
@@ -271,7 +271,7 @@ def plan_direct_journey(
 
 
 @router.get("/trains/rake-position")
-def get_coach_position(
+async def get_coach_position(
     coach_composition: str = Query(..., description="Coach sequence (e.g. ENG-A1-B1-B2-SL)"),
     target_coach: Optional[str] = Query(None, description="Specific coach code (e.g. B4)")
 ):

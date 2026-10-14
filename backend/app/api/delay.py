@@ -5,6 +5,7 @@ Runs fast in-process regression evaluation against 63k CRIS train delay records.
 
 from typing import Optional
 from fastapi import APIRouter, Query
+from app.api.deps import offload
 from app.delay.engine import predict_train_delay
 
 router = APIRouter(tags=["ML Delay Forecaster"])
@@ -12,7 +13,7 @@ router = APIRouter(tags=["ML Delay Forecaster"])
 
 @router.get("/predict/delay")
 @router.get("/api/predict/delay")
-def get_delay_prediction(
+async def get_delay_prediction(
     train_number: str = Query(..., description="Train number (e.g. 12952)"),
     train_name: str = Query("Express", description="Train name"),
     train_type: Optional[str] = Query(None, description="Train category"),
@@ -33,7 +34,8 @@ def get_delay_prediction(
             except Exception:
                 cur_min = 0
 
-    res = predict_train_delay(
+    res = await offload(
+        predict_train_delay,
         train_number=train_number,
         station_code=destination,
         current_delay=cur_min,

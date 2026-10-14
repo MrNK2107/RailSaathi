@@ -14,16 +14,15 @@ import time
 import uuid
 from dataclasses import dataclass, field
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:  # pragma: no cover
-    from google.genai import types
-
+from app.llm.base import ChatLLM, ChatMessage, Deadline, LLMError, ToolResult, tool_specs
 from app.tools.registry import (
+    ALL_TOOL_SCHEMAS,
     execute_any_tool as execute_tool,
     get_all_tool_names as get_tool_names,
     validate_any_tool_args as validate_tool_args,
 )
+
+DEFAULT_DEADLINE_SECONDS = 20.0
 
 logger = logging.getLogger("railsaathi.controller")
 
@@ -59,29 +58,34 @@ class AgentController:
     """
     Deterministic controller that manages the LLM ↔ tool lifecycle.
 
-    Independent of Flask routes — can be tested with a mock LLM client.
+    Independent of the HTTP routes; talks to any `ChatLLM` (Gemini, the rule-based KeywordChatLLM, or a
+    scripted MockChatLLM in tests). The whole turn shares one `Deadline` (Settings.llm_overall_deadline_seconds):
+    no LLM call or retry outlives it, so the turn always ends before the session lock TTL.
     """
 
     def __init__(
         self,
-        llm_client,
+        llm: ChatLLM,
         db_path: str,
         max_rounds: int = 4,
         max_tool_calls: int = 6,
         allowed_tools: list[str] | None = None,
+        deadline_seconds: float = DEFAULT_DEADLINE_SECONDS,
     ):
-        self.llm_client = llm_client
+        self.llm = llm
         self.db_path = str(db_path)
         self.max_rounds = max_rounds
         self.max_tool_calls = max_tool_calls
         self.allowed_tools = set(allowed_tools or get_tool_names())
+        self.tools = tool_specs(ALL_TOOL_SCHEMAS, self.allowed_tools)
+        self.deadline_seconds = deadline_seconds
         self.trace: list[TraceEntry] = []
         self.step_counter = 0
 
     def process_message(
         self,
         message: str,
-        history: "list[types.Content] | None" = None,
+        history: list[ChatMessage] | None = None,
     ) -> AgentResponse:
         """
         Process a passenger message through the full agent lifecycle.
@@ -94,6 +98,7 @@ class AgentController:
             A structured AgentResponse.
         """
         trace_id = f"trace-{uuid.uuid4().hex[:12]}"
+        deadline = Deadline(self.deadline_seconds)
         self.trace = []
         self.step_counter = 0
 
@@ -113,8 +118,8 @@ class AgentController:
             )
 
         # Build conversation contents
-        contents = list(history) if history else []
-        contents.append(self.llm_client.build_user_content(message))
+        contents: list[ChatMessage] = list(history) if history else []
+        contents.append(ChatMessage(role="user", text=message))
 
         total_tool_calls = 0
         all_sources = {}
@@ -125,10 +130,11 @@ class AgentController:
                 # Call LLM
                 t0 = time.time()
                 try:
-                    response = self.llm_client.generate(contents)
+                    response = self.llm.generate(contents, self.tools, deadline)
                 except Exception as e:
-                    self._add_trace("error", detail=f"LLM call failed: {type(e).__name__}")
-                    logger.error(f"[{trace_id}] LLM error: {e}")
+                    kind = e.kind.value if isinstance(e, LLMError) else type(e).__name__
+                    self._add_trace("error", detail=f"LLM call failed: {kind}")
+                    logger.error("[%s] LLM error: %s", trace_id, kind)
                     return AgentResponse(
                         answer="I'm sorry, the AI service is currently unavailable. Please try again later.",
                         status="service_unavailable",
@@ -141,9 +147,9 @@ class AgentController:
                                 detail=f"Round {round_num + 1}")
 
                 # Check if response contains function calls
-                if not self.llm_client.is_function_call(response):
+                if not response.is_tool_call:
                     # Text response — we're done
-                    text = self.llm_client.get_text(response)
+                    text = response.text
                     if not text:
                         text = "I wasn't able to generate a response. Please try rephrasing your question."
 
@@ -159,7 +165,7 @@ class AgentController:
                     )
 
                 # Process function calls
-                function_calls = self.llm_client.get_function_calls(response)
+                function_calls = [{"name": c.name, "args": dict(c.args), "id": c.id} for c in response.tool_calls]
                 function_responses = []
 
                 for fc in function_calls:
@@ -168,7 +174,7 @@ class AgentController:
                         self._add_trace("budget_exceeded",
                                         detail=f"Tool call budget ({self.max_tool_calls}) exhausted")
                         function_responses.append({
-                            "name": fc["name"],
+                            "name": fc["name"], "id": fc["id"],
                             "response": {
                                 "error": "Tool call budget exhausted. Please provide a response based on evidence gathered so far."
                             },
@@ -180,7 +186,7 @@ class AgentController:
                         self._add_trace("error", tool_name=fc["name"],
                                         detail=f"Tool not allowed: {fc['name']}")
                         function_responses.append({
-                            "name": fc["name"],
+                            "name": fc["name"], "id": fc["id"],
                             "response": {"error": f"Tool '{fc['name']}' is not registered."},
                         })
                         continue
@@ -192,7 +198,7 @@ class AgentController:
                                         tool_args=self._redact_args(fc["args"]),
                                         detail=f"Invalid args: {validation_error}")
                         function_responses.append({
-                            "name": fc["name"],
+                            "name": fc["name"], "id": fc["id"],
                             "response": {"error": validation_error},
                         })
                         continue
@@ -235,18 +241,15 @@ class AgentController:
                     )
 
                     function_responses.append({
-                        "name": fc["name"],
+                        "name": fc["name"], "id": fc["id"],
                         "response": result,
                     })
 
                 # Add model's response and tool results to history
-                model_content = self.llm_client.build_model_content(response)
-                contents.append(model_content)
-
-                tool_response_content = self.llm_client.build_function_response_content(
-                    function_responses
-                )
-                contents.append(tool_response_content)
+                contents.append(response.as_message())
+                contents.append(ChatMessage(role="tool", tool_results=tuple(
+                    ToolResult(name=fr["name"], response=fr["response"], call_id=fr.get("id"))
+                    for fr in function_responses)))
 
             # If we exhausted rounds
             self._add_trace("budget_exceeded",
@@ -254,8 +257,7 @@ class AgentController:
 
             # One final LLM call to get summary
             try:
-                final_response = self.llm_client.generate(contents)
-                text = self.llm_client.get_text(final_response)
+                text = self.llm.generate(contents, self.tools, deadline).text
             except Exception:
                 text = "I've gathered some information but reached my processing limit. Here's what I found so far."
 
@@ -272,7 +274,7 @@ class AgentController:
 
         except Exception as e:
             self._add_trace("error", detail=f"Unexpected error: {type(e).__name__}")
-            logger.error(f"[{trace_id}] Controller error: {e}", exc_info=True)
+            logger.error("[%s] Controller error: %s", trace_id, type(e).__name__, exc_info=True)
             return AgentResponse(
                 answer="An unexpected error occurred. Please try again.",
                 status="error",

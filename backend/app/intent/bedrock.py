@@ -8,7 +8,7 @@ Credentials come only from the standard AWS credential chain (env vars,
 AWS_PROFILE, SSO, instance/role credentials). Nothing is hard-coded here.
 """
 
-import json
+import concurrent.futures
 from typing import Any
 
 import boto3
@@ -24,33 +24,22 @@ from botocore.exceptions import (
     ProfileNotFound,
     ReadTimeoutError,
 )
-from pydantic import ValidationError
-
 from app.config import Settings
-from app.intent.llm import ExtractionContext, LLMError, LLMErrorKind
+from app.intent.llm import Deadline, ExtractionContext, LLMError, LLMErrorKind
+from app.intent.prompt import (  # noqa: F401 - TOOL_SCHEMA / inline_refs re-exported for callers and tests
+    SYSTEM_PROMPT,
+    TOOL_NAME,
+    TOOL_SCHEMA,
+    inline_refs,
+    parse_json_text,
+    user_payload,
+    validate_intent,
+)
 from app.intent.schema import IntentUpdate
+from app.llm.base import run_blocking_with_deadline
 
-TOOL_NAME = "record_journey_intent"
-SYSTEM_PROMPT = """You extract Indian Railways journey-planning details from a passenger's message.
-The message may be English, Tamil script, or Tamil written in English letters (Tanglish).
-Rules:
-- Call the record_journey_intent tool exactly once. Use null / empty lists for anything not stated.
-- Copy place names exactly as the passenger wrote them. Never pick or invent a station.
-- Copy dates and times as the passenger said them (e.g. "tomorrow", "9 am", "நாளை"). Do not compute calendar dates.
-- Keep day and clock time separate: the day/date goes in date_text ("tomorrow") and only the clock
-  time goes in arrival_deadline_text ("9 am"). Never put words like "tomorrow" in a time field.
-- date_anchor is "arrival" when the passenger says when they must reach/arrive; "departure" only when
-  the date clearly refers to leaving.
-- Add a passenger need only when the passenger states it. Do not infer needs from relationships
-  (e.g. "with my mother" does NOT imply elderly or assistance unless they say so).
-- passenger_count counts the speaker plus every companion they mention ("I am travelling with my
-  mother" = 2). Leave it null if the number of companions is unclear (e.g. "with my kids").
-- deadline_strict is false only when the passenger signals flexibility ("ideally", "around").
-- budget_strict / class_strict / transfer_strict / assistance_mandatory are true only when the passenger
-  explicitly says it is mandatory ("must", "only", "essential"). "She needs assistance" is a request
-  (needs_add=["assistance_requested"]), not mandatory.
-- If the assistant was waiting for a specific field (pending_field) and the message is a bare answer, fill that field.
-- Never invent trains, fares, schedules, availability or bookings. You only interpret the request."""
+# Bedrock calls are blocking (boto3); they run here so the caller can stop waiting at the turn deadline.
+_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=8, thread_name_prefix="bedrock")
 
 _ERROR_MAP = {
     "AccessDeniedException": LLMErrorKind.ACCESS_DENIED,
@@ -62,25 +51,6 @@ _ERROR_MAP = {
     "TooManyRequestsException": LLMErrorKind.THROTTLED,
     "ModelTimeoutException": LLMErrorKind.TIMEOUT,
 }
-
-
-def inline_refs(schema: dict[str, Any]) -> dict[str, Any]:
-    """Inline Pydantic $defs so the tool schema is self-contained."""
-    defs = schema.get("$defs", {})
-
-    def walk(node: Any) -> Any:
-        if isinstance(node, dict):
-            if "$ref" in node:
-                return walk(defs[node["$ref"].split("/")[-1]])
-            return {k: walk(v) for k, v in node.items() if k != "$defs"}
-        if isinstance(node, list):
-            return [walk(v) for v in node]
-        return node
-
-    return walk(schema)
-
-
-TOOL_SCHEMA = inline_refs(IntentUpdate.model_json_schema())
 
 
 def map_client_error(err: ClientError) -> LLMError:
@@ -96,6 +66,7 @@ class BedrockIntentProvider:
         if not (settings.aws_region and settings.bedrock_model_id):
             raise LLMError(LLMErrorKind.NOT_CONFIGURED, "AWS_REGION and BEDROCK_MODEL_ID must be set")
         self._model_id = settings.bedrock_model_id
+        self._deadline_seconds = settings.llm_overall_deadline_seconds
         self._client = client or self._build_client(settings)
 
     @staticmethod
@@ -103,25 +74,21 @@ class BedrockIntentProvider:
         try:
             session = boto3.Session(profile_name=settings.aws_profile or None, region_name=settings.aws_region)
         except ProfileNotFound as exc:
-            raise LLMError(LLMErrorKind.NOT_CONFIGURED, f"AWS profile not found: {exc}") from exc
+            raise LLMError(LLMErrorKind.NOT_CONFIGURED, "AWS profile not found") from exc
+        # Socket timeouts never exceed the turn deadline, so an abandoned call cannot hang around for long.
+        timeout = min(settings.bedrock_timeout_seconds, settings.llm_overall_deadline_seconds)
         config = Config(
-            connect_timeout=settings.bedrock_timeout_seconds,
-            read_timeout=settings.bedrock_timeout_seconds,
+            connect_timeout=timeout,
+            read_timeout=timeout,
             retries={"max_attempts": settings.bedrock_max_retries + 1, "mode": "standard"},
         )
         return session.client("bedrock-runtime", config=config)
 
     def build_request(self, message: str, context: ExtractionContext) -> dict[str, Any]:
-        payload = {
-            "passenger_message": message,
-            "language": context.language,
-            "pending_field": context.pending_field,
-            "already_captured_fields": context.captured_fields,
-        }
         return {
             "modelId": self._model_id,
             "system": [{"text": SYSTEM_PROMPT}],
-            "messages": [{"role": "user", "content": [{"text": json.dumps(payload, ensure_ascii=False)}]}],
+            "messages": [{"role": "user", "content": [{"text": user_payload(message, context)}]}],
             "toolConfig": {
                 "tools": [{"toolSpec": {
                     "name": TOOL_NAME,
@@ -134,7 +101,8 @@ class BedrockIntentProvider:
         }
 
     def extract_intent(self, message: str, context: ExtractionContext) -> IntentUpdate:
-        response = self._call(self.build_request(message, context))
+        deadline = context.deadline or Deadline(self._deadline_seconds)
+        response = self._call(self.build_request(message, context), deadline)
         return parse_response(response)
 
     def ping(self) -> str:
@@ -143,13 +111,13 @@ class BedrockIntentProvider:
             "modelId": self._model_id,
             "messages": [{"role": "user", "content": [{"text": "Reply with the single word: ok"}]}],
             "inferenceConfig": {"maxTokens": 10, "temperature": 0},
-        })
+        }, Deadline(self._deadline_seconds))
         blocks = response.get("output", {}).get("message", {}).get("content", [])
         return "".join(b.get("text", "") for b in blocks).strip()
 
-    def _call(self, request: dict[str, Any]) -> dict[str, Any]:
+    def _call(self, request: dict[str, Any], deadline: Deadline) -> dict[str, Any]:
         try:
-            return self._client.converse(**request)
+            return run_blocking_with_deadline(lambda: self._client.converse(**request), deadline, _EXECUTOR)
         except ClientError as exc:
             raise map_client_error(exc) from exc
         except (NoCredentialsError, PartialCredentialsError) as exc:
@@ -166,12 +134,5 @@ def parse_response(response: dict[str, Any]) -> IntentUpdate:
     blocks = response.get("output", {}).get("message", {}).get("content", [])
     raw: Any = next((b["toolUse"]["input"] for b in blocks if "toolUse" in b), None)
     if raw is None:
-        text = "".join(b.get("text", "") for b in blocks)
-        try:
-            raw = json.loads(text)
-        except json.JSONDecodeError as exc:
-            raise LLMError(LLMErrorKind.INVALID_OUTPUT, "Model did not return structured output") from exc
-    try:
-        return IntentUpdate.model_validate(raw)
-    except ValidationError as exc:
-        raise LLMError(LLMErrorKind.INVALID_OUTPUT, f"Model output failed schema validation ({exc.error_count()} errors)") from exc
+        raw = parse_json_text("".join(b.get("text", "") for b in blocks))
+    return validate_intent(raw)
