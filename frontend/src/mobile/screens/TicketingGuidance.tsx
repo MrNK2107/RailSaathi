@@ -2,7 +2,7 @@
 // or HTML) and every link must pass the official-domain allowlist before it becomes a live anchor.
 import { useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { ApiError } from '../../api/client'
-import type { Provenance, TicketingLink, TicketingResponse, TicketingSource } from '../../api/types'
+import type { TicketingLink, TicketingResponse, TicketingSource } from '../../api/types'
 import { ProvenanceBadge } from '../../components/ProvenanceBadge'
 import { officialUrl } from '../../utils/officialLinks'
 import { AlertIcon, ArrowRight } from '../icons'
@@ -11,7 +11,7 @@ import { AppHeader, PrimaryButton, Screen } from '../ui'
 
 type Turn =
   | { kind: 'user'; id: number; text: string }
-  | { kind: 'assistant'; id: number; res: TicketingResponse; asOf: string }
+  | { kind: 'assistant'; id: number; res: TicketingResponse }
 
 /** A live anchor only for allowlisted https URLs; anything else degrades to plain text. */
 function ExternalLink({ url, children }: { url: string; children: ReactNode }) {
@@ -63,14 +63,9 @@ function OfficialLinks({ links }: { links: TicketingLink[] }) {
   )
 }
 
-function Answer({ res, asOf }: { res: TicketingResponse; asOf: string }) {
+function Answer({ res }: { res: TicketingResponse }) {
   const { m } = useApp()
-  const provenance: Provenance = {
-    mode: res.provenance,
-    source: m.ticketing.aiSource,
-    as_of: asOf,
-    note: res.provenance === 'unavailable' ? (res.message ?? '') : res.provenance === 'fallback' ? m.ticketing.fallbackNote : '',
-  }
+  const provenance = res.provenance
   if (res.status === 'unavailable') {
     return (
       <article data-testid="ticketing-unavailable" aria-label={m.ticketing.assistant}>
@@ -109,7 +104,9 @@ export default function TicketingGuidance() {
       return await planner.client.ticketing(body)
     } catch (err) {
       if (!(err instanceof ApiError && err.code === 'invalid_session_token')) throw err
+      // A new session cannot see the old conversation (history is bound to the session token), so start a fresh one.
       await planner.restart()
+      conversationId.current = undefined
       return await planner.client.ticketing({ message })
     }
   }
@@ -125,7 +122,7 @@ export default function TicketingGuidance() {
     try {
       const res = await ask(message)
       conversationId.current = res.conversation_id
-      setTurns((t) => [...t, { kind: 'assistant', id: nextId.current++, res, asOf: new Date().toISOString() }])
+      setTurns((t) => [...t, { kind: 'assistant', id: nextId.current++, res }])
     } catch (err) {
       setError(err instanceof ApiError ? err.message : String(err))
     } finally {
@@ -148,7 +145,7 @@ export default function TicketingGuidance() {
             <li key={t.id} className={`rounded-2xl p-4 shadow-card ring-1 ring-ink-100 ${t.kind === 'user' ? 'bg-brand-50' : 'bg-white'}`}>
               {t.kind === 'user'
                 ? <p className="whitespace-pre-wrap break-words text-sm text-ink-900"><span className="sr-only">{m.ticketing.you}: </span>{t.text}</p>
-                : <Answer res={t.res} asOf={t.asOf} />}
+                : <Answer res={t.res} />}
             </li>
           ))}
         </ol>

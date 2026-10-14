@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Language } from '../../api/types'
 import { POPULAR_ROUTES } from '../config'
-import { AccessibleIcon, ArrowRight, ChevronRight, ClockIcon, HelpIcon, LiveIcon, PinIcon, TrainIcon } from '../icons'
+import { AccessibleIcon, ArrowRight, ChevronRight, ClockIcon, HelpIcon, LiveIcon, PinIcon, TagIcon, TrainIcon } from '../icons'
 import { useApp } from '../PlannerContext'
 import { ErrorBanner, Logo, ModeBadge, Screen } from '../ui'
 
@@ -51,7 +51,7 @@ export default function Dashboard() {
   const shortcuts = [
     { label: m.dashboard.liveUpdates, Icon: LiveIcon, onClick: () => go(planner.state?.confirmation ? 'confirmation' : 'alerts') },
     { label: m.dashboard.goalPlanner, Icon: ClockIcon, onClick: () => go('goal') },
-    { label: m.dashboard.ticketing, Icon: HelpIcon, onClick: () => go('ticketing') },
+    { label: m.dashboard.ticketing, Icon: TagIcon, onClick: () => go('ticketing') },
     { label: m.dashboard.stationNav, Icon: PinIcon, onClick: () => go('navigation') },
     { label: m.dashboard.accessible, Icon: AccessibleIcon, onClick: () => go('help') },
     { label: m.dashboard.help, Icon: HelpIcon, onClick: () => go('help') },

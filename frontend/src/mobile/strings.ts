@@ -47,9 +47,6 @@ const en = {
     unavailableTitle: 'Guidance unavailable',
     officialLinks: 'Official links',
     weakEvidence: 'The official sources did not fully cover this question. Please verify on the official pages.',
-    aiSource: 'AI ticketing guidance',
-    fallbackNote: 'Answered by the rule-based assistant, not the AI model.',
-    open: 'Open',
   },
   dashboard: {
     hello: 'Hello,',
@@ -258,9 +255,6 @@ const taOverrides: DeepPartial<MobileStrings> = {
     unavailableTitle: 'வழிகாட்டுதல் கிடைக்கவில்லை',
     officialLinks: 'அதிகாரப்பூர்வ இணைப்புகள்',
     weakEvidence: 'அதிகாரப்பூர்வ ஆதாரங்கள் இந்தக் கேள்வியை முழுமையாக உள்ளடக்கவில்லை. அதிகாரப்பூர்வ பக்கங்களில் சரிபார்க்கவும்.',
-    aiSource: 'AI டிக்கெட் வழிகாட்டுதல்',
-    fallbackNote: 'AI மாடல் அல்ல, விதி அடிப்படையிலான உதவியாளர் பதிலளித்தது.',
-    open: 'திற',
   },
   nav: { home: 'முகப்பு', trips: 'என் பயணங்கள்', alerts: 'அறிவிப்புகள்', profile: 'சுயவிவரம்' },
   dashboard: {

@@ -8,7 +8,7 @@ import { response } from './fixtures'
 
 const base: TicketingResponse = {
   conversation_id: 'conv_abcdef123456', session_token: 'tok', status: 'answered',
-  answer: 'RAC passengers get a seat.\nWL tickets may stay unconfirmed.', provenance: 'live', evidence_sufficient: true, trace_id: 't',
+  answer: 'RAC passengers get a seat.\nWL tickets may stay unconfirmed.', provenance: { mode: 'live', source: 'gemini-2.5-flash grounded on the RailSaathi knowledge base', as_of: '2026-10-10T10:00:00+05:30', note: 'AI guidance, not official. Verify current rules on the cited official pages before acting.' }, evidence_sufficient: true, trace_id: 't',
   sources: [{ source_id: 's1', title: 'Refund rules', url: 'https://www.indianrail.gov.in/refund', publisher: 'IR',
     last_verified_at: '2026-10-01T00:00:00Z', as_of: '2026-10-01T00:00:00Z' }],
 }
@@ -39,6 +39,13 @@ async function ask(user: ReturnType<typeof userEvent.setup>, q = 'What is RAC?')
   await user.click(screen.getByRole('button', { name: 'Ask' }))
 }
 
+// Copied from a real backend response (POST /api/chat via the backend test client, rule-based agent).
+const realFallback = {
+  status: 'answered',
+  provenance: { mode: 'fallback', source: 'RailSaathi rule-based guidance over the curated knowledge base', as_of: '2026-10-10T10:00:00+05:30', note: 'Rule-based guidance (the AI model is not configured). AI guidance, not official. Verify current rules on the cited official pages before acting.' },
+  sources: [{ source_id: 'src-ir-pnr-enquiry', title: 'Indian Railways Passenger Reservation Enquiry: PNR status', url: 'https://www.indianrail.gov.in/enquiry/PNR/PnrEnquiry.html?locale=en', publisher: 'Indian Railways (CRIS)', last_verified_at: '2026-10-14', as_of: '2026-10-14' }],
+}
+
 describe('Ticketing guidance screen', () => {
   it('shows the notice, answer, citation link with as_of, and provenance, and reuses the conversation id', async () => {
     const ticketing = vi.fn().mockResolvedValue(base)
@@ -51,15 +58,26 @@ describe('Ticketing guidance screen', () => {
     expect(link).toHaveAttribute('rel', 'noopener noreferrer')
     expect(screen.getByText(/as of 2026-10-01/)).toBeInTheDocument()
     expect(screen.getByTestId('provenance-badge')).toHaveAttribute('data-mode', 'live')
+    expect(screen.getByTestId('provenance-badge')).toHaveTextContent('LIVE')
     expect(ticketing).toHaveBeenCalledWith({ message: 'What is RAC?' })
     await ask(user, 'And WL?')
     await waitFor(() => expect(ticketing).toHaveBeenCalledTimes(2))
     expect(ticketing).toHaveBeenLastCalledWith({ message: 'And WL?', conversation_id: 'conv_abcdef123456' })
   })
 
+  it('renders a real backend fallback response with a FALLBACK badge', async () => {
+    const { user } = await open(vi.fn().mockResolvedValue({ ...base, ...realFallback }))
+    await ask(user)
+    await screen.findByTestId('ticketing-answer')
+    const badge = screen.getByTestId('provenance-badge')
+    expect(badge).toHaveAttribute('data-mode', 'fallback')
+    expect(badge).toHaveTextContent('FALLBACK')
+    expect(badge).toHaveTextContent('Rule-based guidance')
+  })
+
   it('renders the unavailable state with official links only', async () => {
     const ticketing = vi.fn().mockResolvedValue({
-      ...base, status: 'unavailable', provenance: 'unavailable', answer: 'AI ticketing guidance is unavailable right now.',
+      ...base, status: 'unavailable', provenance: { mode: 'unavailable', source: 'RailSaathi ticketing guidance', as_of: '2026-10-10T10:00:00+05:30', note: 'The AI guidance service could not answer; use the official links.' }, answer: 'AI ticketing guidance is unavailable right now.',
       message: 'guidance unavailable', sources: [],
       links: [
         { title: 'IRCTC e-ticketing', url: 'https://www.irctc.co.in/nget/train-search' },
@@ -70,7 +88,7 @@ describe('Ticketing guidance screen', () => {
     await ask(user)
     const box = await screen.findByTestId('ticketing-unavailable')
     expect(box).toHaveTextContent('Guidance unavailable')
-    expect(box).toHaveTextContent('guidance unavailable')
+    expect(box).toHaveTextContent('The AI guidance service could not answer; use the official links.')
     expect(screen.getByTestId('provenance-badge')).toHaveAttribute('data-mode', 'unavailable')
     expect(screen.getByRole('link', { name: /IRCTC e-ticketing/ })).toHaveAttribute('href', 'https://www.irctc.co.in/nget/train-search')
     expect(screen.queryByText(/Evil site/)).toBeNull()
@@ -113,6 +131,10 @@ describe('officialUrl', () => {
     ['https://irctc.co.in', true],
     ['https://enquiry.indianrail.gov.in/x', true],
     ['https://indianrailways.gov.in', true],
+    ['HTTPS://IRCTC.CO.IN', true],
+    ['https://evil.com/?irctc.co.in', false],
+    ['https://irctc.co.in@evil.com', false],
+    ['https://irctc.co.in.evil.com/', false],
     ['http://irctc.co.in', false],
     ['https://evilirctc.co.in', false],
     ['https://irctc.co.in.evil.com', false],
