@@ -55,6 +55,9 @@ def test_feasibility_respects_meeting_deadline_and_last_mile(client):
     assert best["actual_arrival_buffer_minutes"] >= 45
     late = next(e for e in body["infeasible_options"] if e["candidate"]["train_number"] == "D105")
     assert late["hard_constraint_violations"]
+    assert best["booking_handoff"]["booking_url"].startswith("https://www.irctc.co.in/")
+    assert all(e["booking_handoff"] is None for e in body["infeasible_options"])  # no links for unusable trains
+    assert "estimated" in body["summary"] and "buffer at the venue" in body["summary"]
 
 
 def test_already_departed_trains_are_infeasible(client):
@@ -98,6 +101,7 @@ def test_unknown_venue_asks_for_the_station(client):
                                        "destination_station": "Chennai Central"}).json()
     assert answered["status"] == "answered"
     assert answered["best_match"]["last_mile_duration_minutes"] is None  # unknown, never invented
+    assert "excludes the unknown station-to-venue travel time" in answered["summary"]
 
 
 def test_prompt_is_parsed_without_hidden_defaults(client):
@@ -186,7 +190,19 @@ def test_agent_journey_tool_uses_the_same_provider():
     answer = res.json()["answer"]
     assert "D101" in answer or "D103" in answer
     assert "demo" in answer.lower()  # provenance is stated
+    sources = res.json()["sources"]
+    ids = {s["source_id"] for s in sources}
+    assert "SRC-JOURNEY-DEMO" in ids and "SRC-IRCTC-BOOKING" in ids
+    journey = next(s for s in sources if s["source_id"] == "SRC-JOURNEY-DEMO")
+    assert journey["title"] == "RailSaathi demo dataset (simulated)" and journey["last_verified_at"]
 
 
 def test_options_path_rejects_malformed_plan_ids(client):
     assert client.get("/api/journey/options/" + "x" * 300).status_code == 422
+
+
+def test_prompt_has_a_schema_length_cap(client):
+    from app.journey.models import MAX_PROMPT_CHARS
+    assert MAX_PROMPT_CHARS == 1000
+    res = client.post(PLAN, json={"prompt": "x" * (MAX_PROMPT_CHARS + 1)})
+    assert res.status_code == 422

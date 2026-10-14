@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 export const ROUTES = [
   'home', 'plan', 'options', 'navigation', 'details', 'help', 'confirmation',
-  'trips', 'alerts', 'profile', 'classic',
+  'trips', 'alerts', 'profile', 'goal', 'classic',
 ] as const
 export type Route = (typeof ROUTES)[number]
 

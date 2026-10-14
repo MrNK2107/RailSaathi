@@ -11,12 +11,16 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
+from app.config import Settings
 from app.domain.enums import TravelClass
 from app.domain.options import DataProvenance
 
 HHMM = r"^([01]\d|2[0-3]):[0-5]\d$"
 TRAIN_QUERY_MAX = 80
 PLACE_MAX = 120
+# Schema cap for free-text prompts: the default of Settings.max_message_chars. The configured (possibly lower)
+# limit is enforced per request by enforce_message_limit.
+MAX_PROMPT_CHARS: int = Settings.model_fields["max_message_chars"].default
 PLAN_ID_PATTERN = r"^plan_[A-Za-z0-9_-]{8,64}$"
 
 
@@ -217,7 +221,7 @@ class GoalPlanRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    prompt: str | None = None
+    prompt: str | None = Field(default=None, max_length=MAX_PROMPT_CHARS)  # runtime limit: MAX_MESSAGE_CHARS
     origin: str | None = Field(default=None, max_length=PLACE_MAX)
     destination_venue: str | None = Field(default=None, max_length=PLACE_MAX)
     destination_station: str | None = Field(default=None, max_length=PLACE_MAX)

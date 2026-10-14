@@ -96,6 +96,8 @@ export function usePlanner(client: ApiClient = defaultApi) {
   const sid = response?.session_id ?? ''
 
   return {
+    /** The API client (carries the session token used by the goal planner). */
+    client,
     language,
     setLanguage,
     response,

@@ -6,6 +6,7 @@ import { AppProvider } from './mobile/PlannerContext'
 import { useRoute, type Route } from './mobile/router'
 import Confirmation from './mobile/screens/Confirmation'
 import Dashboard from './mobile/screens/Dashboard'
+import GoalPlanner from './mobile/screens/GoalPlanner'
 import HelpAssistance from './mobile/screens/HelpAssistance'
 import JourneyDetails from './mobile/screens/JourneyDetails'
 import JourneyOptions from './mobile/screens/JourneyOptions'
@@ -24,6 +25,7 @@ const SCREENS: Record<Exclude<Route, 'classic'>, ComponentType> = {
   trips: MyTrips,
   alerts: Alerts,
   profile: Profile,
+  goal: GoalPlanner,
 }
 
 /** Mobile-first RailSaathi app. One planner session is shared by every screen. */

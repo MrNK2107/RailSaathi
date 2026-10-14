@@ -18,12 +18,22 @@ MAX_INFEASIBLE_SHOWN = 8
 
 
 def plan_sources(provenance: DataProvenance) -> list[dict]:
+    """Stable source ids so the guidance agent can cite them (it only collects sources with a source_id)."""
     return [
-        {"title": provenance.source, "mode": provenance.mode.value, "as_of": provenance.as_of.isoformat(),
-         "note": provenance.note},
-        {"title": "IRCTC official booking portal", "source_url": "https://www.irctc.co.in",
+        {"source_id": f"SRC-JOURNEY-{provenance.mode.value.upper()}", "title": provenance.source,
+         "publisher": provenance.source, "mode": provenance.mode.value, "as_of": provenance.as_of.isoformat(),
+         "last_verified_at": provenance.as_of.isoformat(), "note": provenance.note},
+        {"source_id": "SRC-IRCTC-BOOKING", "title": "IRCTC official booking portal", "publisher": "IRCTC",
+         "source_url": "https://www.irctc.co.in",
          "note": "Bookings are completed by the passenger on IRCTC; fares and availability are confirmed there."},
     ]
+
+
+def _buffer_phrase(ev: JourneyEvaluation) -> str:
+    if ev.last_mile_duration_minutes is None:
+        return (f"arriving at the station about {ev.actual_arrival_buffer_minutes} min before the meeting (this "
+                "buffer excludes the unknown station-to-venue travel time)")
+    return f"leaving an estimated {ev.actual_arrival_buffer_minutes}-min buffer at the venue"
 
 
 class JourneyRankingEngine:
@@ -78,8 +88,8 @@ class JourneyRankingEngine:
             return JourneyPlanResponse(
                 status="answered",
                 summary=(f"Found {count} train option{'s' if count > 1 else ''} that reach {target} before {when}. "
-                         f"Top recommendation: {best.candidate.train_number} {best.candidate.train_name}, leaving "
-                         f"an estimated {best.actual_arrival_buffer_minutes}-min buffer."),
+                         f"Top recommendation: {best.candidate.train_number} {best.candidate.train_name}, "
+                         f"{_buffer_phrase(best)}."),
                 best_match=best, feasible_alternatives=feasible[1:], infeasible_options=infeasible,
                 tradeoff_explanation=tradeoff, **common,
             )

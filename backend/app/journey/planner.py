@@ -166,7 +166,7 @@ class GoalPlanner:
         self._clock = clock
         self._tz = ZoneInfo(tz)
         self._max_days = max_planning_days
-        self._adapter = ProviderJourneyAdapter(provider, tz)
+        self._adapter = ProviderJourneyAdapter(provider, tz, clock)
         self._evaluator = JourneyFeasibilityEvaluator()
         self._ranking = JourneyRankingEngine()
 
@@ -177,7 +177,7 @@ class GoalPlanner:
     # ---- requirements -------------------------------------------------------------------------------------
     def requirements_from_request(self, request: GoalPlanRequest) -> tuple[TripRequirements | None, list[str]]:
         """(requirements, missing_fields). Structured fields override whatever the prompt says."""
-        parsed = parse_requirements_from_text(request.prompt, self._clock.now().date()) if request.prompt else {}
+        parsed = parse_requirements_from_text(request.prompt, self._clock.now().astimezone(self._tz).date()) if request.prompt else {}
         merged = {**parsed, **request.model_dump(exclude_none=True, exclude={"prompt"})}
         missing = [f for f in ("origin",) if not merged.get(f)]
         if not merged.get("destination_venue") and not merged.get("destination_station"):

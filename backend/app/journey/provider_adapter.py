@@ -6,10 +6,11 @@ planner. Provider failures become an `unavailable` provenance with a reason, nev
 
 import logging
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date
 from typing import Protocol
 from zoneinfo import ZoneInfo
 
+from app.clock import Clock
 from app.domain.enums import DataMode
 from app.domain.options import DataProvenance, JourneyOption
 from app.journey.models import TrainCandidate, TrainLeg
@@ -66,8 +67,9 @@ def set_provenance(options: list[JourneyOption], fallback: DataProvenance) -> Da
 
 
 class ProviderJourneyAdapter:
-    def __init__(self, provider: _Searchable, tz: str) -> None:
+    def __init__(self, provider: _Searchable, tz: str, clock: Clock) -> None:
         self._provider = provider
+        self._clock = clock
         self._tz = ZoneInfo(tz)
 
     def unavailable(self, kind: ProviderErrorKind | None) -> DataProvenance:
@@ -75,7 +77,7 @@ class ProviderJourneyAdapter:
             source = self._provider.provenance().source
         except Exception:  # noqa: BLE001 - the provenance of a broken provider is still "unavailable"
             source = "railway data provider"
-        return DataProvenance(mode=DataMode.UNAVAILABLE, source=source, as_of=datetime.now(self._tz),
+        return DataProvenance(mode=DataMode.UNAVAILABLE, source=source, as_of=self._clock.now(),
                               note=UNAVAILABLE_NOTES.get(kind, DEFAULT_UNAVAILABLE_NOTE) if kind else
                               DEFAULT_UNAVAILABLE_NOTE)
 

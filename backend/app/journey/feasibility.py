@@ -122,8 +122,9 @@ class JourneyFeasibilityEvaluator:
         else:
             explanation = "Does not meet your requirements: " + " ".join(violations)
 
-        handoff = self.booking_service.create_booking_handoff(candidate, departure_date, recommended_class,
-                                                              recommended_fare)
+        # Booking links only for trains the passenger can actually take (feasible, not departed).
+        handoff = self.booking_service.create_booking_handoff(
+            candidate, departure_date, recommended_class, recommended_fare) if is_feasible else None
         return JourneyEvaluation(
             candidate_id=f"cand-{candidate.option_id}",
             candidate=candidate,

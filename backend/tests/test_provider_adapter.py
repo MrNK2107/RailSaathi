@@ -6,7 +6,7 @@ from app.domain.enums import DataMode
 from app.domain.options import DataProvenance, JourneyOption, Leg
 from app.journey.provider_adapter import ProviderJourneyAdapter, option_to_candidate
 from app.providers.railradar import UnconfiguredLiveProvider
-from tests.conftest import IST
+from tests.conftest import FIXED_NOW, IST
 
 D = date(2026, 10, 10)
 
@@ -33,14 +33,14 @@ def test_multi_leg_option_keeps_every_leg(provider):
     assert cand.origin_code == "CBE" and cand.destination_code == "MAS"
 
 
-def test_adapter_search_returns_candidates_with_set_provenance(provider):
-    result = ProviderJourneyAdapter(provider, "Asia/Kolkata").search(["CBE"], ["MAS", "MS"], [D])
+def test_adapter_search_returns_candidates_with_set_provenance(provider, clock):
+    result = ProviderJourneyAdapter(provider, "Asia/Kolkata", clock).search(["CBE"], ["MAS", "MS"], [D])
     assert result.error is None and result.candidates
     assert {c.departure.date() for c in result.candidates} == {D}
     assert result.provenance.mode == DataMode.DEMO and "demo" in result.provenance.source.lower()
 
 
-def test_adapter_drops_options_not_departing_on_a_requested_date():
+def test_adapter_drops_options_not_departing_on_a_requested_date(clock):
     """Day-of-week/date filter: a provider answer for another departure date is never used."""
     prov = DataProvenance(mode=DataMode.LIVE, source="test", as_of=datetime(2026, 10, 1, tzinfo=IST), note="n")
 
@@ -58,13 +58,15 @@ def test_adapter_drops_options_not_departing_on_a_requested_date():
         def provenance(self):
             return prov
 
-    result = ProviderJourneyAdapter(Loose(), "Asia/Kolkata").search(["CBE"], ["MAS"], [D])
+    result = ProviderJourneyAdapter(Loose(), "Asia/Kolkata", clock).search(["CBE"], ["MAS"], [D])
     assert [c.option_id for c in result.candidates] == [f"x@{D}"]
 
 
-def test_provider_error_becomes_unavailable_provenance_not_an_exception():
-    adapter = ProviderJourneyAdapter(UnconfiguredLiveProvider("RailRadar API key is not configured"), "Asia/Kolkata")
+def test_provider_error_becomes_unavailable_provenance_not_an_exception(clock):
+    adapter = ProviderJourneyAdapter(UnconfiguredLiveProvider("RailRadar API key is not configured"), "Asia/Kolkata",
+                                     clock)
     result = adapter.search(["CBE"], ["MAS"], [D])
     assert result.candidates == [] and result.error == "not_configured"
     assert result.provenance.mode == DataMode.UNAVAILABLE
     assert result.provenance.note  # a reason the UI can show
+    assert result.provenance.as_of == FIXED_NOW  # stamped by the injected Clock
