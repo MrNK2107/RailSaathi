@@ -144,6 +144,24 @@ wheels = [
 ]
 
 [[package]]
+name = "cmarkgfm"
+version = "2025.10.22"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cffi" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8f/0c/5010c87ceba51854dad42f45a3d28a3c67e81a21cfed8b20c34688aaa1b6/cmarkgfm-2025.10.22.tar.gz", hash = "sha256:5bec61007b65b919488442c838c58a6c8bf4741f5103c593b2ef180d39818eda", size = 146727, upload-time = "2025-10-22T23:13:22.639Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b8/e2/72098f7fccd3e7761a07b3f2be426fb2ee8cab21dd8e5215bed5fe6ec0a2/cmarkgfm-2025.10.22-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:74a22cf245b32a918325a2895a9a3f6e737f0b10368b39e9a99d9e76fda4a78a", size = 124616, upload-time = "2025-10-22T22:26:12.911Z" },
+    { url = "https://files.pythonhosted.org/packages/8b/a7/b8f20e4012cb4ebd9862423d6eb90689adacd3aafaac261c3c52db328195/cmarkgfm-2025.10.22-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:68368a18b90e2dd795182c6fc34cee3180b2c8b380cad50c7fbd5563abff01b1", size = 446618, upload-time = "2025-10-22T23:13:36.811Z" },
+    { url = "https://files.pythonhosted.org/packages/15/9e/f547d80ccaa4c7b6cffbc4af1bda508c1ba2f50733d5528beff81df1dd42/cmarkgfm-2025.10.22-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:115fd0feaf93806b3a7c980615649b3c76a49c9dd89d5ea0c6240e10c6c71cee", size = 449859, upload-time = "2025-10-22T23:13:38.23Z" },
+    { url = "https://files.pythonhosted.org/packages/16/2a/b8d9897db40e4575bc2caff7d6d7c2c99f0c06177e3e3e5e798cf490611f/cmarkgfm-2025.10.22-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:69ccb4afa039f5b81d35de95fe935405577e115f367dda534309d66a455db5cb", size = 442251, upload-time = "2025-10-22T23:13:39.272Z" },
+    { url = "https://files.pythonhosted.org/packages/dc/71/d99e03fb8176392525f1ce9ceba67f8b111524e8c1477dea69cbdcb9ae22/cmarkgfm-2025.10.22-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:9bed95895226cba280a96543f49d46b469b9e42528b119f280f9852cd4fc7749", size = 448305, upload-time = "2025-10-22T23:13:40.311Z" },
+    { url = "https://files.pythonhosted.org/packages/31/26/29db64e5cf6937b2bad8a4a0fe31459dbf9250ce225bbe1c891328ba0457/cmarkgfm-2025.10.22-cp312-cp312-win32.whl", hash = "sha256:fdf0a4689fb6febcbcaf675f2011a8074b100a4fc323f5754f627183ce492694", size = 116527, upload-time = "2025-10-22T22:34:50.768Z" },
+    { url = "https://files.pythonhosted.org/packages/42/31/e1356399d49f2a9e255b98a406c03a8c78848d3a4b41fe300d6c6a749276/cmarkgfm-2025.10.22-cp312-cp312-win_amd64.whl", hash = "sha256:fc14ae28769b501f61a7364a1188c827dfcf839213f02d0159801bb71c8ae989", size = 127292, upload-time = "2025-10-22T22:34:51.954Z" },
+]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -444,6 +462,41 @@ wheels = [
 ]
 
 [[package]]
+name = "linkify-it-py"
+version = "2.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/45/98/7a1a5f31fd5c7ba93e963b168e244b8e3dd705b3d2a718e3c3307583bf57/linkify_it_py-2.2.0.tar.gz", hash = "sha256:907acd2d17ac1fbb9ddb62c8957ccbd6158cac602231a15c3b0cd1e215f03cee", size = 32939, upload-time = "2026-08-29T07:07:08.305Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/13/d4/1152d1c7ab42d8b908be64fd200ddc870dc9d4925e951198702084aa1a7d/linkify_it_py-2.2.0-py3-none-any.whl", hash = "sha256:3adc40eb5af300b2605fcfdb968c24e1d780a90f1f2221af7c15e5111e94d443", size = 21971, upload-time = "2026-08-29T07:07:07.164Z" },
+]
+
+[[package]]
+name = "markdown-it-py"
+version = "4.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "mdurl" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/06/ff/7841249c247aa650a76b9ee4bbaeae59370dc8bfd2f6c01f3630c35eb134/markdown_it_py-4.2.0.tar.gz", hash = "sha256:04a21681d6fbb623de53f6f364d352309d4094dd4194040a10fd51833e418d49", size = 82454, upload-time = "2026-05-07T12:08:28.36Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/81/4da04ced5a082363ecfa159c010d200ecbd959ae410c10c0264a38cac0f5/markdown_it_py-4.2.0-py3-none-any.whl", hash = "sha256:9f7ebbcd14fe59494226453aed97c1070d83f8d24b6fc3a3bcf9a38092641c4a", size = 91687, upload-time = "2026-05-07T12:08:27.182Z" },
+]
+
+[package.optional-dependencies]
+linkify = [
+    { name = "linkify-it-py" },
+]
+
+[[package]]
+name = "mdurl"
+version = "0.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729, upload-time = "2022-08-14T12:40:10.846Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
+]
+
+[[package]]
 name = "opentelemetry-api"
 version = "1.45.1"
 source = { registry = "https://pypi.org/simple" }
@@ -681,8 +734,11 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "cmarkgfm" },
     { name = "fakeredis" },
     { name = "hypothesis" },
+    { name = "linkify-it-py" },
+    { name = "markdown-it-py", extra = ["linkify"] },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -705,8 +761,11 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "cmarkgfm", specifier = ">=2025.10.22" },
     { name = "fakeredis", specifier = ">=2.26" },
     { name = "hypothesis", specifier = ">=6.169.1" },
+    { name = "linkify-it-py", specifier = ">=2.2.0" },
+    { name = "markdown-it-py", extras = ["linkify"], specifier = ">=4.2.0" },
     { name = "pytest", specifier = ">=8.3,<9" },
     { name = "pytest-asyncio", specifier = ">=0.24" },
     { name = "pytest-cov", specifier = ">=5.0" },

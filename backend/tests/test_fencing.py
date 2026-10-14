@@ -1,23 +1,31 @@
 """Prompt-injection corpus for the ticketing agent: fencing, tool error sanitisation and the output URL allowlist."""
 
+import html
 import json
 import re
+import time
+from urllib.parse import unquote
 
+import cmarkgfm
 import pytest
+from cmarkgfm.cmark import Options as cmark_options
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from markdown_it import MarkdownIt
 
 from app.agent.controller import AgentController
 from app.agent.fencing import (
     FENCE_CLOSE,
     FENCE_OPEN,
     LINK_REMOVED,
+    MAX_ANSWER_CHARS,
     MAX_FENCED_CHARS,
     ToolErrorCode,
     fence_tool_output,
     is_allowed_url,
     sanitize_output,
     sanitize_tool_result,
+    truncate_answer,
 )
 from app.agent.prompt import SYSTEM_INSTRUCTION
 from app.llm.base import ToolCall
@@ -321,59 +329,207 @@ def test_balanced_paren_destination_must_be_fully_allowed():
     assert sanitize_output("[x](https://www.irctc.co.in/a_(b))") == f"x {LINK_REMOVED}"
 
 
-# --- generative test (Hypothesis) -------------------------------------------------------------------------------
+# --- review round 4: renderer-agreeing tokenisation, linear time, no label:value over-blocking ------------------
 
-_STRICT = re.compile(r"https://([A-Za-z0-9.-]+)(?:[/?#][A-Za-z0-9\-._~/?#=&%+]*)?")
-_ALLOWED_HOST = re.compile(r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)*"
-                           r"(?:irctc\.co\.in|indianrail\.gov\.in|indianrailways\.gov\.in)",
-                           re.IGNORECASE)
-_KEPT_LINK_FULL = re.compile(r"\[([^\[\]\n]*)\]\((https://[^()\s]*)\)")
-_LINKISH_CHECK = re.compile(r"(?i)[a-z][a-z0-9+.\-]*:\S|//|www\.|@[^\s@]*[A-Za-z0-9-]\.[A-Za-z0-9]")
+# Characters Python's str.split() treats as whitespace (or that are invisible) but that cmark-gfm does not treat as
+# a link terminator, plus the ones NFKC maps to a space.
+SEPARATORS = ["\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x1f", "\x85", "\u1680", "\u2028", "\u2029", "\u180e",
+              "\xa0", "\u3000", "\u200e", "\u200f", "\u202e", "\xad", "\u2060", "\u200b", "\ufeff", "\r", "\t"]
+ALLOWED = "https://irctc.co.in"
 
-_PIECES = [
-    "https://", "http://", "//", "www.", "mailto:", "javascript:", "data:", "x:",
-    "irctc.co.in", "www.irctc.co.in", "indianrail.gov.in", "indianrailways.gov.in", ".irctc.co.in",
-    "evil.com", "evil", ".com", "a", "1",
-    "@", ".", "/", "\\", "(", ")", "[", "]", "\"", "'", "`", "<", ">", "‹", "›", "&", ";", "#", ":", "?", "=",
-    "%", "%2F", "%40", "&sol;", "&#47;", "&#64;", "&amp;", "&lt;", "&gt;", "!", "![", "](", "]:", "／",
-    "​", " ", "\n", "\t", "-", "_", "~", "+",
-]
+ROUND4_VECTORS = (
+    [ALLOWED + sep + "@evil%2Ecom/p" for sep in SEPARATORS]
+    + [ALLOWED + sep + "@evil.com/p" for sep in SEPARATORS]
+    + [ALLOWED + sep + "@2130706433/" for sep in SEPARATORS]
+    + [f"(https://irctc.co.in){sep}@evil%2Ecom" for sep in SEPARATORS]
+    + [
+        "write to a@evil%2Ecom",
+        "www.evil%2Ecom",
+        "see evil.com now",
+        "see EVIL.COM/x now",
+        "https://irctc.co.in/~~www.evil.com~~",
+        "https://irctc.co.in/_www.evil.com_",
+        "https://irctc.co.in/~~//evil.com~~",
+        "x$irctc.co.in",
+        "evil.co.in",
+        "irctc.co.in.evil.com/p",
+        "irctc.co.in_evil.com",
+        "_evil.com_.irctc.co.in",
+        "evil.\u0440\u0444",
+        "evil.xn--p1ai",
+        "evil\u3002com",
+        "ftp://evil.com/x",
+        "xmpp:a@evil.com",
+        "HtTpS://evil.com/p",
+        "vbscript:msgbox(1)",
+        "file:///etc/passwd",
+        "!![x](https://evil.com/p.png)",
+        "[x](https://irctc.co.in (t))@evil.com",
+        "https://irctc.co.in&#x2028;@evil%2Ecom/p",
+        "https://irctc.co.in&#8233;@evil%2Ecom/p",
+        "https://irctc.co.in" + "&amp;" * 3 + "#x1f;@evil%2Ecom/p",
+    ]
+)
 
 
-def _strict_allowed(url: str) -> bool:
-    match = _STRICT.fullmatch(url)
-    return bool(match) and bool(_ALLOWED_HOST.fullmatch(match.group(1)))
+@pytest.mark.parametrize("payload", ROUND4_VECTORS)
+def test_round4_separator_percent_and_fuzzy_vectors_are_removed(payload):
+    out = sanitize_output(payload)
+    assert "evil" not in out.lower() and "2130706433" not in out and "\u0440\u0444" not in out, out
+    assert LINK_REMOVED in out
+    _assert_only_allowed_links(out)
 
 
-def _check_plain(text: str, out: str) -> None:
-    for token in text.split():
-        if not _LINKISH_CHECK.search(token):
-            continue
-        core = token[1:] if token.startswith("(") else token
-        core = core.rstrip(".,;:!?")
-        if core.endswith((")", "]")):
-            core = core[:-1].rstrip(".,;:!?")
-        assert _strict_allowed(core), (token, out)
+@pytest.mark.parametrize("sep", SEPARATORS)
+def test_separators_become_plain_spaces_or_vanish(sep):
+    out = sanitize_output(f"RAC{sep}means shared berth")
+    assert out in ("RAC means shared berth", "RACmeans shared berth")
+
+
+@pytest.mark.parametrize("text", [
+    "PNR:1234 Class:3A Note:see the chart",
+    "Quota:Tatkal",
+    "Time:10:00 AM",
+    "Step 1:Login",
+    "Status:CNF/WL",
+    "Train 12951:Rajdhani",
+    "TDR:filed",
+    "Fare data: Rs.500/-",
+    "09:30-10:00 and 10:00AM",
+    "e.g. 3A, i.e. AC 3-tier, a.m. or p.m.",
+    "Download ERS.pdf or open PnrEnquiry.html",
+    "Rate 5 @ 10% and 2 @ 3",
+    "Visit irctc.co.in/nget or www-like text",
+])
+def test_label_value_and_plain_text_survive(text):
+    assert sanitize_output(text) == text
+
+
+def test_allowed_bare_and_inline_links_still_survive():
+    text = ("Book on [IRCTC](https://www.irctc.co.in/nget/train-search) or https://www.irctc.co.in/nget/train-search. "
+            "PNR: https://www.indianrail.gov.in/enquiry/PNR/PnrEnquiry.html?locale=en")
+    assert sanitize_output(text) == text
+
+
+def test_answers_are_capped_before_sanitising():
+    assert truncate_answer("short") == "short"
+    capped = truncate_answer("x" * (MAX_ANSWER_CHARS * 3))
+    assert len(capped) == MAX_ANSWER_CHARS + 1 and capped.endswith("…")
+
+
+def test_controller_caps_long_answers(tmp_path):
+    from app.knowledge.ingest import ingest
+
+    db = tmp_path / "k.db"
+    ingest(db)
+    response = AgentController(MockChatLLM(["RAC " * 10_000]), str(db)).process_message("hi")
+    assert len(response.answer) <= MAX_ANSWER_CHARS + 3  # NFKC turns the ellipsis into "..."
+    assert response.answer.endswith("...")
+
+
+ADVERSARIAL = {
+    "scheme-like run": "a:" * 50_000,
+    "letters": "a" * 100_000,
+    "at letters": "@" + "a" * 100_000,
+    "dotted labels": "a." * 50_000,
+    "dotted tld labels": "ab." * 33_000 + "com",
+    "link open + spaces": "[x](" + " " * 100_000,
+    "link open + newlines": "[x](" + "\n" * 100_000,
+    "link open + parens": "[x](" + "(" * 100_000,
+    "link open + balanced": "[x](" + "()" * 50_000 + "(",
+    "title quotes": "[x](https://irctc.co.in " + "\"" * 100_000,
+    "brackets": "[" * 50_000 + "](" * 25_000,
+    "trailing parens": "https://irctc.co.in" + ")" * 100_000,
+    "long allowed url": "https://irctc.co.in/" + "a" * 100_000,
+    "ref colons": "]" + " " * 100_000,
+    "entities": "&amp;" * 20_000,
+    "separators": "\u2028@" * 50_000,
+    "mixed": "[" + "a" * 499 + "](" + "(a)" * 33_000,
+}
+
+
+@pytest.mark.parametrize("name", list(ADVERSARIAL))
+def test_adversarial_inputs_sanitise_in_linear_time(name):
+    text = ADVERSARIAL[name]
+    started = time.perf_counter()
+    sanitize_output(text)
+    assert time.perf_counter() - started < 1.0, name
+
+
+# --- independent oracle: real renderers -------------------------------------------------------------------------
+#
+# The sanitised text is rendered by cmark-gfm (GFM, autolink extension) and markdown-it-py (CommonMark + linkify-it,
+# fuzzy links on); every href / src must parse - with WHATWG-like steps - to http(s) on an allowlisted host, and no
+# HTML tag outside the Markdown vocabulary may appear. Nothing here reuses the sanitiser's regexes or tokeniser.
+
+_MDIT = MarkdownIt("commonmark", {"linkify": True, "html": True}).enable(["linkify", "strikethrough", "table"])
+_SAFE_TAGS = {"p", "a", "em", "strong", "code", "pre", "del", "s", "ul", "ol", "li", "blockquote", "hr", "br",
+              "h1", "h2", "h3", "h4", "h5", "h6", "table", "thead", "tbody", "tr", "th", "td", "input"}
+_SAFE_ATTRS = {"href", "title", "start", "align", "type", "checked", "disabled", "class", "lang"}
+_TAG = re.compile(r"</?([A-Za-z][A-Za-z0-9-]*)([^>]*)>")
+_ATTR = re.compile(r"([A-Za-z_:][-A-Za-z0-9_:.]*)\s*(?:=\s*(?:\"[^\"]*\"|'[^']*'|[^\s\"'=<>`]+))?")
+_URL_ATTR = re.compile(r"\b(?:href|src)\s*=\s*\"([^\"]*)\"")
+_ORACLE_HOST = re.compile(r"(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)*"
+                          r"(?:irctc\.co\.in|indianrail\.gov\.in|indianrailways\.gov\.in)")
+
+
+def _render(markdown: str) -> list[str]:
+    unsafe = cmark_options.CMARK_OPT_UNSAFE
+    return [cmarkgfm.github_flavored_markdown_to_html(markdown, options=unsafe),
+            cmarkgfm.markdown_to_html(markdown, options=unsafe),
+            _MDIT.render(markdown)]
+
+
+def _whatwg_host_allowed(href: str) -> bool:
+    url = html.unescape(href).strip("".join(map(chr, range(0x21))))
+    url = re.sub(r"[\t\n\r]", "", url)
+    scheme = re.match(r"([A-Za-z][A-Za-z0-9+.-]*):", url)
+    if not scheme or scheme.group(1).lower() not in ("http", "https"):
+        return False  # relative, protocol-relative, mailto:, javascript: ... are all failures
+    rest = url[scheme.end():].lstrip("/\\")
+    authority = re.split(r"[/\\?#]", rest, maxsplit=1)[0]
+    if "@" in authority:
+        return False  # userinfo
+    host, _, port = authority.partition(":")
+    if port and not port.isdigit():
+        return False  # a numeric port on an allowlisted host is still that host
+    host = unquote(host).lower()
+    try:
+        host = host.encode("idna").decode("ascii")
+    except UnicodeError:
+        return False
+    return bool(_ORACLE_HOST.fullmatch(host))
 
 
 def _assert_only_allowed_links(out: str) -> None:
-    assert "<" not in out and ">" not in out
+    assert "<" not in out and ">" not in out, out
+    assert not re.search(r"[^\W_]@|@[^\W_]", out), out
+    for rendered in _render(out):
+        for tag, attrs in _TAG.findall(rendered):
+            assert tag.lower() in _SAFE_TAGS, (tag, out, rendered)
+            for name in _ATTR.findall(attrs.rstrip("/")):
+                assert name.lower() in _SAFE_ATTRS, (name, out, rendered)
+        for href in _URL_ATTR.findall(rendered):
+            assert _whatwg_host_allowed(href), (href, out, rendered)
 
-    def kept(match: re.Match) -> str:
-        assert _strict_allowed(match.group(2)), out  # surviving inline links have a strictly allowed destination
-        _check_plain(match.group(1), out)
-        return " "
 
-    marked = _KEPT_LINK_FULL.sub(kept, out.replace(LINK_REMOVED, " "))
-    _check_plain(marked, out)
-    # Authorities: '//' at a token start or after a non-path character (a '//' inside an allowed URL's path is not
-    # an authority).
-    for authority in re.findall(r"(?:^|(?<=[^A-Za-z0-9\-._~%+=&?#/]))//([^/?#\s]*)", marked):
-        authority = authority.rstrip(".,;:!?")
-        if authority.endswith((")", "]")):  # GFM excludes one unbalanced closing bracket from the link
-            authority = authority[:-1].rstrip(".,;:!?")
-        assert _ALLOWED_HOST.fullmatch(authority), (authority, out)
-    assert not re.search(r"@[^\s@]*[A-Za-z0-9-]\.[A-Za-z0-9]", marked), out
+def test_oracle_detects_what_the_old_sanitiser_let_through():
+    with pytest.raises(AssertionError):
+        _assert_only_allowed_links("https://irctc.co.in\u2028@evil%2Ecom/p")
+    with pytest.raises(AssertionError):
+        _assert_only_allowed_links("see evil.com now")
+    _assert_only_allowed_links("Book on [IRCTC](https://www.irctc.co.in/nget/train-search) or https://irctc.co.in")
+
+
+_PIECES = [
+    "https://", "http://", "HTTPS://", "ftp://", "//", "www.", "mailto:", "xmpp:", "javascript:", "data:", "x:",
+    "PNR:", "irctc.co.in", "www.irctc.co.in", "indianrail.gov.in", "indianrailways.gov.in", ".irctc.co.in",
+    "irctc", ".co.in", ".gov.in", "evil.com", "evil", ".com", ".co", ".in", "co", "a", "1", "2130706433", "127.0.0.1",
+    "@", ".", "/", "\\", "(", ")", "[", "]", "\"", "'", "`", "<", ">", "‹", "›", "&", ";", "#", ":", "?", "=", "$",
+    "%", "%2F", "%2E", "%2e", "%40", "&sol;", "&#47;", "&#64;", "&amp;", "&lt;", "&gt;", "&#x2028;", "&#31;",
+    "!", "![", "](", "]:", "／", "\u3002", "_", "~", "~~", "*", "-", "+", "\u0440\u0444", "xn--p1ai",
+    " ", "\n", "\t", *SEPARATORS,
+]
 
 
 @settings(max_examples=1500, deadline=None)
@@ -382,13 +538,27 @@ def test_generated_text_only_keeps_strictly_allowlisted_links(text):
     _assert_only_allowed_links(sanitize_output(text))
 
 
-@settings(max_examples=500, deadline=None)
+@settings(max_examples=600, deadline=None)
 @given(st.lists(st.sampled_from(_PIECES), max_size=12).map("".join),
        st.lists(st.sampled_from(_PIECES), max_size=12).map("".join))
 def test_generated_markdown_links_only_keep_allowed_destinations(label, destination):
     _assert_only_allowed_links(sanitize_output(f"[{label}]({destination})"))
 
 
-@pytest.mark.parametrize("payload", ROUND1_VECTORS + ROUND2_VECTORS + ROUND3_VECTORS + INJECTIONS)
+@settings(max_examples=600, deadline=None)
+@given(st.sampled_from(["https://irctc.co.in", "https://www.irctc.co.in/nget", "(https://irctc.co.in)",
+                        "[x](https://irctc.co.in)", "www.irctc.co.in", "irctc.co.in"]),
+       st.lists(st.sampled_from(_PIECES), max_size=10).map("".join))
+def test_generated_suffixes_after_an_allowed_url(prefix, suffix):
+    _assert_only_allowed_links(sanitize_output(prefix + suffix))
+
+
+@settings(max_examples=300, deadline=None)
+@given(st.text(max_size=60))
+def test_arbitrary_unicode_text(text):
+    _assert_only_allowed_links(sanitize_output(text))
+
+
+@pytest.mark.parametrize("payload", ROUND1_VECTORS + ROUND2_VECTORS + ROUND3_VECTORS + ROUND4_VECTORS + INJECTIONS)
 def test_corpus_satisfies_the_generative_invariant(payload):
     _assert_only_allowed_links(sanitize_output(payload))

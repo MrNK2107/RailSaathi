@@ -28,6 +28,7 @@ from app.agent.fencing import (
     sanitize_output,
     sanitize_tool_result,
     tool_error,
+    truncate_answer,
 )
 from app.domain.enums import DataMode
 from app.domain.options import DataProvenance
@@ -252,7 +253,7 @@ class AgentController:
         note = GUIDANCE_NOTE if not self._rule_based else (
             "Rule-based guidance (the AI model is not configured). " + GUIDANCE_NOTE)
         return AgentResponse(
-            answer=sanitize_output(text),
+            answer=sanitize_output(truncate_answer(text)),
             status=status,
             sources=list(state["sources"].values()),
             trace_id=trace_id,
