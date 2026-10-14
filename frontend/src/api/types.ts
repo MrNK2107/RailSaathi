@@ -12,7 +12,8 @@ export type WorkflowStatus =
   | 'no_feasible_options'
   | 'cancelled'
   | 'error'
-export type DataMode = 'live' | 'demo' | 'unknown' | 'stale'
+/** Mirrors backend `DataMode` (domain/enums.py). `cached` is part of the shared provenance contract. */
+export type DataMode = 'live' | 'cached' | 'stale' | 'unavailable' | 'demo' | 'fallback' | 'unknown'
 export type TravelClass = 'SL' | '3A' | '2A' | 'CC' | 'EC' | '2S'
 export type PassengerNeed =
   | 'assistance_requested'
@@ -62,11 +63,27 @@ export interface JourneyDetails {
   field_sources: Record<string, 'explicit' | 'inferred' | 'edited'>
 }
 
-export interface DataProvenance {
+/** Shared provenance attached to data-bearing responses; mirrors backend `DataProvenance` (domain/options.py). */
+export interface Provenance {
   mode: DataMode
   source: string
+  /** ISO-8601 timestamp of when the data was obtained */
   as_of: string
   note: string
+}
+
+export type DataProvenance = Provenance
+
+/** Error envelope returned by every backend route (api/errors.py). */
+export interface ErrorBody {
+  code: string
+  message: string
+  details: Record<string, unknown>
+}
+
+export interface ErrorEnvelope {
+  error: ErrorBody
+  request_id?: string
 }
 
 export interface Leg {
