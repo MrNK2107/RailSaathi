@@ -1,0 +1,437 @@
+{
+ "_notice": "Venue directory for the goal planner. Coordinates are approximate and distance_km is the straight-line distance from the venue to each access station; last-mile times derived from it are estimates. Station codes must exist in the journey provider's station catalogue.",
+ "venues": [
+  {
+   "id": "tidel-park",
+   "name": "Tidel Park, Taramani",
+   "aliases": [
+    "tidel park",
+    "tidel"
+   ],
+   "city": "chennai",
+   "latitude": 12.9893,
+   "longitude": 80.2483,
+   "access_stations": [
+    {
+     "code": "MS",
+     "distance_km": 9.9
+    },
+    {
+     "code": "MAS",
+     "distance_km": 11.0
+    },
+    {
+     "code": "TBM",
+     "distance_km": 15.7
+    }
+   ]
+  },
+  {
+   "id": "iit-madras",
+   "name": "IIT Madras, Guindy",
+   "aliases": [
+    "iit madras",
+    "iitm"
+   ],
+   "city": "chennai",
+   "latitude": 12.9915,
+   "longitude": 80.2337,
+   "access_stations": [
+    {
+     "code": "MS",
+     "distance_km": 10.0
+    },
+    {
+     "code": "MAS",
+     "distance_km": 11.3
+    },
+    {
+     "code": "TBM",
+     "distance_km": 14.4
+    }
+   ]
+  },
+  {
+   "id": "dlf-cybercity-chennai",
+   "name": "DLF Cybercity, Manapakkam",
+   "aliases": [
+    "dlf cybercity chennai",
+    "dlf cybercity"
+   ],
+   "city": "chennai",
+   "latitude": 13.0232,
+   "longitude": 80.1706,
+   "access_stations": [
+    {
+     "code": "MS",
+     "distance_km": 11.4
+    },
+    {
+     "code": "TBM",
+     "distance_km": 12.2
+    },
+    {
+     "code": "MAS",
+     "distance_km": 13.2
+    }
+   ]
+  },
+  {
+   "id": "apollo-greams-road",
+   "name": "Apollo Hospitals, Greams Road",
+   "aliases": [
+    "apollo hospital greams road",
+    "apollo greams road"
+   ],
+   "city": "chennai",
+   "latitude": 13.0601,
+   "longitude": 80.2527,
+   "access_stations": [
+    {
+     "code": "MS",
+     "distance_km": 2.1
+    },
+    {
+     "code": "MAS",
+     "distance_km": 3.7
+    },
+    {
+     "code": "TBM",
+     "distance_km": 20.8
+    }
+   ]
+  },
+  {
+   "id": "us-consulate-chennai",
+   "name": "U.S. Consulate General, Anna Salai",
+   "aliases": [
+    "us consulate chennai",
+    "us consulate"
+   ],
+   "city": "chennai",
+   "latitude": 13.0538,
+   "longitude": 80.2515,
+   "access_stations": [
+    {
+     "code": "MS",
+     "distance_km": 2.8
+    },
+    {
+     "code": "MAS",
+     "distance_km": 4.3
+    },
+    {
+     "code": "TBM",
+     "distance_km": 20.2
+    }
+   ]
+  },
+  {
+   "id": "guindy-industrial-estate",
+   "name": "Guindy Industrial Estate",
+   "aliases": [
+    "guindy industrial estate"
+   ],
+   "city": "chennai",
+   "latitude": 13.0067,
+   "longitude": 80.2072,
+   "access_stations": [
+    {
+     "code": "MS",
+     "distance_km": 9.8
+    },
+    {
+     "code": "MAS",
+     "distance_km": 11.4
+    },
+    {
+     "code": "TBM",
+     "distance_km": 13.1
+    }
+   ]
+  },
+  {
+   "id": "whitefield",
+   "name": "Whitefield IT hub",
+   "aliases": [
+    "whitefield"
+   ],
+   "city": "bengaluru",
+   "latitude": 12.9698,
+   "longitude": 77.7499,
+   "access_stations": [
+    {
+     "code": "BNC",
+     "distance_km": 16.5
+    },
+    {
+     "code": "SBC",
+     "distance_km": 19.7
+    },
+    {
+     "code": "YPR",
+     "distance_km": 22.3
+    }
+   ]
+  },
+  {
+   "id": "electronic-city",
+   "name": "Electronic City Phase 1",
+   "aliases": [
+    "electronic city"
+   ],
+   "city": "bengaluru",
+   "latitude": 12.8452,
+   "longitude": 77.6602,
+   "access_stations": [
+    {
+     "code": "SBC",
+     "distance_km": 17.8
+    },
+    {
+     "code": "BNC",
+     "distance_km": 17.8
+    },
+    {
+     "code": "YPR",
+     "distance_km": 23.0
+    }
+   ]
+  },
+  {
+   "id": "manyata-tech-park",
+   "name": "Manyata Embassy Business Park, Hebbal",
+   "aliases": [
+    "manyata tech park",
+    "manyata"
+   ],
+   "city": "bengaluru",
+   "latitude": 13.0489,
+   "longitude": 77.6208,
+   "access_stations": [
+    {
+     "code": "BNC",
+     "distance_km": 6.6
+    },
+    {
+     "code": "YPR",
+     "distance_km": 8.1
+    },
+    {
+     "code": "SBC",
+     "distance_km": 9.8
+    }
+   ]
+  },
+  {
+   "id": "iisc",
+   "name": "Indian Institute of Science (IISc)",
+   "aliases": [
+    "iisc",
+    "indian institute of science"
+   ],
+   "city": "bengaluru",
+   "latitude": 13.0219,
+   "longitude": 77.5671,
+   "access_stations": [
+    {
+     "code": "YPR",
+     "distance_km": 1.7
+    },
+    {
+     "code": "BNC",
+     "distance_km": 4.7
+    },
+    {
+     "code": "SBC",
+     "distance_km": 4.9
+    }
+   ]
+  },
+  {
+   "id": "mg-road-bengaluru",
+   "name": "MG Road / Brigade Road",
+   "aliases": [
+    "mg road bengaluru",
+    "brigade road"
+   ],
+   "city": "bengaluru",
+   "latitude": 12.9756,
+   "longitude": 77.6066,
+   "access_stations": [
+    {
+     "code": "BNC",
+     "distance_km": 2.2
+    },
+    {
+     "code": "SBC",
+     "distance_km": 4.2
+    },
+    {
+     "code": "YPR",
+     "distance_km": 8.0
+    }
+   ]
+  },
+  {
+   "id": "connaught-place",
+   "name": "Connaught Place, New Delhi",
+   "aliases": [
+    "connaught place",
+    "cp delhi"
+   ],
+   "city": "delhi",
+   "latitude": 28.6315,
+   "longitude": 77.2167,
+   "access_stations": [
+    {
+     "code": "NDLS",
+     "distance_km": 1.2
+    }
+   ]
+  },
+  {
+   "id": "cyber-city-gurugram",
+   "name": "DLF Cyber City, Gurugram",
+   "aliases": [
+    "cyber city gurugram",
+    "cyber city"
+   ],
+   "city": "delhi",
+   "latitude": 28.495,
+   "longitude": 77.0895,
+   "access_stations": [
+    {
+     "code": "NDLS",
+     "distance_km": 20.8
+    }
+   ]
+  },
+  {
+   "id": "aiims-new-delhi",
+   "name": "AIIMS, Ansari Nagar, New Delhi",
+   "aliases": [
+    "aiims new delhi",
+    "aiims"
+   ],
+   "city": "delhi",
+   "latitude": 28.5672,
+   "longitude": 77.21,
+   "access_stations": [
+    {
+     "code": "NDLS",
+     "distance_km": 8.4
+    }
+   ]
+  },
+  {
+   "id": "bharat-mandapam",
+   "name": "Bharat Mandapam (Pragati Maidan), New Delhi",
+   "aliases": [
+    "pragati maidan",
+    "bharat mandapam"
+   ],
+   "city": "delhi",
+   "latitude": 28.6186,
+   "longitude": 77.2435,
+   "access_stations": [
+    {
+     "code": "NDLS",
+     "distance_km": 3.5
+    }
+   ]
+  },
+  {
+   "id": "bkc",
+   "name": "Bandra Kurla Complex (BKC)",
+   "aliases": [
+    "bkc",
+    "bandra kurla complex"
+   ],
+   "city": "mumbai",
+   "latitude": 19.0657,
+   "longitude": 72.8687,
+   "access_stations": [
+    {
+     "code": "CSMT",
+     "distance_km": 13.9
+    }
+   ]
+  },
+  {
+   "id": "nariman-point",
+   "name": "Nariman Point",
+   "aliases": [
+    "nariman point"
+   ],
+   "city": "mumbai",
+   "latitude": 18.9256,
+   "longitude": 72.8242,
+   "access_stations": [
+    {
+     "code": "CSMT",
+     "distance_km": 2.5
+    }
+   ]
+  },
+  {
+   "id": "iit-bombay",
+   "name": "IIT Bombay, Powai",
+   "aliases": [
+    "iit bombay",
+    "iitb"
+   ],
+   "city": "mumbai",
+   "latitude": 19.1334,
+   "longitude": 72.9133,
+   "access_stations": [
+    {
+     "code": "CSMT",
+     "distance_km": 22.5
+    }
+   ]
+  },
+  {
+   "id": "hitec-city",
+   "name": "HITEC City / Madhapur",
+   "aliases": [
+    "hitec city",
+    "madhapur"
+   ],
+   "city": "hyderabad",
+   "latitude": 17.4435,
+   "longitude": 78.3772,
+   "access_stations": [
+    {
+     "code": "HYB",
+     "distance_km": 11.1
+    },
+    {
+     "code": "SC",
+     "distance_km": 13.2
+    }
+   ]
+  },
+  {
+   "id": "gachibowli",
+   "name": "Gachibowli Financial District",
+   "aliases": [
+    "gachibowli",
+    "financial district"
+   ],
+   "city": "hyderabad",
+   "latitude": 17.4401,
+   "longitude": 78.3489,
+   "access_stations": [
+    {
+     "code": "HYB",
+     "distance_km": 13.6
+    },
+    {
+     "code": "SC",
+     "distance_km": 16.2
+    }
+   ]
+  }
+ ]
+}

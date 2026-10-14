@@ -1,5 +1,5 @@
 """
-RailSathi AI — Booking Handoff Service
+RailSaathi AI — Booking Handoff Service
 
 Generates verified official booking handoff links and metadata.
 Strictly validates URLs against an allowlist of approved HTTPS official railway domains.
@@ -8,7 +8,9 @@ Never executes automated reservations or logs sensitive credentials.
 
 import logging
 import urllib.parse
-from app.journey.models import BookingHandoff, TrainService
+from datetime import date
+
+from app.journey.models import BookingHandoff, TrainCandidate
 
 logger = logging.getLogger("railsaathi.journey.booking")
 
@@ -41,46 +43,32 @@ class BookingHandoffService:
 
     def create_booking_handoff(
         self,
-        train: TrainService,
-        journey_date: str,
-        recommended_class: str,
+        candidate: TrainCandidate,
+        journey_date: date,
+        recommended_class: str | None,
         recommended_fare: float | None = None,
     ) -> BookingHandoff:
-        """
-        Create a booking handoff object with official IRCTC link.
-        """
-        # Official IRCTC main booking portal with pre-formatted search path
-        # Official safe URL: https://www.irctc.co.in/nget/train-search
+        """Official IRCTC train-search link prefilled with the stations, date and (when known) class."""
         base_url = "https://www.irctc.co.in/nget/train-search"
-
-        # Build query parameters safely
         params = {
-            "fromStation": train.origin_station_code,
-            "toStation": train.destination_station_code,
-            "journeyDate": journey_date,
-            "journeyClass": recommended_class,
+            "fromStation": candidate.origin_code,
+            "toStation": candidate.destination_code,
+            "journeyDate": journey_date.isoformat(),
         }
-        encoded_query = urllib.parse.urlencode(params)
-        full_booking_url = f"{base_url}?{encoded_query}"
-
-        # Allowlist check
-        safe = is_url_safe_and_allowlisted(full_booking_url)
-        if not safe:
+        if recommended_class:
+            params["journeyClass"] = recommended_class
+        full_booking_url = f"{base_url}?{urllib.parse.urlencode(params)}"
+        if not is_url_safe_and_allowlisted(full_booking_url):
             full_booking_url = "https://www.irctc.co.in"
 
         return BookingHandoff(
-            official_provider="IRCTC Official Railway Reservation",
             booking_url=full_booking_url,
             is_url_allowlisted=True,
-            train_number=train.train_number,
-            train_name=train.train_name,
-            from_station_code=train.origin_station_code,
-            to_station_code=train.destination_station_code,
+            train_number=candidate.train_number,
+            train_name=candidate.train_name,
+            from_station_code=candidate.origin_code,
+            to_station_code=candidate.destination_code,
             journey_date=journey_date,
             recommended_class=recommended_class,
             estimated_fare_inr=recommended_fare,
-            disclaimer=(
-                "RailSathi AI provides booking guidance. Clicking this link redirects you to the official "
-                "IRCTC portal to complete your reservation. No automated transactions are performed."
-            ),
         )

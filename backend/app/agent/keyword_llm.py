@@ -90,71 +90,7 @@ class KeywordChatLLM:
         """Synthesize a structured guidance answer using evidence from tool result."""
         # Case 0: plan_goal_based_journey
         if tool_name == "plan_goal_based_journey":
-            plan = tool_result.get("journey_plan", {})
-            req = plan.get("trip_requirements", {})
-            best = plan.get("best_match")
-            alts = plan.get("feasible_alternatives", [])
-            infeasible = plan.get("infeasible_options", [])
-            tradeoff = plan.get("tradeoff_explanation")
-
-            if best:
-                ts = best.get("train_service", {})
-                answer = (
-                    f"### 🎯 Recommended Journey Plan for Your Goal\n\n"
-                    f"**Goal:** Reach **{req.get('destination_venue')}** by **{req.get('meeting_time')}** on **{req.get('meeting_date')}** "
-                    f"from **{req.get('origin')}** with at least a **{req.get('required_arrival_buffer_minutes', 45)}-minute buffer**.\n\n"
-                    f"#### 🏆 Best Feasible Match: {ts.get('train_name')} ({ts.get('train_number')})\n"
-                    f"- **Departure:** {ts.get('departure_time')} from **{ts.get('origin_station_name')} ({ts.get('origin_station_code')})**\n"
-                    f"- **Arrival at Station:** {ts.get('arrival_time')} at **{ts.get('destination_station_name')} ({ts.get('destination_station_code')})**\n"
-                    f"- **Journey Duration:** {ts.get('duration_minutes', 0) // 60}h {ts.get('duration_minutes', 0) % 60}m\n"
-                    f"- **Last-Mile Transfer:** ~{best.get('last_mile_duration_minutes')} mins ({best.get('last_mile_distance_km')} km by cab) to {best.get('last_mile_destination_venue')}\n"
-                    f"- **Arrival Buffer at Venue:** **{best.get('actual_arrival_buffer_minutes')} minutes** before your meeting (Goal satisfied ✅)\n"
-                    f"- **Recommended Class & Fare:** {best.get('recommended_class')} — ₹{best.get('recommended_fare', 'N/A')}\n\n"
-                )
-
-                if alts:
-                    answer += "#### 🚆 Feasible Alternatives:\n"
-                    for a in alts[:2]:
-                        ats = a.get("train_service", {})
-                        answer += (
-                            f"- **{ats.get('train_name')} ({ats.get('train_number')}):** Departs {ats.get('departure_time')}, "
-                            f"arrives {ats.get('arrival_time')} ({a.get('actual_arrival_buffer_minutes')}m buffer) | {a.get('recommended_class')} (₹{a.get('recommended_fare', 'N/A')})\n"
-                        )
-                    answer += "\n"
-
-                if tradeoff:
-                    answer += f"**⚠️ Evaluation Note:**\n{tradeoff}\n\n"
-
-                if infeasible:
-                    answer += "**❌ Options that do not meet your arrival deadline:**\n"
-                    for inf in infeasible[:2]:
-                        its = inf.get("train_service", {})
-                        reasons = " ".join(inf.get("hard_constraint_violations", []))
-                        answer += f"- **{its.get('train_name')} ({its.get('train_number')}):** {reasons}\n"
-                    answer += "\n"
-
-                if best.get("booking_handoff"):
-                    bh = best["booking_handoff"]
-                    answer += (
-                        f"#### 🎫 Official Booking Handoff:\n"
-                        f"Ready to book? Complete your reservation on the official portal:\n"
-                        f"👉 [{bh.get('official_provider')}]({bh.get('booking_url')})\n\n"
-                        f"*(Schedules come from the planner's bundled timetable data; check the official "
-                        f"portal for current timings before booking.)*"
-                    )
-                return LLMTurn(text=answer)
-            else:
-                summary = plan.get("summary", "No direct train options found meeting the arrival deadline.")
-                answer = f"### ⚠️ No Feasible Same-Day Trains Found\n\n{summary}\n\n"
-                if tradeoff:
-                    answer += f"**Recommendations & Alternatives:**\n{tradeoff}\n\n"
-                if infeasible:
-                    answer += "**Trains evaluated that missed deadline:**\n"
-                    for inf in infeasible[:3]:
-                        its = inf.get("train_service", {})
-                        reasons = " ".join(inf.get("hard_constraint_violations", []))
-                        answer += f"- **{its.get('train_name')} ({its.get('train_number')}):** {reasons}\n"
-                return LLMTurn(text=answer)
+            return LLMTurn(text=_journey_answer(tool_result))
 
         # Case 2: explain_reservation_status
         if tool_name == "explain_reservation_status":
@@ -189,3 +125,55 @@ class KeywordChatLLM:
             "I checked the official RailSathi knowledge base, but could not find specific rules matching your exact query. "
             "Please check current notices directly on the official IRCTC portal (https://www.irctc.co.in) or at a station reservation counter."
         ))
+
+
+NL = "\n"
+
+
+def _hhmm(iso: str | None) -> str:
+    return iso[11:16] if isinstance(iso, str) and len(iso) >= 16 else "?"
+
+
+def _train_line(ev: dict) -> str:
+    cand = ev.get("candidate", {})
+    return (f"**{cand.get('train_number')} {cand.get('train_name')}**: departs {cand.get('origin_code')} "
+            f"{_hhmm(cand.get('departure'))}, arrives {cand.get('destination_code')} {_hhmm(cand.get('arrival'))}")
+
+
+def _journey_answer(tool_result: dict) -> str:
+    """Phrase a goal plan from the planner's result only (provider trains, provenance, buffers)."""
+    if tool_result.get("status") != "success":
+        return f"I could not plan this journey: {tool_result.get('error', 'the planner failed')}"
+    plan = tool_result.get("journey_plan", {})
+    provenance = plan.get("provenance") or {}
+    source = (f"*Data: {provenance.get('source', 'unknown source')} ({provenance.get('mode', 'unknown')}). "
+              f"{provenance.get('note', '')}*")
+    if plan.get("status") in ("clarification_required", "provider_unavailable"):
+        return plan.get("summary", "") + NL + NL + source
+    req = plan.get("trip_requirements") or {}
+    best = plan.get("best_match")
+    parts = ["### Journey plan", plan.get("summary", "")]
+    if best:
+        lm = best.get("last_mile_duration_minutes")
+        lines = ["#### Best match", f"- {_train_line(best)}",
+                 f"- Last mile: {f'about {lm} min by cab' if lm is not None else 'not estimated'}",
+                 f"- Estimated buffer before your {req.get('meeting_time')} meeting: "
+                 f"{best.get('actual_arrival_buffer_minutes')} min"]
+        fare = best.get("recommended_fare")
+        if best.get("recommended_class"):
+            lines.append(f"- Class: {best['recommended_class']}" + (f" (listed fare ₹{fare:.0f})" if fare else ""))
+        parts.append(NL.join(lines))
+    alts = plan.get("feasible_alternatives", [])
+    if alts:
+        parts.append(NL.join(["#### Alternatives", *(f"- {_train_line(a)}" for a in alts[:2])]))
+    if plan.get("tradeoff_explanation"):
+        parts.append(f"**Note:** {plan['tradeoff_explanation']}")
+    infeasible = plan.get("infeasible_options", [])
+    if infeasible and not best:
+        parts.append(NL.join(["#### Trains that miss the deadline", *(
+            f"- {_train_line(i)}: {' '.join(i.get('hard_constraint_violations', []))}" for i in infeasible[:3])]))
+    handoff = (best or {}).get("booking_handoff")
+    if handoff:
+        parts.append(f"Book on the official portal: [{handoff.get('official_provider')}]({handoff.get('booking_url')})")
+    parts.append(source)
+    return (NL + NL).join(p for p in parts if p)

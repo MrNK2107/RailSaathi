@@ -50,7 +50,8 @@ async def ticketing_chat(request: Request, payload: ChatRequest):
     settings = container.settings
     controller = AgentController(container.agent_llm, str(DB_PATH), max_rounds=settings.max_agent_rounds,
                                  max_tool_calls=settings.max_tool_calls,
-                                 deadline_seconds=settings.llm_overall_deadline_seconds)
+                                 deadline_seconds=settings.llm_overall_deadline_seconds,
+                                 goal_planner=container.goal_planner)
     try:
         res = await offload(controller.process_message, payload.message)
         return {

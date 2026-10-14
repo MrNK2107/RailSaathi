@@ -6,6 +6,7 @@ const en = {
   back: 'Back',
   nav: { home: 'Home', trips: 'My Trips', alerts: 'Alerts', profile: 'Profile' },
   live: 'LIVE · RailRadar',
+  dataUnavailable: 'Data unavailable',
   dashboard: {
     hello: 'Hello,',
     intro: 'Plan, navigate and travel with confidence across Indian Railways.',
@@ -170,6 +171,7 @@ type DeepPartial<T> = { [K in keyof T]?: T[K] extends string ? string : T[K] ext
 const taOverrides: DeepPartial<MobileStrings> = {
   tagline: 'உங்கள் ரயில் துணை',
   back: 'பின்',
+  dataUnavailable: 'தரவு கிடைக்கவில்லை',
   nav: { home: 'முகப்பு', trips: 'என் பயணங்கள்', alerts: 'அறிவிப்புகள்', profile: 'சுயவிவரம்' },
   dashboard: {
     hello: 'வணக்கம்,',

@@ -31,8 +31,14 @@ def test_body_limit_applies_to_every_post_and_to_chunked_bodies():
 def test_refine_applies_message_limit_to_free_text():
     c = make_client(max_message_chars=100)
     assert c.post("/api/journey/refine", json={"preferred_class": "x" * 101}).status_code == 422
-    r = c.post("/api/journey/refine", json={"requirements": {"origin": "y" * 101}})
-    assert r.status_code == 422 and r.json()["error"]["details"]["field"] == "requirements.origin"
+    # /refine takes a strict schema (Phase 3): the old raw `requirements` dict is rejected outright ...
+    assert c.post("/api/journey/refine", json={"requirements": {"origin": "y" * 101}}).status_code == 422
+    # ... and free-text fields still honour MAX_MESSAGE_CHARS.
+    r = c.post("/api/journey/refine", json={"plan_id": "plan_abcdefgh", "preferred_train_name_or_number": "y" * 70})
+    assert r.status_code == 401  # under the limit: passes the length check, then needs a session token
+    c2 = make_client(max_message_chars=50)
+    r = c2.post("/api/journey/refine", json={"plan_id": "plan_abcdefgh", "preferred_train_name_or_number": "y" * 51})
+    assert r.status_code == 422 and r.json()["error"]["details"]["field"] == "preferred_train_name_or_number"
 
 
 def test_lock_ttl_must_outlive_llm_deadline():

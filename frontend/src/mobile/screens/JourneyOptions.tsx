@@ -4,7 +4,8 @@ import type { Category, Recommendation } from '../../api/types'
 import { formatDate, formatDuration, formatRupees, formatTime } from '../../utils/format'
 import { AlertIcon, ArrowRight, ChevronRight, EditIcon, RefreshIcon, SeatIcon, TrainIcon } from '../icons'
 import { useApp } from '../PlannerContext'
-import { AppHeader, CategoryBadge, ErrorBanner, ModeBadge, PrimaryButton, Screen, SourceLine } from '../ui'
+import { ProvenanceBadge } from '../../components/ProvenanceBadge'
+import { AppHeader, CategoryBadge, ErrorBanner, PrimaryButton, Screen, SourceLine } from '../ui'
 
 const ORDER: Category[] = ['best_overall', 'lowest_cost', 'fastest']
 
@@ -23,7 +24,7 @@ function OptionCard({ rec, highlighted, onChoose, disabled }: {
         {rec.labels.length
           ? rec.labels.map((l) => <CategoryBadge key={l} category={l} />)
           : <span className="rounded-md bg-ink-100 px-2 py-1 text-xs font-semibold text-ink-700">{m.options.tabs.also}</span>}
-        <span className="ml-auto"><ModeBadge mode={o.provenance.mode} /></span>
+        <span className="ml-auto"><ProvenanceBadge provenance={o.provenance} labels={{ live: m.live }} unavailableTitle={m.dataUnavailable} /></span>
       </div>
       <button type="button" onClick={onChoose} disabled={disabled}
         className="mt-3 flex w-full items-start gap-3 text-left disabled:opacity-60" aria-label={`${m.options.choose}: ${leg.train_no}`}>

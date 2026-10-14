@@ -1,105 +1,112 @@
 """
-API Router for Goal-Based Journey Planning
-Evaluates timetable schedules against meeting deadlines and last-mile cab buffer.
+API router for goal-based journey planning ("reach my meeting on time").
+
+Plans come from the container's JourneyProvider (one journey data path) and always carry `provenance`. Every
+route needs the signed `X-Session-Token` issued by `POST /api/planner/sessions`; plan ids are server-issued,
+stored in the PlanStore (Redis when configured) and bound to that session, so `/refine` and `/options` treat a
+foreign plan id exactly like an unknown one.
 """
 
 import logging
-import uuid
-from typing import Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+
+from fastapi import APIRouter, Path, Request
+from pydantic import ValidationError
 
 from app.api.deps import enforce_message_limit, offload
-from app.journey.planner import JourneyPlanner, parse_requirements_from_text
-from app.journey.models import TripRequirements
+from app.container import Container
+from app.harness.errors import PlannerError, safe_validation_errors
+from app.journey.models import PLAN_ID_PATTERN, GoalPlanRequest, JourneyPlanResponse, RefineRequest, TripRequirements
+from app.journey.plan_store import load_owned, new_plan_id
+from app.security.tokens import TOKEN_HEADER, InvalidSessionToken
 
 log = logging.getLogger("railsaathi.journey")
 router = APIRouter(prefix="/api/journey", tags=["Goal Journey Planner"])
 
-journey_planner = JourneyPlanner()
-journey_plans_store: Dict[str, Any] = {}
+FREE_TEXT_FIELDS = ("prompt", "origin", "destination_venue", "destination_station", "preferred_train_name_or_number")
 
 
-class GoalPlanRequest(BaseModel):
-    prompt: Optional[str] = None
-    origin: Optional[str] = None
-    destination_venue: Optional[str] = None
-    destination_city: Optional[str] = None
-    meeting_date: Optional[str] = None
-    meeting_time: Optional[str] = None
-    required_arrival_buffer_minutes: Optional[int] = 45
-    preferred_class: Optional[str] = None
-    preferred_train_name_or_number: Optional[str] = None
-    budget_max: Optional[float] = None
+def _c(request: Request) -> Container:
+    return request.app.state.container
 
 
-@router.post("/plan")
-async def plan_journey(request: Request, payload: GoalPlanRequest):
-    """
-    Accept free-text meeting prompt or structured constraints,
-    deterministically evaluate timetables, buffers, and last-mile taxis,
-    and output ranked train recommendations with IRCTC booking handoffs.
-    """
-    enforce_message_limit(request, payload.prompt, "prompt")
-    trace_id = f"plan-{uuid.uuid4().hex[:10]}"
+def _session_owner(request: Request) -> str:
+    """The session id the caller's signed token was issued for (plans are bound to it)."""
     try:
-        if payload.prompt and not payload.origin:
-            req = parse_requirements_from_text(payload.prompt)
-        else:
-            req = TripRequirements(
-                origin=payload.origin or "Bengaluru",
-                destination_city=payload.destination_city or "Chennai",
-                destination_venue=payload.destination_venue or "Central Hub",
-                meeting_date=payload.meeting_date or "2026-10-25",
-                meeting_time=payload.meeting_time or "10:00",
-                required_arrival_buffer_minutes=payload.required_arrival_buffer_minutes or 45,
-                preferred_class=payload.preferred_class,
-                preferred_train_name_or_number=payload.preferred_train_name_or_number,
-                budget_max=payload.budget_max,
-            )
-
-        res = await offload(journey_planner.plan_journey, req, trace_id=trace_id)
-        plan_dict = res.model_dump()
-        journey_plans_store[trace_id] = plan_dict
-        return plan_dict
-    except Exception as e:
-        log.exception("Journey planning failed")
-        raise HTTPException(status_code=500, detail="Journey planning failed") from e
+        return _c(request).signer.verify(request.headers.get(TOKEN_HEADER))
+    except InvalidSessionToken as exc:
+        raise PlannerError("invalid_session_token", "A valid session token is required.") from exc
 
 
-@router.post("/refine")
-async def refine_journey(request: Request, data: Dict[str, Any]):
-    """Refine existing trip requirements (e.g. buffer, class, time)."""
-    for prefix, values in (("", data), ("requirements.", data.get("requirements"))):
-        if isinstance(values, dict):
-            for name, value in values.items():
-                if isinstance(value, str):
-                    enforce_message_limit(request, value, f"{prefix}{name}")
-    base_req_data = data.get("requirements") or {}
-    trace_id = data.get("trace_id") or f"refine-{uuid.uuid4().hex[:10]}"
+def _enforce_limits(request: Request, body: GoalPlanRequest | RefineRequest) -> None:
+    for name in FREE_TEXT_FIELDS:
+        value = getattr(body, name, None)
+        if isinstance(value, str):
+            enforce_message_limit(request, value, name)
+
+
+def _plan_and_store(c: Container, req: TripRequirements, owner: str, plan_id: str | None) -> JourneyPlanResponse:
+    planner = c.goal_planner
+    response = planner.plan(req, planner.new_trace_id())
+    if response.status == "clarification_required":
+        return response
+    response.plan_id = plan_id or new_plan_id()
+    c.plan_store.save(response.plan_id, owner, {"requirements": req.model_dump(mode="json"),
+                                                "response": response.model_dump(mode="json")})
+    return response
+
+
+def _plan(c: Container, body: GoalPlanRequest, owner: str) -> JourneyPlanResponse:
+    planner = c.goal_planner
     try:
-        req = TripRequirements(**base_req_data)
-        if data.get("meeting_time"):
-            req.meeting_time = str(data["meeting_time"]).strip()
-        if data.get("required_arrival_buffer_minutes") is not None:
-            req.required_arrival_buffer_minutes = int(data["required_arrival_buffer_minutes"])
-        if data.get("preferred_class") is not None:
-            req.preferred_class = str(data["preferred_class"]).strip() or None
-        if data.get("budget_max") is not None:
-            req.budget_max = float(data["budget_max"]) if data["budget_max"] != "" else None
-
-        res = await offload(journey_planner.plan_journey, req, trace_id=trace_id)
-        plan_dict = res.model_dump()
-        journey_plans_store[trace_id] = plan_dict
-        return plan_dict
-    except Exception as e:
-        log.exception("Journey planning failed")
-        raise HTTPException(status_code=500, detail="Journey planning failed") from e
+        req, missing = planner.requirements_from_request(body)
+    except ValidationError as exc:  # a parsed prompt value failed validation
+        raise PlannerError("validation_failed", "The request is invalid.",
+                           {"errors": safe_validation_errors(exc)}) from exc
+    if req is None:
+        return planner.clarification(missing, planner.new_trace_id())
+    return _plan_and_store(c, req, owner, None)
 
 
-@router.get("/options/{request_id}")
-async def get_journey_option(request_id: str):
-    plan = journey_plans_store.get(request_id)
-    if not plan:
-        raise HTTPException(status_code=404, detail="Plan not found")
-    return plan
+def _refine(c: Container, body: RefineRequest, owner: str) -> JourneyPlanResponse:
+    stored = load_owned(c.plan_store, body.plan_id, owner)
+    if stored is None:
+        raise PlannerError("plan_not_found", "This plan does not exist or has expired. Please plan again.")
+    changes = {name: getattr(body, name) for name in body.model_fields_set if name != "plan_id"}
+    try:
+        req = TripRequirements.model_validate({**stored["requirements"], **changes})
+    except ValidationError as exc:
+        raise PlannerError("validation_failed", "The request is invalid.",
+                           {"errors": safe_validation_errors(exc)}) from exc
+    if "required_arrival_buffer_minutes" in changes:
+        req.assumptions = [a for a in req.assumptions if "buffer" not in a.lower()]
+    return _plan_and_store(c, req, owner, body.plan_id)
+
+
+def _options(c: Container, plan_id: str, owner: str) -> dict:
+    stored = load_owned(c.plan_store, plan_id, owner)
+    if stored is None:
+        raise PlannerError("plan_not_found", "This plan does not exist or has expired. Please plan again.")
+    return stored["response"]
+
+
+@router.post("/plan", response_model=JourneyPlanResponse)
+async def plan_journey(request: Request, payload: GoalPlanRequest) -> JourneyPlanResponse:
+    """Plan trains that reach a meeting on time from a prompt and/or structured fields. Missing details are asked
+    for (`clarification_required`), never defaulted."""
+    _enforce_limits(request, payload)
+    owner = _session_owner(request)
+    return await offload(_plan, _c(request), payload, owner)
+
+
+@router.post("/refine", response_model=JourneyPlanResponse)
+async def refine_journey(request: Request, payload: RefineRequest) -> JourneyPlanResponse:
+    """Change the meeting time/date, buffer, class, preferred train or budget of a plan you own and re-plan."""
+    _enforce_limits(request, payload)
+    owner = _session_owner(request)
+    return await offload(_refine, _c(request), payload, owner)
+
+
+@router.get("/options/{plan_id}", response_model=JourneyPlanResponse)
+async def get_journey_option(request: Request, plan_id: str = Path(pattern=PLAN_ID_PATTERN)) -> dict:
+    owner = _session_owner(request)
+    return await offload(_options, _c(request), plan_id, owner)

@@ -17,6 +17,9 @@ from app.intent.extractor import IntentExtractor
 from app.intent.llm import IntentLLM, LLMError
 from app.llm.base import ChatLLM
 from app.intent.rules import RuleBasedExtractor
+from app.journey.plan_store import InMemoryPlanStore, PlanStore, RedisPlanStore
+from app.journey.planner import GoalPlanner
+from app.journey.venues import load_venues
 from app.providers.base import DisruptionSource, JourneyProvider
 from app.providers.demo import DemoDisruptionSource, DemoJourneyProvider
 from app.providers.railradar import RailRadarDisruptionSource, RailRadarJourneyProvider, UnconfiguredLiveProvider
@@ -47,6 +50,8 @@ class Container:
     signer: SessionTokenSigner | None = None
     chat_llm: ChatLLM | None = None  # ticketing agent LLM; None -> rule-based KeywordChatLLM
     chat_llm_reason: str | None = None
+    goal_planner: GoalPlanner | None = None
+    plan_store: PlanStore | None = None
 
     @property
     def agent_llm(self) -> ChatLLM:
@@ -158,6 +163,13 @@ def build_data_sources(settings: Settings, redis: Redis | None = None) -> tuple[
             "reason": "railradar_api_key_missing"}
     if requested != "demo":
         raise ValueError(f"Unknown RAILWAY_DATA_MODE '{settings.data_provider}' (use 'demo' or 'railradar')")
+    if settings.is_production:
+        # Simulated data is never served in production: searches fail honestly and /readyz reports not ready.
+        log.error("RAILWAY_DATA_MODE=demo is refused when APP_ENV=production; configure RailRadar")
+        refused = UnconfiguredLiveProvider("Demo data is disabled in production and live data is not configured",
+                                           settings.timezone)
+        return refused, refused, {
+            "requested": requested, "active": "none", "configured": False, "reason": "demo_refused_in_production"}
     return DemoJourneyProvider(settings.timezone), DemoDisruptionSource(), {
         "requested": requested, "active": "demo", "configured": True, "reason": None}
 
@@ -167,6 +179,13 @@ def build_session_store(settings: Settings, clock: Clock, redis: Redis | None) -
         return RedisSessionStore(redis, settings.session_ttl_minutes * 60, settings.redis_key_prefix,
                                  settings.session_lock_ttl_ms, settings.session_lock_wait_seconds)
     return InMemorySessionStore(clock, settings.session_ttl_minutes)
+
+
+def build_plan_store(settings: Settings, redis: Redis | None) -> PlanStore:
+    ttl = settings.session_ttl_minutes * 60
+    if redis is not None:
+        return RedisPlanStore(redis, ttl, settings.redis_key_prefix)
+    return InMemoryPlanStore(ttl)
 
 
 def build_container(settings: Settings, clock: Clock | None = None,
@@ -198,5 +217,7 @@ def build_container(settings: Settings, clock: Clock | None = None,
         disruption=DisruptionService(disruptions, recommender),
         data_mode=provider.data_mode,
     )
+    goal_planner = GoalPlanner(provider, resolver, load_venues(), clock, settings.timezone,
+                               settings.max_planning_days)
     return Container(settings, clock, provider, disruptions, resolver, extractor, audit, planner, data_status, redis, signer,
-                     chat_llm, chat_reason)
+                     chat_llm, chat_reason, goal_planner, build_plan_store(settings, redis))

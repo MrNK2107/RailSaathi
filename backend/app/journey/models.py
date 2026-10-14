@@ -1,184 +1,166 @@
 """
-RailSathi AI — Journey Planner Data Models
+RailSaathi AI — goal planner data models.
 
-Strictly typed Pydantic models for goal-based journey planning,
-location resolution, train schedules, feasibility evaluations, and booking handoffs.
+Strictly typed Pydantic models for goal-based journey planning: requirements, the leg model the provider
+adapter maps `JourneyOption`s into, feasibility evaluations and booking handoffs. Every plan response carries
+the shared `DataProvenance`.
 """
 
-from typing import Any, Literal
-from pydantic import BaseModel, Field, field_validator
+from datetime import date, datetime
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, computed_field
+
+from app.domain.enums import TravelClass
+from app.domain.options import DataProvenance
+
+HHMM = r"^([01]\d|2[0-3]):[0-5]\d$"
+TRAIN_QUERY_MAX = 80
+PLACE_MAX = 120
+PLAN_ID_PATTERN = r"^plan_[A-Za-z0-9_-]{8,64}$"
 
 
 class TripRequirements(BaseModel):
-    """Structured travel requirements extracted from passenger query or form."""
-    origin: str = Field(..., description="Starting city, town, or origin location (e.g., 'Bengaluru', 'Mysuru').")
-    destination_venue: str = Field(..., description="Target venue or landmark name (e.g., 'Tidel Park', 'IIT Madras').")
-    destination_address: str | None = Field(default=None, description="Street address or locality (e.g., 'Taramani, Chennai').")
-    destination_city: str | None = Field(default=None, description="Resolved destination city (e.g., 'Chennai').")
+    """Complete requirements for one goal plan. Nothing here is defaulted from hidden constants: origin, date and
+    time come from the passenger (form fields or the parsed prompt)."""
 
-    meeting_date: str = Field(..., description="Target meeting or arrival date in YYYY-MM-DD format.")
-    meeting_time: str = Field(..., description="Target meeting start time in HH:MM 24-hour format.")
-    timezone: str = Field(default="Asia/Kolkata", description="Timezone of the journey (default: Asia/Kolkata).")
-
-    required_arrival_buffer_minutes: int = Field(
-        default=45,
-        ge=0,
-        le=720,
-        description="Desired buffer time at venue before the meeting starts (in minutes)."
-    )
-
-    preferred_train_name_or_number: str | None = Field(
-        default=None,
-        description="Explicit train name or 5-digit number preferred by the passenger (if any)."
-    )
-    preferred_class: str | None = Field(
-        default=None,
-        description="Preferred travel class code (e.g., '3A', '2A', '1A', 'CC', 'SL', '3E', '2S', 'EC')."
-    )
-    budget_min: float | None = Field(default=None, ge=0, description="Minimum budget in INR.")
-    budget_max: float | None = Field(default=None, ge=0, description="Maximum budget in INR.")
-    currency: str = Field(default="INR", description="Currency code (default: INR).")
-
-    maximum_journey_duration_minutes: int | None = Field(
-        default=None,
-        ge=0,
-        description="Maximum acceptable journey duration in minutes."
-    )
-    maximum_transfers: int = Field(default=0, ge=0, description="Maximum acceptable train interchanges (default 0 for direct).")
-    accessibility_requirements: list[str] = Field(default_factory=list, description="Specific accessibility requirements.")
-
-    hard_constraints: list[str] = Field(
-        default_factory=lambda: ["deadline", "arrival_buffer"],
-        description="Non-negotiable constraints that must be satisfied for feasibility."
-    )
-    soft_preferences: list[str] = Field(
-        default_factory=list,
-        description="Preferences to maximize score when ranking feasible candidates."
-    )
-    missing_required_fields: list[str] = Field(
-        default_factory=list,
-        description="List of essential fields that could not be determined and need clarification."
-    )
-    assumptions_requiring_confirmation: list[str] = Field(
-        default_factory=list,
-        description="Assumptions made (e.g., default buffer) requiring user awareness."
-    )
-
-    @field_validator("preferred_class", mode="before")
-    @classmethod
-    def normalize_class(cls, v: Any) -> str | None:
-        if isinstance(v, str):
-            clean = v.strip().upper()
-            return clean if clean else None
-        return None
+    origin: str = Field(min_length=1, max_length=PLACE_MAX)
+    destination_venue: str | None = Field(default=None, max_length=PLACE_MAX)
+    destination_station: str | None = Field(default=None, max_length=PLACE_MAX)
+    meeting_date: date
+    meeting_time: str = Field(pattern=HHMM)
+    required_arrival_buffer_minutes: int = Field(default=45, ge=0, le=720)
+    preferred_train_name_or_number: str | None = Field(default=None, max_length=TRAIN_QUERY_MAX)
+    preferred_class: TravelClass | None = None
+    budget_max: float | None = Field(default=None, ge=0)
+    maximum_journey_duration_minutes: int | None = Field(default=None, ge=0)
+    hard_constraints: list[str] = Field(default_factory=lambda: ["deadline", "arrival_buffer"])
+    assumptions: list[str] = Field(default_factory=list)
 
 
-class ResolvedLocation(BaseModel):
-    """Geographic resolution for a venue or city."""
+class ResolvedPlace(BaseModel):
+    """Where an origin or destination resolved to and which station codes it searches."""
+
     query: str
     display_name: str
-    city: str
-    state: str = "India"
-    latitude: float
-    longitude: float
-    provider: str = "RailSathi Geo Registry"
-    confidence: float = 1.0
+    kind: Literal["venue", "station", "city"]
+    city: str | None = None
+    station_codes: list[str]
+    source: str
 
 
 class StationCandidate(BaseModel):
-    """A railway station candidate serving an origin or destination area."""
+    """A station searched for this plan, with the last-mile estimate to the venue when one is known."""
+
     station_code: str
     station_name: str
-    city: str
-    latitude: float
-    longitude: float
     distance_to_venue_km: float | None = None
     estimated_last_mile_minutes: int | None = None
-    last_mile_mode: str | None = None  # e.g., 'cab', 'auto', 'metro', 'transit'
-    is_major_hub: bool = True
-    provider: str = "RailSathi Station Registry"
+    last_mile_mode: str | None = None
 
 
 class LastMileEstimate(BaseModel):
-    """Last-mile journey estimate from railway station to venue."""
-    origin_station_code: str
-    destination_venue: str
-    distance_km: float
-    duration_minutes: int
-    transit_mode: str = "cab"
-    confidence: str = "verified_estimate"  # 'verified_estimate', 'user_provided', 'unknown'
-    provider: str = "RailSathi Transit Estimator"
-    source_url: str = "https://enquiry.indianrail.gov.in"
-    verified_at: str = "2026-10-10"
+    """Station-to-venue transfer. `duration_minutes` is None when it cannot be estimated (never invented)."""
 
-
-class IntermediateStop(BaseModel):
-    """Intermediate station stop details."""
     station_code: str
-    station_name: str
-    arrival_time: str
-    departure_time: str
-    halt_minutes: int
-    day_number: int = 1
+    destination_venue: str | None
+    distance_km: float | None
+    duration_minutes: int | None
+    transit_mode: str | None = "cab"
+    confidence: Literal["estimate", "unknown"] = "estimate"
+    method: str = "straight-line distance at urban cab speed plus a station exit allowance"
 
 
-class TrainService(BaseModel):
-    """Authoritative train schedule and fare data."""
+class TrainLeg(BaseModel):
+    """One train in a goal-planner candidate, mapped from the provider's `Leg`."""
+
     train_number: str
     train_name: str
-    origin_station_code: str
-    origin_station_name: str
-    destination_station_code: str
-    destination_station_name: str
-    departure_time: str  # HH:MM (24-hr)
-    arrival_time: str    # HH:MM (24-hr)
-    day_offset: int = 0  # 0 for same day, 1 for next day arrival
+    from_code: str
+    from_name: str
+    to_code: str
+    to_name: str
+    departure: datetime
+    arrival: datetime
+
+
+class TrainCandidate(BaseModel):
+    """A provider journey option as the goal planner sees it. Only built by `journey/provider_adapter.py`."""
+
+    option_id: str
+    legs: list[TrainLeg] = Field(min_length=1)
+    departure: datetime
+    arrival: datetime
     duration_minutes: int
-    runs_on_days: list[str] = Field(default_factory=lambda: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"])
+    transfers: int
     classes: list[str] = Field(default_factory=list)
-    fares: dict[str, float] = Field(default_factory=dict)
-    intermediate_stops: list[dict] = Field(default_factory=list)
-    data_source: str = "Indian Railways National Train Enquiry System (NTES)"
-    verified_at: str = "2026-10-10"
-    is_live_status: bool = False
-    availability_status: dict[str, str] = Field(default_factory=dict)  # e.g., {"3A": "SCHEDULED_SERVICE"}
+    fares: dict[str, float] = Field(default_factory=dict)  # listed fare per passenger; empty = unknown
+    provenance: DataProvenance
+
+    @computed_field
+    @property
+    def train_number(self) -> str:
+        return " + ".join(leg.train_number for leg in self.legs)
+
+    @computed_field
+    @property
+    def train_name(self) -> str:
+        return " → ".join(leg.train_name for leg in self.legs)
+
+    @computed_field
+    @property
+    def origin_code(self) -> str:
+        return self.legs[0].from_code
+
+    @computed_field
+    @property
+    def destination_code(self) -> str:
+        return self.legs[-1].to_code
+
+    @property
+    def origin_name(self) -> str:
+        return self.legs[0].from_name
+
+    @property
+    def destination_name(self) -> str:
+        return self.legs[-1].to_name
 
 
 class BookingHandoff(BaseModel):
     """Validated official booking handoff payload."""
-    official_provider: str = "IRCTC (Indian Railway Catering and Tourism Corporation)"
+
+    official_provider: str = "IRCTC Official Railway Reservation"
     booking_url: str
     is_url_allowlisted: bool = True
     train_number: str
     train_name: str
     from_station_code: str
     to_station_code: str
-    journey_date: str
-    recommended_class: str
+    journey_date: date
+    recommended_class: str | None = None
     estimated_fare_inr: float | None = None
     disclaimer: str = (
-        "RailSathi AI provides booking guidance. Clicking this link redirects you to the official "
-        "IRCTC portal to complete your reservation. No automated transactions are performed."
+        "RailSaathi AI provides booking guidance. This link opens the official IRCTC portal, where you complete "
+        "the reservation yourself. No automated transactions are performed."
     )
 
 
 class JourneyEvaluation(BaseModel):
-    """Deterministic evaluation of a candidate train against passenger constraints."""
+    """Deterministic evaluation of a provider candidate against the passenger's constraints."""
+
     candidate_id: str
-    train_service: TrainService
-    journey_date: str
-    departure_datetime_iso: str
-    arrival_datetime_iso: str
-    meeting_datetime_iso: str
+    candidate: TrainCandidate
+    journey_date: date  # departure date of the first leg
+    meeting_datetime: datetime
 
     last_mile_origin_station: str
-    last_mile_destination_venue: str
+    last_mile_destination_venue: str | None
     last_mile_duration_minutes: int | None
     last_mile_distance_km: float | None
     last_mile_mode: str | None
 
-    latest_acceptable_station_arrival_iso: str
-    actual_arrival_buffer_minutes: int | None
+    latest_acceptable_station_arrival: datetime
+    actual_arrival_buffer_minutes: int
 
     is_feasible: bool
     is_preferred_train: bool = False
@@ -192,7 +174,7 @@ class JourneyEvaluation(BaseModel):
 
     score: float = 0.0
     rank: int = 0
-    match_category: Literal["best_match", "feasible_alternative", "infeasible", "insufficient_data"]
+    match_category: Literal["best_match", "feasible_alternative", "infeasible"]
     explanation: str
     recommended_class: str | None = None
     recommended_fare: float | None = None
@@ -200,20 +182,20 @@ class JourneyEvaluation(BaseModel):
 
 
 class JourneyPlanResponse(BaseModel):
-    """Complete structured journey plan response."""
+    """Complete goal plan. `provenance` describes the journey data the plan was built from."""
+
     status: Literal[
         "answered",
         "clarification_required",
         "no_feasible_journey",
-        "insufficient_data",
         "provider_unavailable",
-        "execution_limit_reached",
-        "invalid_request",
     ]
     summary: str
-    trip_requirements: TripRequirements
-    resolved_origin: ResolvedLocation | None = None
-    resolved_destination: ResolvedLocation | None = None
+    plan_id: str | None = None  # server-issued, bound to the caller's session; None until a plan is stored
+    provenance: DataProvenance
+    trip_requirements: TripRequirements | None = None
+    resolved_origin: ResolvedPlace | None = None
+    resolved_destination: ResolvedPlace | None = None
     candidate_origin_stations: list[StationCandidate] = Field(default_factory=list)
     candidate_destination_stations: list[StationCandidate] = Field(default_factory=list)
 
@@ -223,10 +205,40 @@ class JourneyPlanResponse(BaseModel):
 
     clarification_question: str | None = None
     missing_fields: list[str] = Field(default_factory=list)
+    place_candidates: list[str] = Field(default_factory=list)
     tradeoff_explanation: str | None = None
 
     sources: list[dict] = Field(default_factory=list)
     trace_id: str
-    trace: list[dict] = Field(default_factory=list)
-    tool_calls_made: int = 0
-    rounds_used: int = 0
+
+
+class GoalPlanRequest(BaseModel):
+    """POST /api/journey/plan. Either a free-text `prompt`, structured fields, or both (fields win)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    prompt: str | None = None
+    origin: str | None = Field(default=None, max_length=PLACE_MAX)
+    destination_venue: str | None = Field(default=None, max_length=PLACE_MAX)
+    destination_station: str | None = Field(default=None, max_length=PLACE_MAX)
+    meeting_date: date | None = None
+    meeting_time: str | None = Field(default=None, pattern=HHMM)
+    required_arrival_buffer_minutes: int | None = Field(default=None, ge=0, le=720)
+    preferred_class: TravelClass | None = None
+    preferred_train_name_or_number: str | None = Field(default=None, max_length=TRAIN_QUERY_MAX)
+    budget_max: float | None = Field(default=None, ge=0)
+
+
+class RefineRequest(BaseModel):
+    """POST /api/journey/refine: changes to a stored plan. Only fields that are sent are applied; sending
+    `preferred_class`, `preferred_train_name_or_number` or `budget_max` as null clears it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    plan_id: str = Field(pattern=PLAN_ID_PATTERN)
+    meeting_date: date | None = None
+    meeting_time: str | None = Field(default=None, pattern=HHMM)
+    required_arrival_buffer_minutes: int | None = Field(default=None, ge=0, le=720)
+    preferred_class: TravelClass | None = None
+    preferred_train_name_or_number: str | None = Field(default=None, max_length=TRAIN_QUERY_MAX)
+    budget_max: float | None = Field(default=None, ge=0)

@@ -276,3 +276,122 @@ export type JourneyPatch = Partial<{
   transfer_preference: TransferPreference | null
   transfer_strict: boolean
 }>
+
+// ---- Goal planner (/api/journey/*), mirrors backend/app/journey/models.py ----
+
+export type GoalPlanStatus = 'answered' | 'clarification_required' | 'no_feasible_journey' | 'provider_unavailable'
+
+export interface GoalPlanRequest {
+  prompt?: string
+  origin?: string
+  destination_venue?: string
+  destination_station?: string
+  /** YYYY-MM-DD */
+  meeting_date?: string
+  /** HH:MM, 24-hour */
+  meeting_time?: string
+  required_arrival_buffer_minutes?: number
+  preferred_class?: TravelClass
+  preferred_train_name_or_number?: string
+  budget_max?: number
+}
+
+/** Changes to a stored plan; only the fields sent are applied (null clears class, train and budget). */
+export interface GoalRefineRequest {
+  plan_id: string
+  meeting_date?: string
+  meeting_time?: string
+  required_arrival_buffer_minutes?: number
+  preferred_class?: TravelClass | null
+  preferred_train_name_or_number?: string | null
+  budget_max?: number | null
+}
+
+export interface TripRequirements {
+  origin: string
+  destination_venue: string | null
+  destination_station: string | null
+  meeting_date: string
+  meeting_time: string
+  required_arrival_buffer_minutes: number
+  preferred_train_name_or_number: string | null
+  preferred_class: TravelClass | null
+  budget_max: number | null
+  assumptions: string[]
+}
+
+export interface TrainLeg {
+  train_number: string
+  train_name: string
+  from_code: string
+  from_name: string
+  to_code: string
+  to_name: string
+  departure: string
+  arrival: string
+}
+
+export interface TrainCandidate {
+  option_id: string
+  legs: TrainLeg[]
+  departure: string
+  arrival: string
+  duration_minutes: number
+  transfers: number
+  classes: string[]
+  fares: Record<string, number>
+  provenance: Provenance
+  train_number: string
+  train_name: string
+  origin_code: string
+  destination_code: string
+}
+
+export interface BookingHandoff {
+  official_provider: string
+  booking_url: string
+  journey_date: string
+  recommended_class: string | null
+  estimated_fare_inr: number | null
+  disclaimer: string
+}
+
+export interface GoalEvaluation {
+  candidate_id: string
+  candidate: TrainCandidate
+  journey_date: string
+  meeting_datetime: string
+  last_mile_duration_minutes: number | null
+  last_mile_distance_km: number | null
+  last_mile_mode: string | null
+  latest_acceptable_station_arrival: string
+  actual_arrival_buffer_minutes: number
+  is_feasible: boolean
+  hard_constraint_violations: string[]
+  soft_preference_matches: string[]
+  soft_preference_penalties: string[]
+  rank: number
+  match_category: 'best_match' | 'feasible_alternative' | 'infeasible'
+  explanation: string
+  recommended_class: string | null
+  recommended_fare: number | null
+  booking_handoff: BookingHandoff | null
+}
+
+export interface GoalPlanResponse {
+  status: GoalPlanStatus
+  summary: string
+  /** Server-issued, bound to this session; null for clarification responses. */
+  plan_id: string | null
+  provenance: Provenance
+  trip_requirements: TripRequirements | null
+  best_match: GoalEvaluation | null
+  feasible_alternatives: GoalEvaluation[]
+  infeasible_options: GoalEvaluation[]
+  clarification_question: string | null
+  missing_fields: string[]
+  place_candidates: string[]
+  tradeoff_explanation: string | null
+  sources: Record<string, unknown>[]
+  trace_id: string
+}

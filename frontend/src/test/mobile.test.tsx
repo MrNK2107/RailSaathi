@@ -164,6 +164,17 @@ describe('Journey Options', () => {
     expect(screen.getByTestId('source-line')).toHaveTextContent('RailRadar live API (third-party) · retrieved')
   })
 
+  it('labels demo journeys with the shared provenance badge on options and details', async () => {
+    const { user } = await withState(withRecs)
+    const card = await screen.findByRole('article', { name: /D103/ })
+    const badge = within(card).getByTestId('provenance-badge')
+    expect(badge).toHaveAttribute('data-mode', 'demo')
+    expect(badge).toHaveTextContent('DEMO')
+    await user.click(screen.getByRole('button', { name: 'View details: D103' }))
+    await screen.findByText('Journey Details')
+    expect(screen.getByTestId('provenance-badge')).toHaveAttribute('data-mode', 'demo')
+  })
+
   it('selecting a card calls the backend, then confirm produces the handoff (no booking) and can be saved', async () => {
     const { client, user } = await withState(withRecs)
     await user.click(await screen.findByRole('button', { name: 'View details: D103' }))

@@ -25,6 +25,9 @@ class PlannerError(Exception):
         "data_unavailable": 503,
         "invalid_session_token": 401,
         "message_too_long": 422,
+        "meeting_in_past": 422,
+        "date_out_of_range": 422,
+        "plan_not_found": 404,
     }
 
     def __init__(self, code: str, message: str, details: dict | None = None) -> None:

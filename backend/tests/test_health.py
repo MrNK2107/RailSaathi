@@ -69,3 +69,14 @@ def test_api_health_keeps_shape_and_adds_dependency_status():
     assert body["model"]["kind"] == "historical_average" and "loaded" in body["model"]
     assert "provider_setting" in body["llm"]
     assert make().get("/api/health").json()["redis"] == {"configured": False, "ok": None}
+
+
+def test_demo_mode_is_refused_in_production():
+    """RAILWAY_DATA_MODE=demo never serves simulated data when APP_ENV=production; readiness fails."""
+    c = make(app_env="production", session_signing_key="k" * 32, RAILWAY_DATA_MODE="demo")
+    container = c.app.state.container
+    assert container.data_provider_status["reason"] == "demo_refused_in_production"
+    assert container.provider.data_mode != "demo"
+    res = c.get("/readyz")
+    assert res.status_code == 503 and res.json()["checks"]["railradar_key"] is False
+    assert make(RAILWAY_DATA_MODE="demo").app.state.container.provider.data_mode == "demo"

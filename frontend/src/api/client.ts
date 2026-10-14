@@ -1,6 +1,9 @@
 // Centralised typed API client. All backend calls go through here.
 import type {
   ErrorEnvelope,
+  GoalPlanRequest,
+  GoalPlanResponse,
+  GoalRefineRequest,
   HealthResponse,
   JourneyPatch,
   Language,
@@ -202,6 +205,13 @@ export function createApiClient(options: ApiClientOptions = {}) {
       request<PlannerResponse>('POST', `${s(id)}/reassess`, { body: { event_id: eventId }, signal: o?.signal, planner: true }),
     cancel: (id: string, o?: O) =>
       request<PlannerResponse>('POST', `${s(id)}/cancel`, { idempotent: true, signal: o?.signal, planner: true }),
+    // Goal planner: needs the session token from createSession(); plan ids are bound to that session.
+    planGoal: (body: GoalPlanRequest, o?: O) =>
+      request<GoalPlanResponse>('POST', '/api/journey/plan', { body, signal: o?.signal, planner: true }),
+    refineGoal: (body: GoalRefineRequest, o?: O) =>
+      request<GoalPlanResponse>('POST', '/api/journey/refine', { body, signal: o?.signal, planner: true }),
+    goalPlan: (planId: string, o?: O) =>
+      request<GoalPlanResponse>('GET', `/api/journey/options/${encodeURIComponent(planId)}`, { signal: o?.signal, planner: true }),
   }
 }
 

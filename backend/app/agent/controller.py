@@ -12,6 +12,7 @@ Orchestrates the LLM ↔ Tool execution loop with:
 import logging
 import time
 import uuid
+from typing import Any
 from dataclasses import dataclass, field
 
 from app.llm.base import ChatLLM, ChatMessage, Deadline, LLMError, ToolResult, tool_specs
@@ -72,6 +73,7 @@ class AgentController:
         max_tool_calls: int = 6,
         allowed_tools: list[str] | None = None,
         deadline_seconds: float = DEFAULT_DEADLINE_SECONDS,
+        goal_planner: Any = None,
     ):
         self.llm = llm
         self.db_path = str(db_path)
@@ -80,6 +82,7 @@ class AgentController:
         self.allowed_tools = set(allowed_tools or get_tool_names())
         self.tools = tool_specs(ALL_TOOL_SCHEMAS, self.allowed_tools)
         self.deadline_seconds = deadline_seconds
+        self.goal_planner = goal_planner  # journey tool backend (the container's GoalPlanner)
         self.trace: list[TraceEntry] = []
         self.step_counter = 0
 
@@ -206,7 +209,7 @@ class AgentController:
 
                     # Execute tool
                     t0 = time.time()
-                    result = execute_tool(fc["name"], fc["args"], self.db_path)
+                    result = execute_tool(fc["name"], fc["args"], self.db_path, self.goal_planner)
                     tool_duration = (time.time() - t0) * 1000
                     total_tool_calls += 1
 

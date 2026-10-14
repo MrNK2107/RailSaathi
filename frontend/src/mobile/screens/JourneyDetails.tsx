@@ -5,8 +5,9 @@ import {
 } from '../icons'
 import { useApp } from '../PlannerContext'
 import {
-  AppHeader, CategoryBadge, ErrorBanner, ModeBadge, PrimaryButton, Screen, SourceLine, selectedRecommendation,
+  AppHeader, CategoryBadge, ErrorBanner, PrimaryButton, Screen, SourceLine, selectedRecommendation,
 } from '../ui'
+import { ProvenanceBadge } from '../../components/ProvenanceBadge'
 
 export default function JourneyDetails() {
   const { planner, go, m } = useApp()
@@ -59,7 +60,7 @@ export default function JourneyDetails() {
         <section className="rounded-2xl bg-white p-4 shadow-card ring-1 ring-ink-100">
           <div className="flex flex-wrap items-center gap-1.5">
             {rec.labels.map((l) => <CategoryBadge key={l} category={l} />)}
-            <span className="ml-auto"><ModeBadge mode={o.provenance.mode} /></span>
+            <span className="ml-auto"><ProvenanceBadge provenance={o.provenance} labels={{ live: m.live }} unavailableTitle={m.dataUnavailable} /></span>
           </div>
           <div className="mt-3 flex items-center gap-3">
             <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand-50 text-brand-600"><TrainIcon size={24} /></span>
