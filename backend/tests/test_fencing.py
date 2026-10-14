@@ -295,6 +295,8 @@ ROUND3_VECTORS = [
     "[x](https://irctc.co.in/p \"t\")@evil.com",
     "https://irctc.co.in:443@evil.com/",
     "https://evil.com#https://irctc.co.in/",
+    "[](https://.irctc.co.in)",
+    "https://-x.irctc.co.in/",
 ]
 
 
@@ -322,7 +324,8 @@ def test_balanced_paren_destination_must_be_fully_allowed():
 # --- generative test (Hypothesis) -------------------------------------------------------------------------------
 
 _STRICT = re.compile(r"https://([A-Za-z0-9.-]+)(?:[/?#][A-Za-z0-9\-._~/?#=&%+]*)?")
-_ALLOWED_HOST = re.compile(r"(?:[A-Za-z0-9-]+\.)*(?:irctc\.co\.in|indianrail\.gov\.in|indianrailways\.gov\.in)\.?",
+_ALLOWED_HOST = re.compile(r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)*"
+                           r"(?:irctc\.co\.in|indianrail\.gov\.in|indianrailways\.gov\.in)",
                            re.IGNORECASE)
 _KEPT_LINK_FULL = re.compile(r"\[([^\[\]\n]*)\]\((https://[^()\s]*)\)")
 _LINKISH_CHECK = re.compile(r"(?i)[a-z][a-z0-9+.\-]*:\S|//|www\.|@[^\s@]*[A-Za-z0-9-]\.[A-Za-z0-9]")
@@ -363,7 +366,12 @@ def _assert_only_allowed_links(out: str) -> None:
 
     marked = _KEPT_LINK_FULL.sub(kept, out.replace(LINK_REMOVED, " "))
     _check_plain(marked, out)
-    for authority in re.findall(r"//([^/?#\s]*)", marked):
+    # Authorities: '//' at a token start or after a non-path character (a '//' inside an allowed URL's path is not
+    # an authority).
+    for authority in re.findall(r"(?:^|(?<=[^A-Za-z0-9\-._~%+=&?#/]))//([^/?#\s]*)", marked):
+        authority = authority.rstrip(".,;:!?")
+        if authority.endswith((")", "]")):  # GFM excludes one unbalanced closing bracket from the link
+            authority = authority[:-1].rstrip(".,;:!?")
         assert _ALLOWED_HOST.fullmatch(authority), (authority, out)
     assert not re.search(r"@[^\s@]*[A-Za-z0-9-]\.[A-Za-z0-9]", marked), out
 

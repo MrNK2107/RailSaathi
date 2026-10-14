@@ -99,12 +99,13 @@ def fence_tool_output(name: str, result: dict[str, Any], max_chars: int = MAX_FE
 #    unbalanced closing `)`/`]` and one leading `(`, it must fully match the strict grammar, or the whole token is
 #    replaced by `[link removed]`.
 #
-# Strict grammar: `https://` + an allowlisted host (ASCII letters, digits, dots, hyphens) + optional path, query
+# Strict grammar: `https://` + an allowlisted host (dot-separated ASCII labels of letters, digits and inner hyphens) + optional path, query
 # and fragment made only of `A-Za-z0-9-._~/?#=&%+`. No userinfo, port, quotes, brackets, parentheses, backticks,
 # backslashes or `@` anywhere.
 
 _MAX_UNESCAPE_PASSES = 5
-_SAFE_URL = re.compile(r"https://([A-Za-z0-9.-]+)(?:[/?#][A-Za-z0-9\-._~/?#=&%+]*)?")
+_SAFE_URL = re.compile(r"https://((?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,})"
+                       r"(?:[/?#][A-Za-z0-9\-._~/?#=&%+]*)?")
 _LINKISH = re.compile(r"(?i)[a-z][a-z0-9+.\-]*:\S|//|www\.|@[^\s@]*[A-Za-z0-9-]\.[A-Za-z0-9]")
 _MD_LINK = re.compile(
     r"\[([^\[\]\n]{0,500})\]\(\s*((?:[^()\s]|\([^()\s]*\))*)(?:\s+(?:\"[^\"\n]*\"|'[^'\n]*'))?\s*\)")
@@ -119,7 +120,7 @@ def is_allowed_url(url: str) -> bool:
     match = _SAFE_URL.fullmatch(url or "")
     if not match:
         return False
-    host = match.group(1).lower().rstrip(".")
+    host = match.group(1).lower()
     return any(host == d or host.endswith("." + d) for d in ALLOWED_URL_DOMAINS)
 
 
