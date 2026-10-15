@@ -1,7 +1,7 @@
 """Liveness (`/healthz`) and readiness (`/readyz`) probes, plus the shared dependency status used by /api/health.
 
 Liveness does no I/O. Readiness fails only for things this service cannot work without (Redis when configured,
-the station catalogue, the RailRadar key in production). Third-party outages such as the LLM being paused are
+the station catalogue, at least one navigation station, the RailRadar key in production). Third-party outages such as the LLM being paused are
 reported as `degraded` and never fail readiness."""
 
 import logging
@@ -61,6 +61,8 @@ def _readyz(c: Container) -> JSONResponse:
         "railradar_key": not c.settings.is_production or _has_key(c),
         # Ready with the trained artifact, or in history_only mode when that was asked for explicitly.
         "delay_model": bool(c.delay_model and (c.delay_model.loaded or c.settings.delay_history_only)),
+        # At least one navigation station loaded and validated from the station data root.
+        "navigation_stations": bool(c.stations and c.stations.stations),
     }
     degraded = []
     llm = llm_status(c)
@@ -70,6 +72,8 @@ def _readyz(c: Container) -> JSONResponse:
         degraded.append("knowledge")
     if c.data_provider_status.get("active") == "railradar" and not c.data_provider_status.get("configured"):
         degraded.append("railradar")
+    if c.stations and c.stations.failures:
+        degraded.append("navigation_stations")  # some listed stations failed to load; see the startup log
     ready = all(checks.values())
     return JSONResponse(status_code=200 if ready else 503,
                         content={"status": "ready" if ready else "not_ready", "checks": checks,

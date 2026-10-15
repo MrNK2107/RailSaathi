@@ -1,12 +1,12 @@
-"""Builds a directed routing graph from a station file plus a disruption overlay.
+"""Builds a directed routing graph from a station file, plus a closure overlay.
 
-The overlay only changes *operational* status. Accessibility properties and
-geometry from the station file are never modified.
+Graphs are built once per station at catalogue load. The overlay only changes
+*operational* status; step-free properties and geometry are never modified.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Iterable
 
 from app.navigation.models.station import Disruption, Edge, Node, Station, StationMetadata
@@ -26,12 +26,17 @@ class DirectedEdge:
 class StationGraph:
     station: Station
     nodes: dict[str, Node]
-    edges: dict[str, Edge]  # effective edges (disruption overlay applied)
+    edges: dict[str, Edge]  # effective edges (closure overlay applied)
     adjacency: dict[str, list[DirectedEdge]]
     closed_nodes: set[str]
     metres_per_px: float | None
     applied_disruptions: list[str] = field(default_factory=list)
+    applied_simulated: list[str] = field(default_factory=list)
     closure_reasons: dict[str, str] = field(default_factory=dict)  # edge/node id -> reason
+
+
+class UnknownClosureTarget(Exception):
+    pass
 
 
 def build_graph(
@@ -39,43 +44,77 @@ def build_graph(
     metadata: StationMetadata | None = None,
     disruptions: Iterable[Disruption] = (),
 ) -> StationGraph:
+    """Build the routing graph once per station; closures are layered on with `apply_closures`."""
     w, h = station.map.width, station.map.height
     nodes = {n.id: n for n in station.nodes}
-
-    closed_edges: dict[str, str] = {}
-    closed_nodes: dict[str, str] = {}
-    applied: list[str] = []
-    for d in disruptions:
-        if d.target_type == "edge":
-            closed_edges[d.target_id] = d.reason
-        else:
-            closed_nodes[d.target_id] = d.reason
-        applied.append(d.id)
-
     edges: dict[str, Edge] = {}
     adjacency: dict[str, list[DirectedEdge]] = {nid: [] for nid in nodes}
     for e in station.edges:
-        eff = e.model_copy(update={"status": "closed"}) if e.id in closed_edges else e
-        edges[e.id] = eff
+        edges[e.id] = e
         if e.from_ not in nodes or e.to not in nodes:
             continue
         length = polyline_length_px(e.geometry, w, h)
         geom = tuple(tuple(p) for p in e.geometry)
-        adjacency[e.from_].append(DirectedEdge(eff, e.from_, e.to, geom, length))
+        adjacency[e.from_].append(DirectedEdge(e, e.from_, e.to, geom, length))
         if e.bidirectional:
-            adjacency[e.to].append(DirectedEdge(eff, e.to, e.from_, tuple(reversed(geom)), length))
-
-    closed = {nid for nid, n in nodes.items() if n.status == "closed"} | {n for n in closed_nodes if n in nodes}
+            adjacency[e.to].append(DirectedEdge(e, e.to, e.from_, tuple(reversed(geom)), length))
     scale = metadata.map_scale.metres_per_pixel if metadata and metadata.map_scale else None
-    return StationGraph(
+    base = StationGraph(
         station=station,
         nodes=nodes,
         edges=edges,
         adjacency=adjacency,
-        closed_nodes=closed,
+        closed_nodes={nid for nid, n in nodes.items() if n.status == "closed"},
         metres_per_px=scale,
-        applied_disruptions=applied,
-        closure_reasons={**closed_edges, **closed_nodes},
+    )
+    return apply_closures(base, disruptions)
+
+
+def apply_closures(
+    graph: StationGraph,
+    disruptions: Iterable[Disruption] = (),
+    simulated: Iterable[str] = (),
+) -> StationGraph:
+    """Return a copy of a prebuilt graph with stored disruptions and per-request what-if closures applied.
+
+    Only operational status changes; geometry and step-free properties are never modified. The prebuilt graph
+    is returned unchanged when there is nothing to apply. Unknown what-if ids raise UnknownClosureTarget."""
+    disruptions, simulated = list(disruptions), list(dict.fromkeys(simulated))
+    if not disruptions and not simulated:
+        return graph
+    closed_edges: dict[str, str] = {}
+    closed_nodes: dict[str, str] = {}
+    for d in disruptions:
+        target = closed_edges if d.target_type == "edge" else closed_nodes
+        target[d.target_id] = d.reason
+    for target_id in simulated:
+        if target_id in graph.edges:
+            closed_edges[target_id] = "simulated closure"
+        elif target_id in graph.nodes:
+            closed_nodes[target_id] = "simulated closure"
+        else:
+            raise UnknownClosureTarget(target_id)
+
+    edges = dict(graph.edges)
+    for eid in closed_edges:
+        if eid in edges:
+            edges[eid] = edges[eid].model_copy(update={"status": "closed"})
+    adjacency = graph.adjacency
+    if closed_edges:
+        adjacency = {
+            nid: [replace(de, edge=edges[de.edge.id]) if de.edge.id in closed_edges else de for de in out]
+            for nid, out in graph.adjacency.items()
+        }
+    return StationGraph(
+        station=graph.station,
+        nodes=graph.nodes,
+        edges=edges,
+        adjacency=adjacency,
+        closed_nodes=graph.closed_nodes | {n for n in closed_nodes if n in graph.nodes},
+        metres_per_px=graph.metres_per_px,
+        applied_disruptions=graph.applied_disruptions + [d.id for d in disruptions],
+        applied_simulated=graph.applied_simulated + simulated,
+        closure_reasons={**graph.closure_reasons, **closed_edges, **closed_nodes},
     )
 
 
@@ -100,8 +139,10 @@ class Snap:
     tolerance_px: float
 
 
-def snap_to_walkway(graph: StationGraph, position: Point, max_snap_m: float = 15.0) -> Snap | None:
-    """Project a free position onto the nearest open pathway. Closed pathways are skipped."""
+def snap_to_walkway(graph: StationGraph, position: Point, max_snap_m: float = 15.0,
+                    level: int | None = None) -> Snap | None:
+    """Project a free position onto the nearest open pathway on one level. Closed pathways and level transitions
+    (stairs, lifts) are skipped, and so are pathways off `level` when a level is given."""
     from app.navigation.services.geometry import project_to_polyline
 
     st = graph.station
@@ -112,6 +153,8 @@ def snap_to_walkway(graph: StationGraph, position: Point, max_snap_m: float = 15
         if e.status == "closed" or e.from_ not in graph.nodes or e.to not in graph.nodes:
             continue
         if e.from_ in graph.closed_nodes and e.to in graph.closed_nodes:
+            continue
+        if e.level_change != 0 or (level is not None and graph.nodes[e.from_].level != level):
             continue
         d, along, idx, t, q = project_to_polyline(e.geometry, position, w, h)
         if best is None or d < best.distance_px:
@@ -152,12 +195,13 @@ def with_virtual_source(graph: StationGraph, snap: Snap) -> StationGraph:
     nodes = dict(graph.nodes)
     nodes[VIRTUAL_SOURCE] = Node(
         id=VIRTUAL_SOURCE, name="your current position", type="junction",
-        position=q, verification="simulated",
+        position=q, level=graph.nodes[e.from_].level, verification="simulated",
     )
     adjacency = dict(graph.adjacency)
     adjacency[VIRTUAL_SOURCE] = out
     return StationGraph(
         station=st, nodes=nodes, edges=graph.edges, adjacency=adjacency,
         closed_nodes=graph.closed_nodes, metres_per_px=graph.metres_per_px,
-        applied_disruptions=graph.applied_disruptions, closure_reasons=graph.closure_reasons,
+        applied_disruptions=graph.applied_disruptions, applied_simulated=graph.applied_simulated,
+        closure_reasons=graph.closure_reasons,
     )

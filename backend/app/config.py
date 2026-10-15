@@ -34,12 +34,13 @@ class Settings(BaseSettings):
     fixed_now: datetime | None = None
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,https://localhost:5173,https://127.0.0.1:5173"
 
-    # Indoor Station Navigation
-    data_dir: Path = STATIONS_DIR
-    admin_token: str | None = None
+    # Indoor station navigation. Station data (catalogue.json plus one folder per station) is a local directory
+    # in development or gs://bucket/prefix in production, published by scripts/stations.py; the runtime only reads.
+    stations_uri: str = str(STATIONS_DIR)
+    # Lets anyone add what-if closures to a single route request (nothing is stored). Always off in production.
     public_disruption_simulation: bool = True
+    disruption_ttl_seconds: int = Field(default=6 * 3600, ge=60, le=7 * 86_400)  # default disruption lifetime
     walking_speed_mps: float = 1.2
-    max_backups: int = 50
 
     # Knowledge & LLM. Gemini runs on Vertex AI (GOOGLE_CLOUD_PROJECT / GOOGLE_CLOUD_LOCATION) with the service
     # account's credentials. GEMINI_API_KEY is only honoured outside production when no project is set.
@@ -146,6 +147,11 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.app_env.lower() == "production"
+
+    @property
+    def disruption_simulation_enabled(self) -> bool:
+        """Public what-if closures: only outside production, whatever PUBLIC_DISRUPTION_SIMULATION says."""
+        return self.public_disruption_simulation and not self.is_production
 
     @property
     def cors_origin_list(self) -> list[str]:

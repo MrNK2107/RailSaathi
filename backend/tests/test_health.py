@@ -28,7 +28,8 @@ def test_healthz_is_pure_liveness_even_with_dead_redis():
 def test_readyz_without_redis_configured():
     body = make().get("/readyz").json()
     assert body["status"] == "ready"
-    assert body["checks"] == {"redis": True, "station_catalogue": True, "railradar_key": True, "delay_model": True}
+    assert body["checks"] == {"redis": True, "station_catalogue": True, "railradar_key": True, "delay_model": True,
+                              "navigation_stations": True}
     assert body["delay_model"]["mode"] == "trained_model"
 
 

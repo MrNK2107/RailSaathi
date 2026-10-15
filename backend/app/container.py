@@ -20,6 +20,8 @@ from app.harness.planner import PlannerService
 from app.intent.extractor import IntentExtractor
 from app.intent.llm import IntentLLM, LLMError
 from app.llm.base import ChatLLM
+from app.navigation.services.disruption_store import DisruptionStore, build_disruption_store
+from app.navigation.services.station_store import StationCatalogue, build_source, load_catalogue
 from app.intent.rules import RuleBasedExtractor
 from app.journey.plan_store import InMemoryPlanStore, PlanStore, RedisPlanStore
 from app.journey.planner import GoalPlanner
@@ -63,6 +65,8 @@ class Container:
     delay_model: DelayModel | None = None  # trained artifact, or history_only
     seen_trains: SeenTrains | None = None  # trains users looked at recently (the collector samples these)
     observation_sink: ObservationSink | None = None  # where collected observations are appended
+    stations: StationCatalogue | None = None  # navigation catalogue with prebuilt graphs, loaded once
+    station_disruptions: DisruptionStore | None = None  # closures and outages, TTL'd, internal writes only
 
     @property
     def agent_llm(self) -> ChatLLM:
@@ -240,6 +244,17 @@ def build_seen_trains(settings: Settings, clock: Clock, redis: Redis | None) -> 
     return InMemorySeenTrains(clock, ttl)
 
 
+def build_station_catalogue(settings: Settings) -> StationCatalogue:
+    """Load the navigation catalogue once. A bad URI or unreachable bucket yields an empty catalogue (navigation
+    answers 404 and /readyz reports not ready) instead of failing startup."""
+    try:
+        source = build_source(settings.stations_uri)
+    except Exception as exc:  # noqa: BLE001 - e.g. no Cloud Storage credentials
+        log.error("Station data source unavailable (%s)", type(exc).__name__)
+        return StationCatalogue(failures={"catalogue": f"source unavailable: {type(exc).__name__}"})
+    return load_catalogue(source)
+
+
 def prepare_knowledge_db(settings: Settings) -> None:
     """Production opens the image-built file read-only and never writes. Development and tests (re)build a missing
     or stale file so a fresh checkout works without a manual ingest step."""
@@ -292,4 +307,5 @@ def build_container(settings: Settings, clock: Clock | None = None,
                      chat_llm, chat_reason, goal_planner, build_plan_store(settings, redis),
                      build_conversation_store(settings, redis), build_live_source(settings, provider, clock),
                      load_delay_model(settings), build_seen_trains(settings, clock, redis),
-                     build_observation_sink(settings))
+                     build_observation_sink(settings), build_station_catalogue(settings),
+                     build_disruption_store(clock, redis, settings.redis_key_prefix))

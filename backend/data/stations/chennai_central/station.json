@@ -1,9 +1,9 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "station_id": "chennai_central",
   "station_name": "Chennai Central",
   "map": {
-    "image": "/data/stations/chennai_central/map.png",
+    "image": "map.png",
     "width": 1821,
     "height": 864,
     "coordinate_system": "normalized_image"
@@ -18,7 +18,7 @@
         0.18287
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -31,7 +31,8 @@
         0.72685
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
+      "step_free_exception": "The traced plan shows only steps at this entrance (edge_004); no step-free alternative is mapped or verified. Ask station staff for assistance.",
       "status": "open",
       "notes": null
     },
@@ -44,7 +45,8 @@
         0.18519
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
+      "step_free_exception": "The traced plan shows only steps at this entrance (edge_037); no step-free alternative is mapped or verified. Ask station staff for assistance.",
       "status": "open",
       "notes": null
     },
@@ -57,7 +59,7 @@
         0.4537
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": "No passenger walkway to the rest of the station could be traced on the plan; left unconnected."
     },
@@ -70,7 +72,8 @@
         0.75231
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
+      "step_free_exception": "The traced plan shows only steps at this entrance (sug_008); no step-free alternative is mapped or verified. Ask station staff for assistance.",
       "status": "open",
       "notes": "Plan shows this entrance opening into station-building rooms; no passenger walkway traced. Left unconnected."
     },
@@ -83,7 +86,7 @@
         0.49537
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -96,7 +99,7 @@
         0.31944
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -109,7 +112,7 @@
         0.6331
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -122,7 +125,7 @@
         0.31944
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -135,7 +138,7 @@
         0.31944
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -148,7 +151,7 @@
         0.31944
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -161,7 +164,7 @@
         0.49537
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -174,7 +177,7 @@
         0.57292
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -187,7 +190,7 @@
         0.6331
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -200,7 +203,7 @@
         0.31944
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -213,7 +216,7 @@
         0.49537
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -226,7 +229,7 @@
         0.6331
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -239,7 +242,7 @@
         0.25694
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -252,7 +255,7 @@
         0.25694
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -265,7 +268,7 @@
         0.68866
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -278,7 +281,7 @@
         0.68866
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -291,7 +294,7 @@
         0.66551
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -304,7 +307,7 @@
         0.25
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -317,7 +320,7 @@
         0.34722
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -330,7 +333,7 @@
         0.43981
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -343,7 +346,7 @@
         0.54398
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -356,7 +359,7 @@
         0.64468
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -369,7 +372,7 @@
         0.69213
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -382,7 +385,7 @@
         0.25
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -395,7 +398,7 @@
         0.34722
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -408,7 +411,7 @@
         0.43981
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -421,7 +424,7 @@
         0.54398
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -434,7 +437,7 @@
         0.64468
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -447,7 +450,7 @@
         0.73727
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -460,7 +463,7 @@
         0.34722
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -473,7 +476,7 @@
         0.30324
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -486,7 +489,7 @@
         0.30324
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -499,7 +502,7 @@
         0.64815
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -512,7 +515,7 @@
         0.64468
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -525,7 +528,7 @@
         0.64005
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -538,7 +541,7 @@
         0.55556
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": null
     },
@@ -551,7 +554,7 @@
         0.37037
       ],
       "verification": "pending",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": "Shaded as restricted on the plan; its door is not identifiable, so no pathway is traced."
     },
@@ -564,7 +567,7 @@
         0.41667
       ],
       "verification": "simulated",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": "SUGGESTED by proximity (not traced from a visible walkway)."
     },
@@ -577,7 +580,7 @@
         0.53819
       ],
       "verification": "simulated",
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "notes": "SUGGESTED by proximity (not traced from a visible walkway)."
     }
@@ -591,7 +594,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -618,7 +621,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -653,7 +656,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -684,7 +687,7 @@
       "distance_m": null,
       "path_type": "stairs",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -711,7 +714,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -734,7 +737,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -757,7 +760,7 @@
       "distance_m": null,
       "path_type": "doorway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -780,7 +783,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -803,7 +806,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -826,7 +829,7 @@
       "distance_m": null,
       "path_type": "doorway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -849,7 +852,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -872,7 +875,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -899,7 +902,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -922,7 +925,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -949,7 +952,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -976,7 +979,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1003,7 +1006,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1026,7 +1029,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1053,7 +1056,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1080,7 +1083,7 @@
       "distance_m": null,
       "path_type": "platform",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1107,7 +1110,7 @@
       "distance_m": null,
       "path_type": "platform",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1134,7 +1137,7 @@
       "distance_m": null,
       "path_type": "platform",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1161,7 +1164,7 @@
       "distance_m": null,
       "path_type": "platform",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1188,7 +1191,7 @@
       "distance_m": null,
       "path_type": "platform",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1215,7 +1218,7 @@
       "distance_m": null,
       "path_type": "platform",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1246,7 +1249,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1269,7 +1272,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1292,7 +1295,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1319,7 +1322,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1346,7 +1349,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1369,7 +1372,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1392,7 +1395,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1415,7 +1418,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1438,7 +1441,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1461,7 +1464,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1488,7 +1491,7 @@
       "distance_m": null,
       "path_type": "corridor",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1511,7 +1514,7 @@
       "distance_m": null,
       "path_type": "stairs",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1538,7 +1541,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1565,7 +1568,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1588,7 +1591,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1615,7 +1618,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1642,7 +1645,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "pending",
       "geometry": [
@@ -1669,7 +1672,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "simulated",
       "geometry": [
@@ -1700,7 +1703,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "simulated",
       "geometry": [
@@ -1735,7 +1738,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "simulated",
       "geometry": [
@@ -1762,7 +1765,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "simulated",
       "geometry": [
@@ -1789,7 +1792,7 @@
       "distance_m": null,
       "path_type": "doorway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "simulated",
       "geometry": [
@@ -1820,7 +1823,7 @@
       "distance_m": null,
       "path_type": "doorway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "simulated",
       "geometry": [
@@ -1847,7 +1850,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "simulated",
       "geometry": [
@@ -1878,7 +1881,7 @@
       "distance_m": null,
       "path_type": "stairs",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "simulated",
       "geometry": [
@@ -1909,7 +1912,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "simulated",
       "geometry": [
@@ -1932,7 +1935,7 @@
       "distance_m": null,
       "path_type": "walkway",
       "steps": null,
-      "accessible": "unknown",
+      "step_free": "unknown",
       "status": "open",
       "verification": "simulated",
       "geometry": [

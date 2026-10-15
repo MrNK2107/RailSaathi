@@ -1,40 +1,44 @@
-"""
-API Router for Indoor Concourse Navigation & 2D Station Blueprints (Pillar 5)
-Handles curbside gates, FOBs, coach berth markers, and Dijkstra route geometry.
+"""Indoor station navigation: read-only station data, routing over prebuilt graphs, and the disruption overlay.
+
+Everything here is read-only. Stations are authored and published with `scripts/stations.py`; disruptions are
+written only through the OIDC-protected internal endpoints in `app/api/internal.py`. The curbside topology
+(`/api/stations/{code}/navigation`) is a separate bundled dataset.
 """
 
-from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import FileResponse
+import logging
+
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import Response
+from redis.exceptions import RedisError
 
 from app.api.deps import offload
-
-from app.config import get_settings
-from app.navigation.models.station import RouteRequest, RouteResponse, Station
-from app.navigation.services import disruption_store, station_store
-from app.navigation.services.geometry import project_to_polyline
-from app.navigation.services.graph_builder import StationGraph, build_graph
-from app.navigation.services.route_validator import check_route_integrity, validate_graph
-from app.navigation.services.routing_engine import RoutingError, find_route
+from app.container import Container
 from app.navigation.curbside_topology import get_station_topology
+from app.navigation.models.station import RouteRequest, RouteResponse, Station
+from app.navigation.services.geometry import project_to_polyline
+from app.navigation.services.graph_builder import UnknownClosureTarget, apply_closures
+from app.navigation.services.route_validator import check_route_integrity
+from app.navigation.services.routing_engine import RoutingError, find_route
+from app.navigation.services.station_store import LoadedStation, StationCatalogue, StationNotFound
 
+log = logging.getLogger("railsaathi.navigation")
 router = APIRouter(tags=["Indoor Concourse Navigation"])
+DISRUPTIONS_UNAVAILABLE = "Current closure information is unavailable, so closures may not be reflected in this route."
 
 
-def _graph(station_id: str, apply_disruptions: bool = True) -> tuple[Station, StationGraph]:
+def _c(request: Request) -> Container:
+    return request.app.state.container
+
+
+def _catalogue(c: Container) -> StationCatalogue:
+    return c.stations or StationCatalogue()
+
+
+def _station(c: Container, station_id: str) -> LoadedStation:
     try:
-        station = station_store.load_published(station_id)
-        metadata = station_store.load_metadata(station_id)
-    except Exception as exc:
-        raise HTTPException(404, "Station not found in store") from exc
-
-    errors, _ = validate_graph(station, metadata)
-    if errors:
-        raise HTTPException(
-            422,
-            {"message": "Station graph is invalid", "errors": [e.model_dump() for e in errors]}
-        )
-    disruptions = disruption_store.list_disruptions(station_id) if apply_disruptions else []
-    return station, build_graph(station, metadata, disruptions)
+        return _catalogue(c).get(station_id)
+    except StationNotFound:
+        raise HTTPException(404, {"code": "station_not_found", "message": "Station not found."}) from None
 
 
 def _verify(station: Station, resp: RouteResponse) -> list[str]:
@@ -52,68 +56,45 @@ def _verify(station: Station, resp: RouteResponse) -> list[str]:
 
 
 @router.get("/api/stations")
-async def list_stations() -> list[dict]:
-    return await offload(_list_stations)
-
-
-def _list_stations() -> list[dict]:
+async def list_stations(request: Request) -> list[dict]:
+    catalogue = _catalogue(_c(request))
     out = []
-    for sid in station_store.list_station_ids():
-        try:
-            raw = station_store.load_raw(sid)
-            meta = station_store.load_metadata(sid)
-            out.append({
-                "station_id": sid,
-                "station_name": raw.get("station_name", sid),
-                "node_count": len(raw.get("nodes", [])),
-                "edge_count": len(raw.get("edges", [])),
-                "has_draft": station_store.has_draft(sid),
-                "data_status": meta.data_status if meta else "unknown",
-                "city": meta.city if meta else None,
-            })
-        except Exception:
-            continue
+    for sid in catalogue.ids():
+        loaded = catalogue.get(sid)
+        out.append({
+            "station_id": sid,
+            "station_name": loaded.station.station_name,
+            "node_count": len(loaded.station.nodes),
+            "edge_count": len(loaded.station.edges),
+            "version": loaded.entry.version,
+            "data_status": loaded.metadata.data_status if loaded.metadata else loaded.entry.data_status,
+            "city": loaded.metadata.city if loaded.metadata else loaded.entry.city,
+        })
     return out
 
 
 @router.get("/api/stations/{station_id}")
-async def get_station_details(station_id: str, draft: bool = Query(False)) -> dict:
-    return await offload(_station_details, station_id, draft)
-
-
-def _station_details(station_id: str, draft: bool) -> dict:
-    try:
-        source = "draft" if draft and station_store.has_draft(station_id) else "published"
-        raw = station_store.load_raw(station_id, draft=source == "draft")
-        meta = station_store.load_metadata(station_id)
-        return {
-            "station": raw,
-            "metadata": meta.model_dump(mode="json") if meta else None,
-            "source": source,
-            "has_draft": station_store.has_draft(station_id),
-        }
-    except Exception as exc:
-        raise HTTPException(404, "Station not found") from exc
+async def get_station_details(request: Request, station_id: str) -> dict:
+    loaded = _station(_c(request), station_id)
+    return {
+        "station": loaded.station.to_json_dict(),
+        "metadata": loaded.metadata.model_dump(mode="json") if loaded.metadata else None,
+        "version": loaded.entry.version,
+    }
 
 
 @router.get("/api/stations/{station_id}/map")
-async def get_station_map(station_id: str) -> FileResponse:
-    """The station's blueprint image. Only `map.png` inside an allowlisted station id is served;
-    this replaces the former public mount of the whole data directory."""
-    try:
-        path = await offload(station_store.image_path, station_id, "map.png")
-    except Exception as exc:
-        raise HTTPException(404, "Station map not found") from exc
-    return FileResponse(path, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
+async def get_station_map(request: Request, station_id: str) -> Response:
+    """The station's plan image, served from the loaded catalogue (never a mount of the data directory)."""
+    loaded = _station(_c(request), station_id)
+    return Response(loaded.map_png, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
 
 
 @router.get("/api/stations/{station_id}/info")
-async def get_station_info(station_id: str) -> dict:
-    """Helplines, station facts, and amenities gathered for station."""
-    try:
-        return await offload(station_store.load_info, station_id)
-    except Exception as exc:
-        raise HTTPException(404, "Station information not found") from exc
+async def get_station_info(request: Request, station_id: str) -> dict:
+    """Helplines, station facts, and amenities gathered for the station."""
+    _station(_c(request), station_id)
+    return _catalogue(_c(request)).info(station_id)
 
 
 @router.get("/api/stations/{station_code}/navigation")
@@ -126,24 +107,51 @@ async def get_navigation_topology(station_code: str):
 
 
 @router.post("/api/navigation/route", response_model=RouteResponse)
-async def calculate_route(req: RouteRequest) -> RouteResponse:
-    return await offload(_calculate_route, req)
+async def calculate_route(request: Request, req: RouteRequest) -> RouteResponse:
+    return await offload(_calculate_route, _c(request), req)
 
 
-def _calculate_route(req: RouteRequest) -> RouteResponse:
-    station, graph = _graph(req.station_id, req.apply_disruptions)
+def _calculate_route(c: Container, req: RouteRequest) -> RouteResponse:
+    loaded = _station(c, req.station_id)
+    if req.simulate_closures and not c.settings.disruption_simulation_enabled:
+        raise HTTPException(403, {"code": "simulation_disabled",
+                                  "message": "Simulated closures are not available on this service."})
+    disruptions, overlay_missing = [], False
+    if req.apply_disruptions and c.station_disruptions is not None:
+        try:
+            disruptions = c.station_disruptions.list(req.station_id)
+        except (RedisError, OSError):
+            log.warning("Disruption store unavailable; routing without closures", exc_info=True)
+            overlay_missing = True
     try:
-        resp = find_route(graph, req, get_settings().walking_speed_mps)
+        graph = apply_closures(loaded.graph, disruptions, req.simulate_closures)
+    except UnknownClosureTarget as exc:
+        raise HTTPException(404, {"code": "unknown_closure_target",
+                                  "message": f"Unknown node or edge '{exc.args[0]}' in simulate_closures."}) from None
+    try:
+        resp = find_route(graph, req, c.settings.walking_speed_mps)
     except RoutingError as exc:
         raise HTTPException(exc.status_code, {"code": exc.code, "message": exc.message}) from exc
+    if overlay_missing:
+        resp.warnings.insert(0, DISRUPTIONS_UNAVAILABLE)
     if resp.status == "ok":
-        problems = _verify(station, resp)
+        problems = _verify(loaded.station, resp)
         if problems:
-            raise HTTPException(500, {"message": "Route integrity check failed", "problems": problems})
+            raise HTTPException(500, {"code": "route_integrity_failed", "message": "Route integrity check failed",
+                                      "problems": problems})
     return resp
 
 
 @router.get("/api/disruptions/{station_id}")
-async def list_disruptions(station_id: str):
-    disruptions = await offload(disruption_store.list_disruptions, station_id)
+async def list_disruptions(request: Request, station_id: str) -> list[dict]:
+    c = _c(request)
+    _station(c, station_id)
+    if c.station_disruptions is None:
+        return []
+    try:
+        disruptions = await offload(c.station_disruptions.list, station_id)
+    except (RedisError, OSError):
+        log.warning("Disruption store unavailable", exc_info=True)
+        raise HTTPException(503, {"code": "disruptions_unavailable",
+                                  "message": "Current closure information is unavailable."}) from None
     return [d.model_dump(mode="json") for d in disruptions]

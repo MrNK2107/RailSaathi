@@ -1,9 +1,10 @@
 """Dijkstra routing over a station graph.
 
-Hard constraints (closures, accessibility exclusions) remove edges from the
-search entirely, so no cost weighting can ever override them. Unknown
-accessibility is treated as uncertain: allowed by default with a penalty and a
-warning, or excluded when ``require_verified_accessibility`` is set.
+Hard constraints (closures, step-free exclusions) remove edges from the
+search entirely, so no cost weighting can ever override them. A step-free
+status that is only reported or unknown is treated as uncertain: allowed by
+default with a penalty and a warning, or excluded when
+``require_verified_accessibility`` is set.
 
 Route geometry is always the concatenation of the stored edge polylines.
 """
@@ -16,6 +17,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from app.navigation.models.station import (
+    EXIT_NODE_TYPES,
     AlongTheWayItem,
     Edge,
     RouteInstruction,
@@ -51,7 +53,7 @@ ALONG_THE_WAY_RADIUS_M = 15.0
 ALONG_THE_WAY_RADIUS_PX = 80.0  # when the plan has no scale
 
 EFFORT_MULTIPLIER = {"stairs": 1.5, "escalator": 1.2, "lift": 1.3}
-UNKNOWN_ACCESSIBILITY_PENALTY = 1.25
+UNCERTAIN_STEP_FREE_PENALTY = {"unknown": 1.25, "reported": 1.1}
 UNKNOWN_STATUS_PENALTY = 1.1
 
 
@@ -68,18 +70,15 @@ def accessibility_sensitive(prefs: RoutePreferences) -> bool:
 
 
 def preference_exclusion(edge: Edge, prefs: RoutePreferences) -> str | None:
-    """Return why an edge violates a hard accessibility constraint, or None."""
+    """Return why an edge violates a hard step-free constraint, or None."""
     path_type = edge.path_type.value
     has_steps = (edge.steps or 0) > 0
-    if prefs.wheelchair:
-        if edge.accessible == "not_accessible":
-            return "marked not accessible"
-        if path_type in ("stairs", "escalator") or has_steps:
-            return f"{'has steps' if has_steps else path_type} (not wheelchair-usable)"
+    if prefs.wheelchair and edge.stepped:
+        return f"{'has steps' if has_steps else path_type} (not wheelchair-usable)"
     if prefs.avoid_stairs and (path_type == "stairs" or has_steps):
         return "has stairs/steps"
-    if prefs.require_verified_accessibility and edge.accessible != "verified":
-        return f"accessibility is '{edge.accessible}', not verified"
+    if prefs.require_verified_accessibility and edge.step_free != "verified":
+        return f"step-free status is '{edge.step_free}', not verified"
     return None
 
 
@@ -161,7 +160,8 @@ def find_route(graph: StationGraph, request: RouteRequest, walking_speed_mps: fl
     dst = request.destination
     start_snap: SnapResult | None = None
     if request.source_position is not None:
-        snap = snap_to_walkway(graph, tuple(request.source_position), request.max_snap_distance_m)
+        snap = snap_to_walkway(graph, tuple(request.source_position), request.max_snap_distance_m,
+                               request.source_level)
         if snap is None:
             raise RoutingError("no_walkways", "This station has no open traced walkways to start from.", 422)
         start_snap = snap_result(graph, snap)
@@ -181,7 +181,8 @@ def find_route(graph: StationGraph, request: RouteRequest, walking_speed_mps: fl
         source=src,
         destination=dst,
         preferences=prefs,
-        simulated_disruptions_applied=graph.applied_disruptions,
+        disruptions_applied=graph.applied_disruptions,
+        simulated_closures_applied=graph.applied_simulated,
     )
     base.previous_route_blocked_edge_ids = _blocked_previous(graph, request.previous_edge_ids)
     base.previous_route_blocked = bool(base.previous_route_blocked_edge_ids)
@@ -216,8 +217,8 @@ def find_route(graph: StationGraph, request: RouteRequest, walking_speed_mps: fl
 
     def cost(de: DirectedEdge) -> float:
         c = search.base_length(de) * EFFORT_MULTIPLIER.get(de.edge.path_type.value, 1.0)
-        if sensitive and de.edge.accessible == "unknown":
-            c *= UNKNOWN_ACCESSIBILITY_PENALTY
+        if sensitive:
+            c *= UNCERTAIN_STEP_FREE_PENALTY.get(de.edge.step_free, 1.0)
         if de.edge.status == "unknown":
             c *= UNKNOWN_STATUS_PENALTY
         return c
@@ -292,6 +293,10 @@ def _explain_no_route(base, graph, search, src, dst, prefs, edge_open, node_open
         + (f" (e.g. {detail})" if detail else "")
         + ". No verified suitable route is available; please ask station staff for assistance."
     )
+    for nid in dict.fromkeys((src, dst)):
+        node = names[nid]
+        if node.type in EXIT_NODE_TYPES and node.step_free_exception:
+            base.explanation += f" {node.name}: {node.step_free_exception}"
     return base
 
 
@@ -318,6 +323,7 @@ def _build_response(base, graph, search, path, prefs, walking_speed_mps) -> Rout
     for de in path:
         e = de.edge
         est = e.distance_m if e.distance_m is not None else (de.length_px * scale if scale else None)
+        forward = de.from_node == e.from_ or de.from_node == VIRTUAL_SOURCE
         segments.append(
             RouteSegment(
                 edge_id=e.id,
@@ -327,7 +333,8 @@ def _build_response(base, graph, search, path, prefs, walking_speed_mps) -> Rout
                 geometry=list(de.geometry),
                 path_type=e.path_type.value,
                 steps=e.steps,
-                accessible=e.accessible,
+                level_change=e.level_change if forward else -e.level_change,
+                step_free=e.step_free,
                 status=e.status,
                 verification=e.verification,
                 distance_m=e.distance_m,
@@ -355,20 +362,27 @@ def _build_response(base, graph, search, path, prefs, walking_speed_mps) -> Rout
 
     warnings: list[str] = []
     sensitive = accessibility_sensitive(prefs)
-    unknown = [s.edge_id for s in segments if s.accessible == "unknown"]
+    unknown = [s.edge_id for s in segments if s.step_free == "unknown"]
+    reported = [s.edge_id for s in segments if s.step_free == "reported"]
     if sensitive:
-        if all(s.accessible == "verified" for s in segments):
+        if all(s.step_free == "verified" for s in segments):
             base.accessibility_confidence = "verified"
         else:
             base.accessibility_confidence = "unverified"
             if unknown:
                 warnings.append(
-                    f"No fully verified accessible route is available. {len(unknown)} pathway(s) on this route have "
-                    f"UNKNOWN accessibility ({', '.join(unknown)}); they may not be suitable."
+                    f"No fully verified step-free route is available. {len(unknown)} pathway(s) on this route have "
+                    f"an UNKNOWN step-free status ({', '.join(unknown)}); they may not be suitable."
                 )
-        dest = graph.nodes[base.destination]
-        if prefs.wheelchair and dest.accessible == "not_accessible":
-            warnings.append(f"{dest.name} itself is marked not accessible.")
+            if reported:
+                warnings.append(
+                    f"{len(reported)} pathway(s) on this route are reported step-free by a source but not verified "
+                    f"on site ({', '.join(reported)})."
+                )
+        for nid in dict.fromkeys((base.node_ids[0], base.destination)):
+            node = graph.nodes[nid]
+            if node.type in EXIT_NODE_TYPES and node.step_free_exception:
+                warnings.append(f"{node.name}: {node.step_free_exception}")
     stairs = [s.edge_id for s in segments if s.path_type == "stairs" or (s.steps or 0) > 0]
     if stairs:
         warnings.append(f"Route includes stairs/steps on {', '.join(stairs)}.")
@@ -417,10 +431,15 @@ def _along_the_way(graph: StationGraph, route: RouteResponse) -> list[AlongTheWa
             AlongTheWayItem(
                 node_id=n.id, name=n.name, type=n.type.value, on_route=n.id in on_route,
                 distance_from_route_m=round(d * graph.metres_per_px, 1) if graph.metres_per_px else None,
-                progress=round(along / total, 3), verification=n.verification, accessible=n.accessible,
+                progress=round(along / total, 3), verification=n.verification, step_free=n.step_free,
             )
         )
     return sorted(items, key=lambda i: i.progress)
+
+
+def _level_name(graph: StationGraph, level: int) -> str:
+    named = next((lv.name for lv in graph.station.levels if lv.level == level), None)
+    return f"{named} (level {level})" if named else f"level {level}"
 
 
 def _instructions(graph: StationGraph, path: list[DirectedEdge], segments: list[RouteSegment], w: int, h: int):
@@ -438,6 +457,8 @@ def _instructions(graph: StationGraph, path: list[DirectedEdge], segments: list[
             "doorway": "go through the doorway",
             "platform": "walk along the platform",
         }.get(seg.path_type, f"walk along the {seg.path_type}")
+        if seg.level_change:
+            via += f" {'up' if seg.level_change > 0 else 'down'} to {_level_name(graph, target.level)}"
         direction = f" heading {compass_name(head)}" if head is not None else ""
         if i == 0:
             lead = f"Start at {nodes[de.from_node].name}. {via[0].upper()}{via[1:]}{direction}"

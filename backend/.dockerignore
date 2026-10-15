@@ -12,8 +12,6 @@ htmlcov/
 .coverage
 *.db-shm
 *.db-wal
-data/stations/*/station.draft.json
-data/stations/*/backups/
 data/knowledge/*.db
 data/knowledge/*.db-*
 **/*.db-shm

@@ -131,7 +131,7 @@ def test_patch_journey_invalid_values_do_not_echo_input():
 
 def test_navigation_404_does_not_echo_exception_text():
     res = make().get("/api/stations/nowhere")
-    body = assert_envelope(res, 404, "not_found")
+    body = assert_envelope(res, 404, "station_not_found")
     assert "nowhere" not in body["error"]["message"] and "Errno" not in res.text
 
 

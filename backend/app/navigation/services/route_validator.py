@@ -13,6 +13,10 @@ from typing import Any
 from pydantic import ValidationError
 
 from app.navigation.models.station import (
+    EXIT_NODE_TYPES,
+    LEVEL_CHANGE_PATH_TYPES,
+    NodeType,
+    PathType,
     Station,
     StationMetadata,
     ValidationIssue,
@@ -26,6 +30,8 @@ ENDPOINT_TOLERANCE_PX = 6.0
 LONG_SEGMENT_FRACTION = 0.25
 # Measured distance vs. map-scale estimate ratio outside this band is suspicious.
 DISTANCE_RATIO_BAND = (0.33, 3.0)
+# With AR enabled, at least this share of routable nodes must carry visual cues.
+AR_CUE_COVERAGE = 0.8
 
 
 def _err(code: str, message: str, **kw: Any) -> ValidationIssue:
@@ -52,8 +58,8 @@ def _schema_issues(exc: ValidationError, raw: Any) -> list[ValidationIssue]:
                 edge_id = ident
         where = ".".join(str(p) for p in loc) or "(root)"
         msg = e.get("msg", "invalid value")
-        if e.get("type") == "missing" and loc and loc[-1] == "accessible":
-            msg = "accessibility status is required (verified, not_accessible or unknown)"
+        if e.get("type") == "missing" and loc and loc[-1] == "step_free":
+            msg = "step-free status is required (verified, reported or unknown)"
         issues.append(_err("schema", f"{where}: {msg}", node_id=node_id, edge_id=edge_id))
     return issues
 
@@ -173,23 +179,47 @@ def validate_graph(
                             )
                         )
 
-        # Accessibility claims must be consistent with what is known about the pathway.
-        stepped = e.path_type.value in ("stairs", "escalator") or (e.steps or 0) > 0
-        if e.accessible == "verified" and stepped:
+        # Step-free claims must be consistent with what is known about the pathway.
+        if e.step_free != "unknown" and e.stepped:
             errors.append(
                 _err(
-                    "contradictory_accessibility",
-                    f"Edge '{e.id}' is marked accessible 'verified' but has stairs/steps",
+                    "contradictory_step_free",
+                    f"Edge '{e.id}' is marked step-free '{e.step_free}' but has stairs/steps",
                     edge_id=e.id,
                 )
             )
-        if e.accessible == "verified" and e.verification != "verified":
+        if e.step_free == "verified" and e.verification != "verified":
             warnings.append(
                 _warn(
-                    "unverified_accessibility_claim",
-                    f"Edge '{e.id}' claims verified accessibility but the pathway itself is '{e.verification}'",
+                    "unverified_step_free_claim",
+                    f"Edge '{e.id}' claims a verified step-free status but the pathway itself is '{e.verification}'",
                     edge_id=e.id,
                 )
+            )
+
+        # Floor transitions.
+        if not missing:
+            expected_change = nodes[e.to].level - nodes[e.from_].level
+            if e.level_change != expected_change:
+                errors.append(
+                    _err(
+                        "level_mismatch",
+                        f"Edge '{e.id}' has level_change {e.level_change} but its nodes differ by {expected_change}",
+                        edge_id=e.id,
+                    )
+                )
+        if e.level_change != 0 and e.path_type not in LEVEL_CHANGE_PATH_TYPES:
+            errors.append(
+                _err(
+                    "invalid_level_change",
+                    f"Edge '{e.id}' changes level but is a '{e.path_type.value}' (use stairs, ramp, escalator or lift)",
+                    edge_id=e.id,
+                )
+            )
+        if e.level_change == 0 and e.path_type in (PathType.lift, PathType.escalator):
+            warnings.append(
+                _warn("flat_level_transition", f"Edge '{e.id}' is a {e.path_type.value} that does not change level",
+                      edge_id=e.id)
             )
 
         if not missing and e.from_ != e.to:
@@ -207,7 +237,7 @@ def validate_graph(
     # Connectivity ----------------------------------------------------------
     for nid, n in nodes.items():
         if degree[nid] == 0:
-            warnings.append(_warn("isolated_node", f"Node '{nid}' ({n.name}) has no pathways", node_id=nid))
+            errors.append(_err("isolated_node", f"Node '{nid}' ({n.name}) has no pathways", node_id=nid))
         elif n.type.value == "junction" and degree[nid] == 1:
             warnings.append(_warn("dead_end_junction", f"Junction '{nid}' is connected to only one pathway", node_id=nid))
 
@@ -217,14 +247,152 @@ def validate_graph(
         connected.sort(key=len, reverse=True)
         for comp in connected[1:]:
             sample = ", ".join(sorted(comp)[:5])
-            warnings.append(
-                _warn(
+            errors.append(
+                _err(
                     "disconnected_component",
                     f"{len(comp)} node(s) are unreachable from the main network (e.g. {sample})",
                     node_id=sorted(comp)[0],
                 )
             )
+    if not errors:
+        _check_directions(station, nodes, errors, warnings)
+        _check_exits(station, nodes, errors, warnings)
+    _check_levels(station, nodes, errors)
+    _check_areas(station, errors)
+    _check_panoramas(station, nodes, errors)
+    _check_cues(station, degree, errors)
     return errors, warnings
+
+
+def _directed_reach(station: Station, start: str, allow=lambda e: True, reverse: bool = False) -> set[str]:
+    adj: dict[str, list[str]] = defaultdict(list)
+    for e in station.edges:
+        if not allow(e):
+            continue
+        a, b = (e.to, e.from_) if reverse else (e.from_, e.to)
+        adj[a].append(b)
+        if e.bidirectional:
+            adj[b].append(a)
+    seen, stack = {start}, [start]
+    while stack:
+        for nxt in adj[stack.pop()]:
+            if nxt not in seen:
+                seen.add(nxt)
+                stack.append(nxt)
+    return seen
+
+
+def _check_directions(station: Station, nodes: dict, errors: list, warnings: list) -> None:
+    """One-way pathways must not trap anyone: every node must be able to reach, and be reached from, every other."""
+    for e in station.edges:
+        if not e.bidirectional:
+            warnings.append(_warn("one_way_edge", f"Edge '{e.id}' is one-way; confirm on site", edge_id=e.id))
+    if all(e.bidirectional for e in station.edges) or not nodes:
+        return
+    root = sorted(nodes)[0]
+    forward, backward = _directed_reach(station, root), _directed_reach(station, root, reverse=True)
+    for nid in sorted(nodes):
+        if nid not in forward or nid not in backward:
+            errors.append(
+                _err("one_way_trap", f"Node '{nid}' cannot both reach and be reached from the rest of the station "
+                     "because of one-way pathways", node_id=nid)
+            )
+
+
+def _check_exits(station: Station, nodes: dict, errors: list, warnings: list) -> None:
+    """Every exit needs a route without stairs or steps to every platform, or a stated exception."""
+    platforms = {nid for nid, n in nodes.items() if n.type is NodeType.platform}
+    for nid, n in sorted(nodes.items()):
+        if n.type not in EXIT_NODE_TYPES:
+            if n.step_free_exception:
+                errors.append(_err("misplaced_step_free_exception",
+                                   f"Node '{nid}' is not an exit but has a step_free_exception", node_id=nid))
+            continue
+        if not platforms:
+            continue
+        # Reachable *from the platforms to the exit*: a passenger arriving by train must be able to leave.
+        unreachable = sorted(p for p in platforms
+                             if nid not in _directed_reach(station, p, allow=lambda e: not e.stepped))
+        if unreachable and not n.step_free_exception:
+            errors.append(
+                _err("exit_not_step_free",
+                     f"Exit '{nid}' ({n.name}) has no route without stairs/steps from {', '.join(unreachable)}; "
+                     "add the route or a step_free_exception", node_id=nid)
+            )
+        elif not unreachable and n.step_free_exception:
+            warnings.append(
+                _warn("stale_step_free_exception",
+                      f"Exit '{nid}' has a step_free_exception but a route without stairs/steps reaches every "
+                      "platform", node_id=nid)
+            )
+
+
+def _check_levels(station: Station, nodes: dict, errors: list) -> None:
+    declared = [lv.level for lv in station.levels]
+    if len(declared) != len(set(declared)):
+        errors.append(_err("duplicate_level", "Levels must be declared once each"))
+    if not declared:
+        return
+    for nid, n in nodes.items():
+        if n.level not in declared:
+            errors.append(_err("undeclared_level", f"Node '{nid}' is on undeclared level {n.level}", node_id=nid))
+    for a in station.areas:
+        if a.level not in declared:
+            errors.append(_err("undeclared_level", f"Area '{a.id}' is on undeclared level {a.level}"))
+
+
+def _check_areas(station: Station, errors: list) -> None:
+    seen: set[str] = set()
+    for a in station.areas:
+        if a.id in seen:
+            errors.append(_err("duplicate_area_id", f"Duplicate area ID '{a.id}'"))
+        seen.add(a.id)
+        if tuple(a.polygon[0]) != tuple(a.polygon[-1]):
+            errors.append(_err("open_polygon", f"Area '{a.id}' polygon is not closed (last point must repeat the "
+                               "first)"))
+        if len({tuple(p) for p in a.polygon}) < 3:
+            errors.append(_err("degenerate_polygon", f"Area '{a.id}' polygon needs at least 3 distinct points"))
+        if not all(_valid_coord(p) for p in a.polygon):
+            errors.append(_err("invalid_coordinates", f"Area '{a.id}' polygon has points outside the image (0..1)"))
+
+
+def _check_panoramas(station: Station, nodes: dict, errors: list) -> None:
+    for p in station.panoramas:
+        if p.node_id not in nodes:
+            errors.append(_err("unknown_node", f"Panorama '{p.pano_id}' references unknown node '{p.node_id}'",
+                               node_id=p.node_id))
+
+
+def _check_cues(station: Station, degree: dict[str, int], errors: list) -> None:
+    if not station.ar_enabled:
+        return
+    routable = [n for n in station.nodes if degree[n.id] > 0]
+    with_cues = sum(1 for n in routable if n.cues)
+    if not routable or with_cues < AR_CUE_COVERAGE * len(routable):
+        errors.append(
+            _err("insufficient_cues", f"AR is enabled but only {with_cues} of {len(routable)} routable nodes have "
+                 f"visual cues (at least {AR_CUE_COVERAGE:.0%} required)")
+        )
+
+
+def png_size(data: bytes) -> tuple[int, int] | None:
+    """Width and height from a PNG header, or None when the bytes are not a PNG."""
+    if len(data) < 24 or data[:8] != b"\x89PNG\r\n\x1a\n" or data[12:16] != b"IHDR":
+        return None
+    return int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
+
+
+def check_map_image(station: Station, image: bytes | None) -> list[ValidationIssue]:
+    """The map image must exist, be a PNG, and match the dimensions the coordinates are normalized against."""
+    if image is None:
+        return [_err("missing_map", f"Map image '{station.map.image}' is missing")]
+    size = png_size(image)
+    if size is None:
+        return [_err("invalid_map", f"Map image '{station.map.image}' is not a PNG")]
+    if size != (station.map.width, station.map.height):
+        return [_err("map_size_mismatch", f"Map image is {size[0]}x{size[1]} but station.json says "
+                     f"{station.map.width}x{station.map.height}")]
+    return []
 
 
 def _components(station: Station, node_ids: set[str]) -> list[set[str]]:
