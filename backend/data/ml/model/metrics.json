@@ -1,0 +1,52 @@
+{
+  "model_version": "hgb-20261015-6233f815",
+  "trained_at": "2026-10-15T16:25:48+00:00",
+  "mae_minutes": 40.04,
+  "rmse_minutes": 95.28,
+  "baseline_mae_minutes": 45.49,
+  "baseline_pair_coverage": 0.0,
+  "baseline_station_mean_mae_minutes": 45.49,
+  "baseline_global_median_mae_minutes": 44.73,
+  "improvement_over_baseline_pct": 11.98,
+  "beats_baseline_materially": true,
+  "summary": "On trains held out from training, MAE 40.0 min beats the per-pair mean baseline (45.5 min MAE; it knew 0% of the held-out train/station pairs; unknown pairs use the station mean) by 12.0%. Always predicting the global median scores 44.7 min; delays are very noisy.",
+  "on_time_threshold_minutes": 15,
+  "on_time_base_rate_test": 0.411,
+  "brier_calibrated": 0.1922,
+  "brier_constant_base_rate": 0.2421,
+  "n_train": 41172,
+  "n_calibration": 9998,
+  "n_test": 12258,
+  "n_train_trains": 1868,
+  "n_test_trains": 584,
+  "features": [
+    "train_number",
+    "train_class",
+    "station_mean",
+    "station_median",
+    "station_count"
+  ],
+  "train_classes": [
+    "special",
+    "mail_express",
+    "superfast",
+    "premium",
+    "express_2xxxx",
+    "suburban",
+    "passenger",
+    "memu",
+    "dmu",
+    "unknown"
+  ],
+  "pair_features_informative": false,
+  "data_source": {
+    "name": "train_delays.csv",
+    "sha256": "6233f815ed0a0fd0c81259b0775c2229e579c817cc83cdc82a9fb0077e8315d6",
+    "rows": 63428,
+    "observation_rows": 0,
+    "observation_rows_skipped_no_station": 0,
+    "note": "One averaged delay per (station, train) pair; no dates, so no time features unless observations with a station and timestamp are added."
+  },
+  "sklearn_version": "1.9.1",
+  "seed": 42
+}

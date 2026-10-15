@@ -13,7 +13,6 @@ from redis.exceptions import RedisError
 
 from app.api.deps import offload
 from app.container import Container
-from app.delay.engine import model_status
 
 log = logging.getLogger("railsaathi.health")
 router = APIRouter(tags=["system"])
@@ -35,8 +34,12 @@ def llm_status(c: Container) -> dict[str, Any]:
             **c.extractor.llm_status, "chat": c.chat_llm_status}
 
 
+def model_status(c: Container) -> dict[str, Any]:
+    return c.delay_model.status() if c.delay_model is not None else {"mode": "none", "loaded": False}
+
+
 def dependency_status(c: Container) -> dict[str, Any]:
-    return {"redis": redis_status(c), "model": model_status(), "llm": llm_status(c)}
+    return {"redis": redis_status(c), "model": model_status(c), "llm": llm_status(c)}
 
 
 @router.get("/healthz")
@@ -56,6 +59,8 @@ def _readyz(c: Container) -> JSONResponse:
         "redis": redis["ok"] is not False,
         "station_catalogue": catalogue > 0,
         "railradar_key": not c.settings.is_production or _has_key(c),
+        # Ready with the trained artifact, or in history_only mode when that was asked for explicitly.
+        "delay_model": bool(c.delay_model and (c.delay_model.loaded or c.settings.delay_history_only)),
     }
     degraded = []
     llm = llm_status(c)
@@ -68,7 +73,8 @@ def _readyz(c: Container) -> JSONResponse:
     ready = all(checks.values())
     return JSONResponse(status_code=200 if ready else 503,
                         content={"status": "ready" if ready else "not_ready", "checks": checks,
-                                 "degraded": degraded})
+                                 "degraded": degraded,
+                                 "delay_model": model_status(c)})
 
 
 def _has_key(c: Container) -> bool:

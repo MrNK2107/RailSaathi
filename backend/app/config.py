@@ -16,6 +16,8 @@ BACKEND_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = BACKEND_ROOT / "data"
 DB_PATH = DATA_DIR / "knowledge" / "railsaathi.db"
 DELAYS_CSV_PATH = DATA_DIR / "ml" / "train_delays.csv"
+DELAY_MODEL_PATH = DATA_DIR / "ml" / "model" / "model.joblib"
+OBSERVATIONS_DIR = DATA_DIR / "ml" / "observations"
 STATIONS_DIR = DATA_DIR / "stations"
 LOCK_TTL_MARGIN_SECONDS = 10
 
@@ -102,6 +104,20 @@ class Settings(BaseSettings):
     # cached) and for how many of the listed trains running status is fetched (one call each, cached).
     live_board_neighbours: int = Field(default=3, ge=1, le=6)
     live_board_status_limit: int = Field(default=3, ge=0, le=6)
+
+    # Delay model: a local path or gs://bucket/object holding model.joblib (trained by scripts/train_delay_model.py).
+    # A missing or unreadable artifact degrades to history_only and /readyz reports not ready, unless
+    # DELAY_HISTORY_ONLY=true says that mode is intended.
+    delay_model_uri: str | None = str(DELAY_MODEL_PATH)
+    delay_history_only: bool = False
+
+    # Observation collector (POST /internal/collect, called by Cloud Scheduler with a Cloud Run OIDC token).
+    # Disabled (404) unless both the audience and the caller's service account are set.
+    internal_oidc_audience: str | None = None  # the service URL the Scheduler job targets
+    internal_oidc_service_account: str | None = None  # email of the Scheduler job's service account
+    observations_uri: str = str(OBSERVATIONS_DIR)  # local directory (development) or gs://bucket/prefix
+    observation_seen_ttl_seconds: int = Field(default=86_400, ge=60)  # "recently seen" window for trains
+    observation_max_trains: int = Field(default=6, ge=1, le=50)  # live-status samples per collector run
 
     # LLM (optional). "gemini", "bedrock" or "none".
     llm_provider: str = "none"

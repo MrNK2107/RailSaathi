@@ -1,44 +1,47 @@
-"""
-API Router for ML Delay Forecasting (Pillar 4)
-Runs fast in-process regression evaluation against 63k CRIS train delay records.
-"""
+"""Delay estimate for a train at a station.
 
-from typing import Optional
-from fastapi import APIRouter, Query
+Answered by the container's DelayModel: a trained scikit-learn artifact, or the historical average when none is
+loaded. The response carries `model_version`, `mae_minutes` (measured on held-out trains), `basis` and `provenance`.
+Inference is CPU-bound and runs in the worker thread pool (`anyio.to_thread.run_sync` through `offload`)."""
+
+from fastapi import APIRouter, HTTPException, Query, Request
+
 from app.api.deps import offload
-from app.delay.engine import predict_train_delay
+from app.delay.model import DelayPrediction
 
-router = APIRouter(tags=["ML Delay Forecaster"])
+router = APIRouter(tags=["Delay Estimate"])
+
+CODE_PATTERN = r"^[A-Za-z0-9]{1,8}$"
+NO_DELAY = {"RT", "00:00", "RIGHT TIME", "--"}
 
 
-@router.get("/api/predict/delay")
+def _delay_minutes(value: str | None) -> int:
+    """Parse "RT", "00:20", "20" or "1:05" into minutes; anything unreadable counts as 0."""
+    text = (value or "").strip().upper()
+    if not text or text in NO_DELAY:
+        return 0
+    try:
+        if ":" in text:
+            hours, _, minutes = text.partition(":")
+            return max(0, int(hours) * 60 + int(minutes))
+        return max(0, int(text))
+    except ValueError:
+        return 0
+
+
+@router.get("/api/predict/delay", response_model=DelayPrediction)
 async def get_delay_prediction(
-    train_number: str = Query(..., description="Train number (e.g. 12952)"),
-    train_name: str = Query("Express", description="Train name"),
-    train_type: Optional[str] = Query(None, description="Train category"),
-    current_delay: Optional[str] = Query("RT", description="Current delay like 00:20 or RT"),
-    destination: str = Query("DST", description="Destination station code")
-):
-    cur_min = 0
-    if current_delay and current_delay not in ["RT", "00:00", "Right Time", "--"]:
-        if ":" in current_delay:
-            p = current_delay.split(":")
-            try:
-                cur_min = int(p[0]) * 60 + int(p[1])
-            except Exception:
-                cur_min = 0
-        else:
-            try:
-                cur_min = int(current_delay)
-            except Exception:
-                cur_min = 0
-
-    res = await offload(
-        predict_train_delay,
-        train_number=train_number,
-        station_code=destination,
-        current_delay=cur_min,
-        train_type=train_type or "EXPRESS"
-    )
-    res["train_name"] = train_name
-    return res
+    request: Request,
+    train_number: str = Query(..., pattern=CODE_PATTERN, description="Train number (e.g. 12952)"),
+    destination: str = Query("DST", pattern=CODE_PATTERN, description="Station code the estimate is for"),
+    train_name: str | None = Query(None, max_length=60, description="Ignored; kept for older clients"),
+    train_type: str | None = Query(None, max_length=30, description="Ignored; the class is derived from the number"),
+    current_delay: str | None = Query("RT", max_length=12, description="Reported delay such as 00:20 or RT"),
+    hour: int | None = Query(None, ge=0, le=23, description="Hour of day, used only by models trained with it"),
+    weekday: int | None = Query(None, ge=0, le=6, description="Weekday (Monday=0), same caveat"),
+) -> DelayPrediction:
+    model = request.app.state.container.delay_model
+    if model is None:
+        raise HTTPException(503, detail={"code": "delay_model_unavailable",
+                                         "message": "The delay estimate is not set up."})
+    return await offload(model.predict, train_number, destination, _delay_minutes(current_delay), hour, weekday)

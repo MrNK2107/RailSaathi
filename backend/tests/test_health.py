@@ -28,7 +28,8 @@ def test_healthz_is_pure_liveness_even_with_dead_redis():
 def test_readyz_without_redis_configured():
     body = make().get("/readyz").json()
     assert body["status"] == "ready"
-    assert body["checks"] == {"redis": True, "station_catalogue": True, "railradar_key": True}
+    assert body["checks"] == {"redis": True, "station_catalogue": True, "railradar_key": True, "delay_model": True}
+    assert body["delay_model"]["mode"] == "trained_model"
 
 
 def test_readyz_pings_redis():
@@ -66,7 +67,7 @@ def test_api_health_keeps_shape_and_adds_dependency_status():
     for key in ("status", "api_version", "data_mode", "data_provider", "ai"):
         assert key in body
     assert body["redis"] == {"configured": True, "ok": True}
-    assert body["model"]["kind"] == "historical_average" and "loaded" in body["model"]
+    assert body["model"]["mode"] == "trained_model" and body["model"]["loaded"] is True
     assert "provider_setting" in body["llm"]
     assert make().get("/api/health").json()["redis"] == {"configured": False, "ok": None}
 
@@ -80,3 +81,13 @@ def test_demo_mode_is_refused_in_production():
     res = c.get("/readyz")
     assert res.status_code == 503 and res.json()["checks"]["railradar_key"] is False
     assert make(RAILWAY_DATA_MODE="demo").app.state.container.provider.data_mode == "demo"
+
+
+def test_readyz_delay_model_history_only_needs_to_be_explicit(tmp_path):
+    """A missing artifact degrades to history_only but is not ready; asking for history_only explicitly is."""
+    missing = str(tmp_path / "nope.joblib")
+    broken = make(delay_model_uri=missing).get("/readyz")
+    assert broken.status_code == 503 and broken.json()["checks"]["delay_model"] is False
+    assert broken.json()["delay_model"]["mode"] == "history_only"
+    explicit = make(delay_model_uri=missing, delay_history_only=True).get("/readyz")
+    assert explicit.status_code == 200 and explicit.json()["delay_model"]["mode"] == "history_only"

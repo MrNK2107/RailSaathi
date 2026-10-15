@@ -4,6 +4,7 @@ Everything comes from the container's LiveSource (RailRadar in live mode, simula
 Every response carries `provenance` ({mode, source, as_of, note}); a board, schedule or status that cannot be
 served is returned with `provenance.mode == "unavailable"` and a `reason`, never with placeholder data."""
 
+import logging
 from datetime import date, timedelta
 from typing import Annotated
 
@@ -13,6 +14,7 @@ from app.api.deps import offload
 from app.navigation.curbside_topology import parse_rake_composition
 from app.providers.live_source import DepartureBoard, LiveSource, TrainLiveStatus, TrainSchedule, UnknownStation
 
+log = logging.getLogger("railsaathi.live")
 router = APIRouter(prefix="/api", tags=["Live Railway Operations"])
 
 # Codes are interpolated into upstream URL paths, so only short alphanumerics are accepted.
@@ -25,6 +27,17 @@ def _live(request: Request) -> LiveSource:
     if live is None:
         raise HTTPException(503, detail={"code": "live_unavailable", "message": "Live station data is not set up."})
     return live
+
+
+async def _remember(request: Request, train_nos: list[str]) -> None:
+    """Note which trains people look at, so the collector samples those. Never affects the response."""
+    seen = request.app.state.container.seen_trains
+    if seen is None or not train_nos:
+        return
+    try:
+        await offload(seen.record, train_nos)
+    except Exception:  # noqa: BLE001 - bookkeeping only
+        log.warning("Could not record seen trains", exc_info=True)
 
 
 @router.get("/live/stations/search")
@@ -50,10 +63,12 @@ async def station_departures(request: Request, station_code: StationCode,
                              hours: int = Query(2, ge=1, le=4, description="Look-ahead window in hours")):
     live = _live(request)
     try:
-        return await offload(live.departures, station_code.upper(), hours)
+        board = await offload(live.departures, station_code.upper(), hours)
     except UnknownStation:
         raise HTTPException(404, detail={"code": "unknown_station",
                                          "message": "This station is not in RailSaathi's station catalogue."}) from None
+    await _remember(request, [d.train_no for d in board.departures])
+    return board
 
 
 @router.get("/live/trains/{train_no}/schedule", response_model=TrainSchedule)
@@ -71,7 +86,9 @@ async def train_status(request: Request, train_no: TrainNo,
     if not (today - timedelta(days=2) <= day <= today + timedelta(days=1)):
         raise HTTPException(422, detail={"code": "date_out_of_range",
                                          "message": "Running status is available from two days ago to tomorrow."})
-    return await offload(_live(request).live_status, train_no.upper(), day)
+    status = await offload(_live(request).live_status, train_no.upper(), day)
+    await _remember(request, [train_no])
+    return status
 
 
 @router.get("/trains/rake-position")

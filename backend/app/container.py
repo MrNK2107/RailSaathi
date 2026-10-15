@@ -10,6 +10,9 @@ from app.agent.conversation_store import ConversationStore, InMemoryConversation
 from app.audit.log import AuditLog
 from app.clock import Clock, FixedClock, SystemClock
 from app.config import Settings
+from app.delay.model import DelayModel, load_delay_model
+from app.delay.observations import (InMemorySeenTrains, ObservationSink, RedisSeenTrains, SeenTrains,
+                                    build_sink)
 from app.disruption.service import DisruptionService
 from app.harness.engine import WorkflowEngine
 from app.harness.merge import JourneyMerger
@@ -57,6 +60,9 @@ class Container:
     plan_store: PlanStore | None = None
     conversations: ConversationStore | None = None  # ticketing-agent history
     live: LiveSource | None = None  # departure boards, schedules, running status
+    delay_model: DelayModel | None = None  # trained artifact, or history_only
+    seen_trains: SeenTrains | None = None  # trains users looked at recently (the collector samples these)
+    observation_sink: ObservationSink | None = None  # where collected observations are appended
 
     @property
     def agent_llm(self) -> ChatLLM:
@@ -219,6 +225,21 @@ def build_conversation_store(settings: Settings, redis: Redis | None) -> Convers
     return InMemoryConversationStore(ttl, settings.max_history_messages)
 
 
+def build_observation_sink(settings: Settings) -> ObservationSink | None:
+    try:
+        return build_sink(settings.observations_uri)
+    except Exception as exc:  # noqa: BLE001 - the collector is optional; never fail startup over it
+        log.warning("Observation sink unavailable (%s); the collector is disabled", type(exc).__name__)
+        return None
+
+
+def build_seen_trains(settings: Settings, clock: Clock, redis: Redis | None) -> SeenTrains:
+    ttl = settings.observation_seen_ttl_seconds
+    if redis is not None:
+        return RedisSeenTrains(redis, clock, ttl, settings.redis_key_prefix)
+    return InMemorySeenTrains(clock, ttl)
+
+
 def prepare_knowledge_db(settings: Settings) -> None:
     """Production opens the image-built file read-only and never writes. Development and tests (re)build a missing
     or stale file so a fresh checkout works without a manual ingest step."""
@@ -269,4 +290,6 @@ def build_container(settings: Settings, clock: Clock | None = None,
     prepare_knowledge_db(settings)
     return Container(settings, clock, provider, disruptions, resolver, extractor, audit, planner, data_status, redis, signer,
                      chat_llm, chat_reason, goal_planner, build_plan_store(settings, redis),
-                     build_conversation_store(settings, redis), build_live_source(settings, provider, clock))
+                     build_conversation_store(settings, redis), build_live_source(settings, provider, clock),
+                     load_delay_model(settings), build_seen_trains(settings, clock, redis),
+                     build_observation_sink(settings))

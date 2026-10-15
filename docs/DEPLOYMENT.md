@@ -41,6 +41,30 @@ Two containers, both on Cloud Run:
 - The backend data directory is **not** served. The only station assets exposed are
   `GET /api/stations/{id}/map` and `GET /api/stations/{id}/info`.
 
+## Delay model and observation collection
+
+- The delay estimate (`GET /api/predict/delay`) is served by a scikit-learn `HistGradientBoostingRegressor`
+  artifact. `backend/data/ml/model/model.joblib` (about 0.6 MB) and its `metrics.json` are committed and baked into
+  the image; `DELAY_MODEL_URI` can instead point at `gs://bucket/path/model.joblib` (read once at startup with the
+  runtime service account, needs `roles/storage.objectViewer`). Artifacts are pickles: only load files your own
+  pipeline wrote. Produce a new one manually with `cd backend && uv run python scripts/train_delay_model.py`
+  (optionally `--observations <dir of collected JSONL>`), review `metrics.json`, then commit it or upload it and set
+  `DELAY_MODEL_URI`. Retraining is never automatic.
+- If the artifact is missing or unreadable the service keeps running in `history_only` mode (recorded historical
+  averages, no probability, no accuracy claim) and `/readyz` reports not ready, so a bad artifact is noticed
+  before traffic shifts. Set `DELAY_HISTORY_ONLY=true` to run in that mode on purpose; `/readyz` then passes and
+  reports `delay_model.mode`.
+- `POST /internal/collect` samples the live running status of trains users looked at in the last day
+  (`OBSERVATION_SEEN_TTL_SECONDS`, at most `OBSERVATION_MAX_TRAINS` per run, through the shared RailRadar quota)
+  and writes one JSONL object per run to `OBSERVATIONS_URI` (`gs://bucket/prefix`; a local directory in
+  development). Only fresh `live` answers that state a delay are written. It is disabled (404) unless
+  `INTERNAL_OIDC_AUDIENCE` and `INTERNAL_OIDC_SERVICE_ACCOUNT` are set; callers must present a Google ID token for
+  that audience from that service account (issuer, audience, expiry, signature and email are verified), otherwise
+  401 or 403. The Cloud Scheduler job is defined in `infra/scheduler/collect-observations.yaml` (grant its service
+  account `roles/run.invoker`, the backend's runtime account `roles/storage.objectCreator` on the bucket, and
+  create the backend service with authentication required for the Scheduler call, or keep it public: the endpoint
+  rejects unauthenticated callers itself).
+
 ## One-time project setup
 
 Run once, as a project owner, with `gcloud` installed locally. Replace the placeholders.

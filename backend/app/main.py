@@ -20,6 +20,7 @@ from app.api.ticketing import router as ticketing_guidance_router
 from app.api.navigation import router as navigation_router
 from app.api.delay import router as delay_router
 from app.api.health import router as health_router
+from app.api.internal import router as internal_router
 from app.api.live import router as live_router
 
 from app.config import Settings, get_settings
@@ -70,6 +71,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
     app.include_router(delay_router)
     app.include_router(live_router)
     app.include_router(health_router)
+    app.include_router(internal_router)
 
     @app.get("/")
     async def platform_root():
@@ -82,7 +84,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
                 "goal_journey": "Reach-a-meeting journey evaluation with arrival buffers",
                 "ticketing_guidance": "Indian Railways ticketing guidance grounded in a sourced knowledge base",
                 "station_navigation": "Indoor concourse routing and curbside wayfinding for authored stations",
-                "delay_estimate": "Historical-average delay estimate (statistical baseline, not a trained model yet)",
+                "delay_estimate": "Statistical delay estimate from historical records (trained model or historical average, with measured error and provenance)",
                 "live_station_info": "Station search and live board (data provenance reported per response)",
             },
             "docs": "/docs",

@@ -115,14 +115,14 @@ export function Alerts() {
         <BellIcon size={20} className="shrink-0 text-brand-600" /> {m.alerts.body}
       </p>
 
-      {/* Pillar 4: ML Cascading Delay Forecaster */}
+      {/* Delay estimate from historical records */}
       <section className="rounded-2xl bg-white p-4 shadow-card ring-1 ring-ink-100">
         <div className="flex items-center justify-between">
-          <span className="rounded bg-brand-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-800">Pillar 4 ML Model</span>
-          <span className="text-[11px] font-semibold text-brand-600">63k CRIS Records</span>
+          <span className="rounded bg-brand-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-800">Statistical estimate</span>
+          <span className="text-[11px] font-semibold text-brand-600">Historical records</span>
         </div>
-        <h3 className="mt-1 text-sm font-bold text-brand-900">CRIS Delay Risk Forecaster</h3>
-        <p className="text-xs text-ink-500">Predict cascading delay impact using historical arrival regressions.</p>
+        <h3 className="mt-1 text-sm font-bold text-brand-900">Delay Estimate</h3>
+        <p className="text-xs text-ink-500">Typical delay for a train at a station, estimated from historical records. Not a live prediction.</p>
 
         <div className="mt-3 flex gap-2">
           <input

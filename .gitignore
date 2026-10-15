@@ -42,3 +42,6 @@ frontend/vite.config.ts.timestamp-*.mjs
 # Knowledge SQLite: built from backend/app/knowledge/seed_data.py (Dockerfile build stage; dev startup)
 backend/data/knowledge/*.db
 backend/data/knowledge/*.tmp
+
+# Collected delay observations (JSONL, development)
+backend/data/ml/observations/

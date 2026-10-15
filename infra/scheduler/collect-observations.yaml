@@ -1,0 +1,30 @@
+# Cloud Scheduler job: daily delay-observation collection.
+# Calls POST /internal/collect on the backend with a Google-signed ID token (Cloud Run OIDC).
+# Apply (replace the placeholders):
+#   gcloud scheduler jobs create http railsaathi-collect-observations \
+#     --location=asia-south1 --schedule="0 */6 * * *" --time-zone="Asia/Kolkata" \
+#     --uri="https://BACKEND_URL/internal/collect" --http-method=POST \
+#     --oidc-service-account-email=SCHEDULER_SA@PROJECT.iam.gserviceaccount.com \
+#     --oidc-token-audience="https://BACKEND_URL" --attempt-deadline=120s
+# Or import this definition with the Cloud Scheduler API (the fields below map 1:1 to the REST resource).
+#
+# Backend settings that must match (Cloud Run env vars):
+#   INTERNAL_OIDC_AUDIENCE=https://BACKEND_URL            (same value as oidcToken.audience)
+#   INTERNAL_OIDC_SERVICE_ACCOUNT=SCHEDULER_SA@PROJECT.iam.gserviceaccount.com
+#   OBSERVATIONS_URI=gs://OBSERVATIONS_BUCKET/observations
+# IAM: the Scheduler service account needs roles/run.invoker on the backend service; the backend's runtime
+# service account needs roles/storage.objectCreator on the observations bucket.
+name: projects/PROJECT/locations/asia-south1/jobs/railsaathi-collect-observations
+description: Sample live running status for recently viewed trains and append JSONL to Cloud Storage
+schedule: "0 */6 * * *"
+timeZone: Asia/Kolkata
+attemptDeadline: 120s
+retryConfig:
+  retryCount: 1
+  minBackoffDuration: 30s
+httpTarget:
+  uri: https://BACKEND_URL/internal/collect
+  httpMethod: POST
+  oidcToken:
+    serviceAccountEmail: SCHEDULER_SA@PROJECT.iam.gserviceaccount.com
+    audience: https://BACKEND_URL
