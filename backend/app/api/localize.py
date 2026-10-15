@@ -22,7 +22,7 @@ from starlette.datastructures import FormData, UploadFile
 from starlette.formparsers import MultiPartException, MultiPartParser
 
 from app.api.deps import offload
-from app.api.middleware import client_ip
+from app.api.middleware import client_ip, hit_with_timeout
 from app.api.navigation import _c, _station
 from app.container import Container
 from app.domain.enums import DataMode
@@ -73,7 +73,7 @@ async def _enforce_rate_limit(request: Request, c: Container, session_id: str) -
     s = c.settings
     ip = client_ip(request.headers, request.scope, s.trusted_proxy_hops)
     for key, limit in ((f"loc:sid:{session_id}", s.localize_rate_limit), (f"loc:ip:{ip}", s.localize_ip_rate_limit)):
-        decision = await offload(limiter.hit, key, limit, s.localize_rate_window_seconds)
+        decision = await hit_with_timeout(limiter, key, limit, s.localize_rate_window_seconds)  # 1 s, fail open
         if not decision.allowed:
             raise HTTPException(429, {"code": "rate_limited",
                                       "message": "Too many camera fixes. Please wait a few minutes."},
@@ -174,13 +174,14 @@ def _body(c: Container, station: Station, token: str, started: float, result: Lo
 def _localize(c: Container, data: bytes, mime_type: str, station: Station, hint: LocalizeHint) -> LocalizeResult | None:
     try:
         result = c.vision.localize(data, mime_type, station, hint, Deadline(c.settings.localize_deadline_seconds))
+        # Inside the try: a malformed result from any localizer is unusable output, not a 500.
+        return guard_result(result, station)
     except LLMError as err:
         log.warning("localize unavailable (%s)", err.kind.value)
         return None
-    except Exception as exc:  # noqa: BLE001 - an outage is reported as unavailable, never a 500
+    except Exception as exc:  # noqa: BLE001 - an outage or unusable answer is reported as unavailable, never a 500
         log.warning("localize failed (%s)", type(exc).__name__)
         return None
-    return guard_result(result, station)
 
 
 @router.post(LOCALIZE_PATH)

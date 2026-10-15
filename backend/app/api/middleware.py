@@ -16,6 +16,7 @@ log = logging.getLogger("railsaathi.http")
 
 HEALTH_PATHS = frozenset({"/healthz", "/readyz", "/api/health"})
 BODY_METHODS = frozenset({"POST", "PUT", "PATCH"})
+LIMITER_TIMEOUT_SECONDS = 1.0  # a slower limiter (e.g. a hung Redis) fails open instead of stalling requests
 
 
 def error_json(status: int, code: str, message: str, headers: dict[str, str] | None = None) -> JSONResponse:
@@ -42,6 +43,18 @@ def client_ip(headers: Headers, scope: Scope, trusted_hops: int = 0) -> str:
             return parts[-trusted_hops][:64]
     client = scope.get("client")
     return client[0] if client else "unknown"
+
+
+async def hit_with_timeout(limiter: RateLimiter, key: str, limit: int, window_seconds: int = 60,
+                           timeout: float = LIMITER_TIMEOUT_SECONDS) -> Decision:
+    """Run the (possibly blocking Redis) limiter off the event loop; fail open if it is too slow."""
+    decision: Decision | None = None
+    with anyio.move_on_after(timeout):
+        decision = await anyio.to_thread.run_sync(limiter.hit, key, limit, window_seconds, abandon_on_cancel=True)
+    if decision is None:
+        log.warning("rate limiter timed out; failing open")
+        return Decision(True)
+    return decision
 
 
 class BodySizeLimitMiddleware:
@@ -98,7 +111,7 @@ class RateLimitMiddleware:
 
     def __init__(self, app: ASGIApp, limiter: RateLimiter, per_minute: int, llm_per_minute: int,
                  signer: SessionTokenSigner | None = None, trusted_hops: int = 0,
-                 limiter_timeout: float = 1.0) -> None:
+                 limiter_timeout: float = LIMITER_TIMEOUT_SECONDS) -> None:
         self.app = app
         self._limiter = limiter
         self._limit = per_minute
@@ -128,14 +141,7 @@ class RateLimitMiddleware:
         await self.app(scope, receive, send)
 
     async def _hit(self, key: str, limit: int) -> Decision:
-        """Run the (possibly blocking Redis) limiter off the event loop; fail open if it is too slow."""
-        decision: Decision | None = None
-        with anyio.move_on_after(self._timeout):
-            decision = await anyio.to_thread.run_sync(self._limiter.hit, key, limit, abandon_on_cancel=True)
-        if decision is None:
-            log.warning("rate limiter timed out; failing open")
-            return Decision(True)
-        return decision
+        return await hit_with_timeout(self._limiter, key, limit, timeout=self._timeout)
 
     def _session_of(self, token: str | None) -> str | None:
         if not token or self._signer is None:

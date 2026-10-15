@@ -10,8 +10,9 @@ name: Deploy to Cloud Run
 #   LLM_PROVIDER (default: gemini), GOOGLE_CLOUD_LOCATION (Vertex AI region, default: us-central1),
 #   VPC_NETWORK / VPC_SUBNET (Direct VPC egress to Memorystore, default: default / default),
 #   BACKEND_MIN_INSTANCES (default: 2), BACKEND_MAX_INSTANCES (default: 10)
-# Secret Manager secrets referenced by the backend: RAILRADAR_API_KEY, REDIS_URL, SESSION_SIGNING_KEY,
-# GOOGLE_MAPS_BROWSER_KEY (may be empty: the virtual tour then links out to Google Maps).
+# Secret Manager secrets referenced by the backend: RAILRADAR_API_KEY, REDIS_URL, SESSION_SIGNING_KEY.
+# Optional: the Maps browser key for the virtual tour, mounted only when the MAPS_BROWSER_KEY_SECRET repository
+# variable names its secret (without it the tour links out to Google Maps and the deploy still works).
 
 on:
   push:
@@ -77,6 +78,12 @@ jobs:
           # Gemini runs on Vertex AI as the runtime service account (GOOGLE_CLOUD_PROJECT/LOCATION), no API key.
           # TRUSTED_PROXY_HOPS=2: browser -> GFE -> nginx (overwrites X-Forwarded-For with the real client) -> GFE ->
           # backend; the backend GFE appends the nginx egress IP, so the client is the 2nd entry from the right.
+          SECRETS="RAILRADAR_API_KEY=RAILRADAR_API_KEY:latest,REDIS_URL=REDIS_URL:latest,SESSION_SIGNING_KEY=SESSION_SIGNING_KEY:latest"
+          # Optional secret: mounted only when the repository variable names it, so projects without it still deploy.
+          MAPS_SECRET="${{ vars.MAPS_BROWSER_KEY_SECRET || '' }}"
+          if [ -n "${MAPS_SECRET}" ]; then
+            SECRETS="${SECRETS},GOOGLE_MAPS_BROWSER_KEY=${MAPS_SECRET}:latest"
+          fi
           gcloud run deploy "${BACKEND_SERVICE}" \
             --image "${{ steps.images.outputs.backend }}" \
             --region "${REGION}" \
@@ -91,7 +98,7 @@ jobs:
             --network "${{ vars.VPC_NETWORK || 'default' }}" --subnet "${{ vars.VPC_SUBNET || 'default' }}" \
             --vpc-egress private-ranges-only \
             --set-env-vars "APP_ENV=production,RAILWAY_DATA_MODE=${{ vars.RAILWAY_DATA_MODE || 'demo' }},LLM_PROVIDER=${{ vars.LLM_PROVIDER || 'gemini' }},GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${{ vars.GOOGLE_CLOUD_LOCATION || 'us-central1' }},TRUSTED_PROXY_HOPS=2,CORS_ORIGINS=${{ vars.FRONTEND_ORIGIN || '' }}" \
-            --set-secrets "RAILRADAR_API_KEY=RAILRADAR_API_KEY:latest,REDIS_URL=REDIS_URL:latest,SESSION_SIGNING_KEY=SESSION_SIGNING_KEY:latest,GOOGLE_MAPS_BROWSER_KEY=GOOGLE_MAPS_BROWSER_KEY:latest" \
+            --set-secrets "${SECRETS}" \
             --quiet
           URL="$(gcloud run services describe "${BACKEND_SERVICE}" --region "${REGION}" --format 'value(status.url)')"
           echo "url=${URL}" >> "$GITHUB_OUTPUT"

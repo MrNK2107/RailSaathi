@@ -20,6 +20,7 @@ from app.config import STATIONS_DIR, Settings
 from app.container import build_container, build_vision_localizer
 from app.llm.base import Deadline, LLMError, LLMErrorKind
 from app.llm.mock import MockVisionLocalizer
+from app.security.rate_limit import Decision
 from app.llm.vision import GeminiVisionLocalizer, LocalizeCandidate, LocalizeHint, LocalizeResult
 from app.main import create_app
 from app.navigation.services.station_store import build_source, load_catalogue
@@ -348,3 +349,48 @@ def test_gemini_clamps_numbers_and_filters_candidates():
                                                                {"node_id": "p9_access", "confidence": 1}]})
     result = localizer.localize(JPEG, "image/jpeg", CHENNAI, LocalizeHint(), Deadline(5))
     assert result.confidence == 1.0 and result.facing_bearing_deg == 270.0 and result.candidates == ()
+
+
+# ---- review round 1: malformed localizer output and a hung limiter -----------------------------------------------
+
+class _Returns:
+    name = "malformed"
+
+    def __init__(self, value):
+        self.value = value
+
+    def localize(self, *args, **kwargs):
+        return self.value
+
+
+@pytest.mark.parametrize("value", [None, "p11_access", LocalizeResult("p11_access", 0.9, candidates=None),
+                                   LocalizeResult("p11_access", 0.9, matched_cues=7)])
+def test_malformed_localizer_result_is_unavailable_not_500(value):
+    res = post(make(_Returns(value))[0])
+    assert res.status_code == 200
+    body = res.json()
+    assert body["status"] == "unavailable" and body["fix"] is None
+    assert body["provenance"]["mode"] == "unavailable" and body["provenance"]["source"] == "gemini-vision"
+
+
+def test_hung_rate_limiter_fails_open_within_a_second():
+    import threading
+    import time
+
+    release = threading.Event()
+
+    class HungLimiter:
+        def hit(self, key, limit, window_seconds=60):
+            release.wait(10)  # a Memorystore call that never answers
+            return Decision(True)
+
+    client, _ = make(MockVisionLocalizer([fix()]))
+    client.app.state.rate_limiter = HungLimiter()
+    try:
+        started = time.monotonic()
+        res = post(client)
+        elapsed = time.monotonic() - started
+    finally:
+        release.set()
+    assert res.status_code == 200 and res.json()["status"] == "fix"
+    assert elapsed < 4.0  # two limiter keys, each capped at 1 s, instead of hanging for 10 s

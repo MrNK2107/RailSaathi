@@ -95,9 +95,6 @@ printf '' | gcloud secrets create RAILRADAR_API_KEY --data-file=-
 # later: printf 'real-key' | gcloud secrets versions add RAILRADAR_API_KEY --data-file=-
 printf 'redis://:%s@%s:%s/0' "$REDIS_AUTH" "$REDIS_HOST" "$REDIS_PORT" | gcloud secrets create REDIS_URL --data-file=-
 openssl rand -base64 48 | tr -d '\n' | gcloud secrets create SESSION_SIGNING_KEY --data-file=-
-# Public Maps JavaScript key for the virtual tour's Street View, restricted to the frontend's HTTP referrer and
-# to the Maps JavaScript API. GET /api/client-config sends it to browsers; empty means the tour links out.
-printf '' | gcloud secrets create GOOGLE_MAPS_BROWSER_KEY --data-file=-
 
 # Deploy service account used by GitHub Actions (networkUser lets it attach the service to the VPC subnet)
 gcloud iam service-accounts create github-deployer --display-name "GitHub Actions deployer"
@@ -109,12 +106,20 @@ done
 # Cloud Run runtime service account: read the secrets and call Gemini on Vertex AI
 PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format 'value(projectNumber)')"
 RUNTIME_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
-for SECRET in RAILRADAR_API_KEY REDIS_URL SESSION_SIGNING_KEY GOOGLE_MAPS_BROWSER_KEY; do
+for SECRET in RAILRADAR_API_KEY REDIS_URL SESSION_SIGNING_KEY; do
   gcloud secrets add-iam-policy-binding "$SECRET" \
     --member "serviceAccount:${RUNTIME_SA}" --role roles/secretmanager.secretAccessor
 done
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --member "serviceAccount:${RUNTIME_SA}" --role roles/aiplatform.user
+
+# Optional: the public Maps JavaScript key for the virtual tour's Street View, restricted to the frontend's HTTP
+# referrer and to the Maps JavaScript API (GET /api/client-config sends it to browsers). Skip this and the tour
+# links out to Google Maps; deploys work either way. After creating it, set the MAPS_BROWSER_KEY_SECRET repository
+# variable to GOOGLE_MAPS_BROWSER_KEY so the deploy mounts it.
+printf 'browser-key' | gcloud secrets create GOOGLE_MAPS_BROWSER_KEY --data-file=-
+gcloud secrets add-iam-policy-binding GOOGLE_MAPS_BROWSER_KEY \
+  --member "serviceAccount:${RUNTIME_SA}" --role roles/secretmanager.secretAccessor
 
 # Workload Identity Federation (keyless auth from GitHub Actions)
 gcloud iam workload-identity-pools create github --location global --display-name "GitHub"
@@ -145,6 +150,7 @@ Then add these **repository variables** in GitHub (Settings, Secrets and variabl
 | `GOOGLE_CLOUD_LOCATION` | Vertex AI region for Gemini, default `us-central1` |
 | `VPC_NETWORK` / `VPC_SUBNET` | network and subnet (in `GCP_REGION`) used for Direct VPC egress to Memorystore; default `default` / `default` |
 | `BACKEND_MIN_INSTANCES` / `BACKEND_MAX_INSTANCES` | backend scaling bounds, default `2` / `10` |
+| `MAPS_BROWSER_KEY_SECRET` | optional; name of the Secret Manager secret holding the Maps browser key (e.g. `GOOGLE_MAPS_BROWSER_KEY`). Unset: no key is mounted and the tour links out to Google Maps |
 
 Push to `main` or run the workflow manually. The job prints both service URLs at the end.
 
