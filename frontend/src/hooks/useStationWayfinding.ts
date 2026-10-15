@@ -42,7 +42,7 @@ export function useStationWayfinding(client: ApiClient, stationId: string, enabl
   }, [client, stationId, enabled])
 
   useEffect(() => {
-    if (!enabled || !details || !source || !destination) {
+    if (!enabled || !details || !details.routing_enabled || !source || !destination) {
       setRoute(null)
       setRouteError(null)
       setRouting(false)

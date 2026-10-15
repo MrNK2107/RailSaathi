@@ -22,6 +22,7 @@ const TITLE_ID = 'sos-title'
 export default function EmergencyHelpModal({ isOpen, onClose, client, m, stationId }: EmergencyHelpModalProps) {
   const [info, setInfo] = useState<StationInfo | null>(null)
   const [error, setError] = useState<ApiError | null>(null)
+  const [stationName, setStationName] = useState<string | null>(null)
   const s = m.sos
 
   useEffect(() => {
@@ -29,6 +30,11 @@ export default function EmergencyHelpModal({ isOpen, onClose, client, m, station
     const ctl = new AbortController()
     setInfo(null)
     setError(null)
+    setStationName(null)
+    client.stations({ signal: ctl.signal }).then(
+      (list) => setStationName(list.find((x) => x.station_id === stationId)?.station_name ?? null),
+      () => undefined, // the name is a label only; helplines still load
+    )
     client.stationInfo(stationId, { signal: ctl.signal }).then(setInfo, (e) => {
       if (!(e instanceof ApiError && e.isAborted)) setError(e instanceof ApiError ? e : new ApiError(0, 'unknown', 'Something went wrong.'))
     })
@@ -39,7 +45,7 @@ export default function EmergencyHelpModal({ isOpen, onClose, client, m, station
     <Modal open={isOpen} onClose={onClose} titleId={TITLE_ID}>
       <header className="flex items-start justify-between gap-2 border-b border-ink-100 p-4">
         <h2 id={TITLE_ID} className="flex items-center gap-2 text-base font-bold text-red-700">
-          <ShieldIcon size={20} /> {s.title}
+          <ShieldIcon size={20} /> {s.title}{stationName ? ` — ${stationName}` : ''}
         </h2>
         <button type="button" onClick={onClose} aria-label={s.close} className="rounded-full p-1.5 text-ink-700 hover:bg-ink-100">
           <CloseIcon size={20} />
@@ -96,7 +102,7 @@ export default function EmergencyHelpModal({ isOpen, onClose, client, m, station
             </section>
 
             <section aria-labelledby="sos-amenities">
-              <h3 id="sos-amenities" className="text-sm font-bold text-brand-900">{s.amenities}</h3>
+              <h3 id="sos-amenities" className="text-sm font-bold text-brand-900">{s.amenities}{stationName ? ` — ${stationName}` : ''}</h3>
               {info.amenities.length === 0 ? <p className="mt-1 text-xs text-ink-500">{s.noAmenities}</p> : (
                 <ul className="mt-2 space-y-2">
                   {info.amenities.map((a) => (

@@ -47,9 +47,12 @@ export default function StationBlueprintModal({ isOpen, onClose, client, m, stat
         {w.details && (
           <>
             <StationNotice details={w.details} m={m.navigation} />
-            <RoutePickers details={w.details} source={w.source} destination={w.destination} mobility={w.mobility}
-              onSource={w.setSource} onDestination={w.setDestination} onMobility={w.setMobility} idPrefix="blueprint" m={m.navigation} />
-            <RouteStatus route={w.route} error={w.routeError} routing={w.routing} destination={w.destination} m={m.navigation} />
+            {!w.details.routing_enabled && (
+              <p role="alert" data-code="routing_unavailable" className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900">{m.navigation.routingUnavailable}</p>
+            )}
+            {w.details.routing_enabled && <RoutePickers details={w.details} source={w.source} destination={w.destination} mobility={w.mobility}
+              onSource={w.setSource} onDestination={w.setDestination} onMobility={w.setMobility} idPrefix="blueprint" m={m.navigation} />}
+            {w.details.routing_enabled && <RouteStatus route={w.route} error={w.routeError} routing={w.routing} destination={w.destination} m={m.navigation} />}
 
             <div role="tablist" aria-label={b.tabs} className="flex gap-1 border-b border-ink-100">
               {tabs.map(([key, label]) => (
@@ -69,7 +72,7 @@ export default function StationBlueprintModal({ isOpen, onClose, client, m, stat
                   {route && <RouteSummary route={route} m={m.navigation} />}
                 </>
               )}
-              {tab === 'steps' && (route ? <RouteSteps route={route} m={m.navigation} /> : <p className="text-sm text-ink-500">{m.navigation.chooseHint}</p>)}
+              {tab === 'steps' && (route ? <RouteSteps route={route} m={m.navigation} /> : <p className="text-sm text-ink-500">{w.details.routing_enabled ? m.navigation.chooseHint : m.navigation.routingUnavailable}</p>)}
               {tab === 'along' && (
                 route && route.along_the_way.length > 0 ? (
                   <ul className="space-y-2">

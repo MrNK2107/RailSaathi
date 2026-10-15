@@ -68,9 +68,12 @@ export default function StationNavigation() {
         {w.details && (
           <>
             <StationNotice details={w.details} m={n} />
-            <RoutePickers details={w.details} source={w.source} destination={w.destination} mobility={w.mobility}
-              onSource={w.setSource} onDestination={w.setDestination} onMobility={w.setMobility} idPrefix="nav" m={n} />
-            <RouteStatus route={w.route} error={w.routeError} routing={w.routing} destination={w.destination} m={n} />
+            {!w.details.routing_enabled && (
+              <p role="alert" data-code="routing_unavailable" className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900">{n.routingUnavailable}</p>
+            )}
+            {w.details.routing_enabled && <RoutePickers details={w.details} source={w.source} destination={w.destination} mobility={w.mobility}
+              onSource={w.setSource} onDestination={w.setDestination} onMobility={w.setMobility} idPrefix="nav" m={n} />}
+            {w.details.routing_enabled && <RouteStatus route={w.route} error={w.routeError} routing={w.routing} destination={w.destination} m={n} />}
           </>
         )}
       </section>
@@ -90,7 +93,7 @@ export default function StationNavigation() {
             {view === 'map' ? (
               <StationMap baseUrl={client.baseUrl} details={w.details} route={route} source={w.source} destination={w.destination}
                 label={m.blueprint.mapLabel} startLabel={m.blueprint.start} destinationLabel={m.blueprint.destination} />
-            ) : route ? <RouteSteps route={route} m={n} /> : <p className="text-sm text-ink-500">{n.chooseHint}</p>}
+            ) : route ? <RouteSteps route={route} m={n} /> : <p className="text-sm text-ink-500">{w.details.routing_enabled ? n.chooseHint : n.routingUnavailable}</p>}
             {route && <RouteSummary route={route} m={n} />}
             <button type="button" onClick={() => setBlueprintOpen(true)}
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5 text-xs font-bold text-brand-800 hover:bg-brand-100">

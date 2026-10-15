@@ -135,6 +135,15 @@ describe('EmergencyHelpModal data', () => {
     expect(dialog).not.toHaveTextContent(/Rajiv Gandhi|044-/)
   })
 
+  it('names the station whose amenities and helplines are shown', async () => {
+    const user = userEvent.setup()
+    render(<Harness c={client()} which="sos" />)
+    await user.click(screen.getByRole('button', { name: 'opener' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByRole('heading', { name: /Emergency and station help — Chennai Central/ })).toBeInTheDocument()
+    expect(within(dialog).getByRole('heading', { name: /Station amenities — Chennai Central/ })).toBeInTheDocument()
+  })
+
   it('falls back to the national numbers when the info API fails', async () => {
     const c = client({ stationInfo: vi.fn().mockRejectedValue(new ApiError(404, 'station_not_found', 'Station not found.')) })
     const user = userEvent.setup()
@@ -213,18 +222,36 @@ describe('Wayfinder screen states', () => {
     expect(screen.queryByRole('button', { name: /Start Navigation/ })).not.toBeInTheDocument()
   })
 
-  it('routing_unavailable shows the backend message while the map stays available', async () => {
-    const msg = 'Step-by-step directions are not available for this station: its layout has not been traced.'
-    const c = client({
-      station: vi.fn().mockResolvedValue(details({ routing_enabled: false })),
-      stationRoute: vi.fn().mockRejectedValue(new ApiError(503, 'routing_unavailable', msg)),
-    })
+  it('untraced station: shows the unavailable notice up front, no pickers, no route request, map kept', async () => {
+    const c = client({ station: vi.fn().mockResolvedValue(details({ routing_enabled: false })) })
+    const user = await openNavigation(c)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(m.navigation.routingUnavailable)
+    expect(screen.queryByLabelText('To platform or facility')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Walking preference')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Choose where you are entering/)).not.toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Station map/ })).toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: /Step-by-Step/ }))
+    expect(c.stationRoute).not.toHaveBeenCalled()
+  })
+
+  it('untraced station in the blueprint modal: notice, no pickers, no route request', async () => {
+    const c = client({ station: vi.fn().mockResolvedValue(details({ routing_enabled: false })) })
+    const user = userEvent.setup()
+    render(<Harness c={c} which="blueprint" />)
+    await user.click(screen.getByRole('button', { name: 'opener' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(m.navigation.routingUnavailable)
+    expect(within(dialog).queryByLabelText('To platform or facility')).not.toBeInTheDocument()
+    expect(c.stationRoute).not.toHaveBeenCalled()
+  })
+
+  it('a routing_unavailable error from the API shows the backend message', async () => {
+    const msg = 'Step-by-step directions are not available for this station.'
+    const c = client({ stationRoute: vi.fn().mockRejectedValue(new ApiError(503, 'routing_unavailable', msg)) })
     const user = await openNavigation(c)
     await user.selectOptions(await screen.findByLabelText('To platform or facility'), 'platform_10')
-    const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent(msg)
-    expect(alert).toHaveAttribute('data-code', 'routing_unavailable')
-    expect(screen.getByRole('img', { name: /Station map/ })).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent(msg)
   })
 
   it('no_route explains why instead of drawing a route', async () => {
