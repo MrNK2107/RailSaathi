@@ -38,8 +38,8 @@
   ],
   "amenities": [
     {
-      "name": "Wheelchair Accessible Ramp & Assistance Point",
-      "detail": "Designated Divyangjan accessible entrance with step-free ramps located at Main Passenger Drop Zone near Wall Tax Road.",
+      "name": "Assistance Point (Wall Tax Road entrance)",
+      "detail": "Entrance for passengers needing assistance, near the Main Passenger Drop Zone on Wall Tax Road, as described in the cited keyplan. Step-free access is not verified; ask station staff.",
       "mapped": true,
       "node_id": "ent_wall_tax"
     },

@@ -53,6 +53,10 @@ def _layout_basis(loaded: LoadedStation) -> str:
     return loaded.info.get("layout_basis") or extra.get("layout_basis") or "unknown"
 
 
+def _routing_enabled(loaded: LoadedStation) -> bool:
+    return loaded.metadata.routing if loaded.metadata else True
+
+
 def _provenance(c: Container, loaded: LoadedStation) -> DataProvenance:
     """Station layouts are authored static data, so they are reported as `cached`, dated by the authoring check."""
     try:
@@ -102,6 +106,7 @@ async def get_station_details(request: Request, station_id: str) -> dict:
         "metadata": loaded.metadata.model_dump(mode="json") if loaded.metadata else None,
         "version": loaded.entry.version,
         "layout_basis": _layout_basis(loaded),
+        "routing_enabled": _routing_enabled(loaded),
         "provenance": _provenance(_c(request), loaded).model_dump(mode="json"),
     }
 
@@ -138,6 +143,10 @@ async def calculate_route(request: Request, req: RouteRequest) -> RouteResponse:
 
 def _calculate_route(c: Container, req: RouteRequest) -> RouteResponse:
     loaded = _station(c, req.station_id)
+    if not _routing_enabled(loaded):
+        raise HTTPException(503, {"code": "routing_unavailable", "message": (
+            "Step-by-step directions are not available for this station: its layout is a schematic that has not been "
+            "traced from a plan or surveyed. The map and station information are still available.")})
     if req.simulate_closures and not c.settings.disruption_simulation_enabled:
         raise HTTPException(403, {"code": "simulation_disabled",
                                   "message": "Simulated closures are not available on this service."})
