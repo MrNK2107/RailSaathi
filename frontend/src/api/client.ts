@@ -1,5 +1,7 @@
 // Centralised typed API client. All backend calls go through here.
 import type {
+  DelayPrediction,
+  DepartureBoard,
   ErrorEnvelope,
   GoalPlanRequest,
   GoalPlanResponse,
@@ -215,6 +217,13 @@ export function createApiClient(options: ApiClientOptions = {}) {
     // Ticketing guidance chat (LLM turn, so the planner timeout applies). Not retried: a turn is not idempotent.
     ticketing: (body: TicketingRequest, o?: O) =>
       request<TicketingResponse>('POST', '/api/chat', { body, signal: o?.signal, planner: true }),
+    // Live departure board for a catalogue station; `provenance.mode` may be `unavailable` (with `reason`).
+    departures: (stationCode: string, o?: O) =>
+      request<DepartureBoard>('GET', `/api/live/stations/${encodeURIComponent(stationCode)}/departures`, { signal: o?.signal }),
+    predictDelay: (trainNumber: string, stationCode: string, o?: O) =>
+      request<DelayPrediction>('GET',
+        `/api/predict/delay?train_number=${encodeURIComponent(trainNumber)}&destination=${encodeURIComponent(stationCode)}`,
+        { signal: o?.signal }),
     goalPlan: (planId: string, o?: O) =>
       request<GoalPlanResponse>('GET', `/api/journey/options/${encodeURIComponent(planId)}`, { signal: o?.signal, planner: true }),
   }

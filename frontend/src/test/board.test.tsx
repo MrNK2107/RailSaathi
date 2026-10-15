@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import App from '../App'
-import type { ApiClient } from '../api/client'
+import { ApiError, type ApiClient } from '../api/client'
 import type { DepartureBoard } from '../api/types'
 import { response } from './fixtures'
 
@@ -15,20 +15,19 @@ const board = (over: Partial<DepartureBoard> = {}): DepartureBoard => ({
   ...over,
 })
 
-async function open(b: DepartureBoard) {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => b }))
+async function open(b: DepartureBoard | Error) {
   window.location.hash = '/alerts'
   const c = {
     baseUrl: 'http://test',
+    departures: vi.fn(b instanceof Error ? () => Promise.reject(b) : () => Promise.resolve(b)),
     health: vi.fn().mockResolvedValue({ status: 'ok', api_version: '1', data_mode: 'demo', data_provider: { requested: 'demo', active: 'demo', reason: null }, ai: {} }),
     reference: vi.fn().mockResolvedValue({ places: [], classes: [], passenger_needs: [], budget_priorities: [], transfer_preferences: [], disruption_events: [], data_notice: '' }),
     createSession: vi.fn().mockResolvedValue(response({}, 'Hello')),
   } as unknown as ApiClient
   render(<App client={c} />)
   await waitFor(() => expect(screen.getByText('Departure Board')).toBeInTheDocument())
+  return c
 }
-
-afterEach(() => vi.unstubAllGlobals())
 
 describe('Departure board provenance', () => {
   it('shows a cached board with its mode, note and the coverage limit', async () => {
@@ -65,5 +64,20 @@ describe('Departure board provenance', () => {
   it('an empty board says only nearby catalogue cities were checked', async () => {
     await open(board({ departures: [] }))
     expect(await screen.findByText(/does not mean the station has no trains/)).toBeInTheDocument()
+  })
+
+  it('shows the as-of time and the typed client is asked for the selected station', async () => {
+    const c = await open(board())
+    await screen.findByText('Kovai Express')
+    expect(c.departures).toHaveBeenCalledWith('MAS', expect.anything())
+    expect(screen.getByTestId('provenance-badge')).toHaveTextContent(/10 Oct.*09:45 IST/)
+  })
+
+  it('shows the error envelope message when the board cannot be fetched', async () => {
+    await open(new ApiError(404, 'unknown_station', "This station is not in RailSaathi's station catalogue."))
+    const el = await screen.findByRole('status')
+    expect(el).toHaveAttribute('data-mode', 'unavailable')
+    expect(el).toHaveTextContent("This station is not in RailSaathi's station catalogue.")
+    expect(screen.queryByText('Kovai Express')).not.toBeInTheDocument()
   })
 })

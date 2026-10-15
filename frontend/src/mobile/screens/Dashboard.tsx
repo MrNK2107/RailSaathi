@@ -2,8 +2,9 @@ import { useState } from 'react'
 import type { Language } from '../../api/types'
 import { POPULAR_ROUTES } from '../config'
 import { AccessibleIcon, ArrowRight, ChevronRight, ClockIcon, HelpIcon, LiveIcon, PinIcon, TagIcon, TrainIcon } from '../icons'
+import { ProvenanceBadge } from '../../components/ProvenanceBadge'
 import { useApp } from '../PlannerContext'
-import { ErrorBanner, Logo, ModeBadge, Screen } from '../ui'
+import { ErrorBanner, Logo, Screen } from '../ui'
 
 const COLLAPSED_ROUTES = 4
 
@@ -87,7 +88,7 @@ export default function Dashboard() {
           <h1 className="text-3xl font-extrabold text-brand-900">{m.dashboard.hello}</h1>
           <p className="mt-1 text-sm font-medium text-ink-700">{m.dashboard.intro}</p>
         </div>
-        <div className="absolute right-3 top-3"><ModeBadge mode={planner.health?.data_mode} /></div>
+        <div className="absolute right-3 top-3">{planner.health && <ProvenanceBadge provenance={null} mode={planner.health.data_mode} labels={{ live: m.live }} />}</div>
       </section>
 
       <button type="button" onClick={() => go('plan')}

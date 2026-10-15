@@ -5,7 +5,7 @@ const en = {
   appSubtitle: 'Smart Passenger Planner',
   language: 'Language',
   liveBanner:
-    'LIVE DATA from RailRadar (third-party, not official Indian Railways). Timings can change and fares may be missing — verify on IRCTC/NTES. No tickets are booked.',
+    'LIVE DATA from RailRadar (third-party, not official Indian Railways). Timings can change and fares may be missing — verify on the official IRCTC site. No tickets are booked.',
   demoBanner:
     'DEMO DATA — trains, timings, fares and disruptions are simulated, not real Indian Railways data. No tickets are booked.',
   liveBadge: 'LIVE · RailRadar',
@@ -62,7 +62,7 @@ const en = {
   confirmedNoBooking: 'No ticket has been booked. Assistance has not been booked or guaranteed.',
   handoffPayload: 'Handoff payload (for the main RailSaathi app)',
   disruptionTitle: 'Disruption check (simulated)',
-  disruptionHelp: 'Apply an event to see how the plan is reassessed. Events here are simulated, not NTES alerts.',
+  disruptionHelp: 'Apply an event to see how the plan is reassessed. Events here are simulated, not real alerts.',
   runCheck: 'Reassess with event',
   autoEvent: 'Auto-pick an event affecting my plan',
   stillValid: 'Your selected journey still meets your requirements.',
@@ -127,7 +127,7 @@ const ta: Strings = {
   appSubtitle: 'ஸ்மார்ட் பயணத் திட்டமிடுபவர்',
   language: 'மொழி',
   liveBanner:
-    'RailRadar நேரடி தரவு (மூன்றாம் தரப்பு, அதிகாரப்பூர்வ இந்திய ரயில்வே அல்ல). நேரங்கள் மாறலாம்; கட்டணம் இல்லாமல் இருக்கலாம் — IRCTC/NTES இல் சரிபார்க்கவும். டிக்கெட் முன்பதிவு இல்லை.',
+    'RailRadar நேரடி தரவு (மூன்றாம் தரப்பு, அதிகாரப்பூர்வ இந்திய ரயில்வே அல்ல). நேரங்கள் மாறலாம்; கட்டணம் இல்லாமல் இருக்கலாம் — அதிகாரப்பூர்வ IRCTC தளத்தில் சரிபார்க்கவும். டிக்கெட் முன்பதிவு இல்லை.',
   demoBanner:
     'DEMO DATA — ரயில்கள், நேரங்கள், கட்டணங்கள் மற்றும் இடையூறுகள் உருவகப்படுத்தப்பட்டவை; உண்மையான இந்திய ரயில்வே தரவு அல்ல. டிக்கெட் முன்பதிவு இல்லை.',
   fareUnknown: 'கட்டணம் கிடைக்கவில்லை',

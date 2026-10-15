@@ -461,3 +461,30 @@ export interface DepartureBoard {
   /** Only when provenance.mode is "unavailable". */
   reason: string | null
 }
+
+/** GET /api/predict/delay (backend delay/model.py `DelayPrediction`). */
+export type DelayRisk = 'LOW' | 'MODERATE' | 'HIGH'
+export type DelayBasis = 'trained_model' | 'history_only' | 'none'
+
+export interface DelayPrediction {
+  train_number: string
+  station_code: string
+  train_class: string
+  /** Echoed; no mode uses it as an input. */
+  live_input_delay_minutes: number
+  historical_mean_delay_minutes: number | null
+  historical_scope: 'pair' | 'station' | 'none'
+  /** null: no data for this train and station */
+  predicted_delay_minutes: number | null
+  /** 0..1, P(delay <= on_time_threshold_minutes); trained_model only */
+  on_time_probability: number | null
+  on_time_threshold_minutes: number
+  risk_level: DelayRisk | null
+  model_version: string
+  /** Measured on held-out trains; null when there is no trained model */
+  mae_minutes: number | null
+  baseline_mae_minutes: number | null
+  basis: DelayBasis
+  provenance: Provenance
+  insights: string[]
+}

@@ -1,6 +1,7 @@
 // Bottom-navigation pages: My Trips (device-local saved plans), Alerts (Live departures & ML delay), Profile.
-import { useState, useEffect } from 'react'
-import type { DepartureBoard, Language } from '../../api/types'
+import { useState, useEffect, useRef } from 'react'
+import { ApiError } from '../../api/client'
+import type { DelayPrediction, DepartureBoard, Language } from '../../api/types'
 import { formatDate, formatTime } from '../../utils/format'
 import {
   BellIcon,
@@ -12,7 +13,7 @@ import {
 import { useApp } from '../PlannerContext'
 import { loadTrips, removeTrip, type SavedTrip } from '../trips'
 import { ProvenanceBadge } from '../../components/ProvenanceBadge'
-import { Logo, ModeBadge, Screen } from '../ui'
+import { Logo, Screen } from '../ui'
 
 function Page({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -46,7 +47,7 @@ export function MyTrips() {
                 </p>
                 <p className="mt-1 text-[11px] text-ink-500">Ref {trip.confirmationId}</p>
               </div>
-              <ModeBadge mode={trip.dataMode} />
+              <ProvenanceBadge provenance={null} mode={trip.dataMode} labels={{ live: m.live }} />
             </div>
             <button type="button" onClick={() => setTrips(removeTrip(trip.confirmationId))}
               className="mt-2 text-xs font-semibold text-red-700">{m.trips.remove}</button>
@@ -57,56 +58,108 @@ export function MyTrips() {
   )
 }
 
-interface DelayPrediction {
-  train_number: string
-  train_name: string
-  predicted_delay_minutes: number | null
-  risk_level: string | null
-  on_time_probability: number | null
+/** Passenger-safe text for a failed call: the backend envelope's message when there is one. */
+function failureMessage(err: unknown, fallback: string): string {
+  return err instanceof ApiError && err.message ? err.message : fallback
+}
+
+function DelayResult({ prediction }: { prediction: DelayPrediction }) {
+  const { m } = useApp()
+  const d = m.alerts.delay
+  const p = prediction
+  return (
+    <div className="mt-3 rounded-xl bg-ink-100/60 p-3" data-testid="delay-result">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold text-ink-900">{d.train} {p.train_number}</span>
+        {p.risk_level && (
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+            p.risk_level === 'LOW' ? 'bg-match-50 text-match-600'
+              : p.risk_level === 'MODERATE' ? 'bg-amber-50 text-amber-800' : 'bg-red-50 text-red-600'
+          }`}>
+            {d.risk[p.risk_level]}
+          </span>
+        )}
+      </div>
+      {p.predicted_delay_minutes === null ? (
+        <p className="mt-2 text-xs text-ink-500">{d.noData}</p>
+      ) : (
+        <div className="mt-2 grid grid-cols-2 gap-2 text-center text-xs">
+          <div className="rounded-lg bg-white p-2">
+            <span className="block text-[10px] text-ink-500">{d.typical}</span>
+            <span className="font-extrabold text-brand-900">+{p.predicted_delay_minutes} mins</span>
+          </div>
+          {p.on_time_probability !== null && (
+            <div className="rounded-lg bg-white p-2">
+              <span className="block text-[10px] text-ink-500">{d.onTime}</span>
+              <span className="font-extrabold text-brand-600">{Math.round(p.on_time_probability * 100)}%</span>
+            </div>
+          )}
+        </div>
+      )}
+      <dl className="mt-2 space-y-0.5 text-[11px] text-ink-500" data-testid="delay-basis">
+        <div className="flex justify-between"><dt>{d.basis[p.basis]}</dt><dd>{d.modelVersion} {p.model_version}</dd></div>
+        {p.mae_minutes !== null && (
+          <div className="flex justify-between"><dt>{d.mae}</dt><dd>±{p.mae_minutes} min</dd></div>
+        )}
+      </dl>
+      <ProvenanceBadge provenance={p.provenance} variant="full" className="mt-2" unavailableTitle={d.unavailableTitle} />
+    </div>
+  )
 }
 
 export function Alerts() {
-  const { m } = useApp()
+  const { m, planner } = useApp()
+  const client = planner.client
   const [selectedStation, setSelectedStation] = useState('MAS')
   const [board, setBoard] = useState<DepartureBoard | null>(null)
+  const [boardError, setBoardError] = useState<string | null>(null)
   const [loadingLive, setLoadingLive] = useState(false)
 
   // Delay predictor state
   const [predictTrainNo, setPredictTrainNo] = useState('12658')
   const [prediction, setPrediction] = useState<DelayPrediction | null>(null)
+  const [predictionError, setPredictionError] = useState<string | null>(null)
   const [loadingPred, setLoadingPred] = useState(false)
+  const boardCall = useRef<AbortController | null>(null)
 
   const fetchLiveBoard = async (code: string) => {
+    boardCall.current?.abort() // a slower earlier station must not overwrite the current one
+    const call = new AbortController()
+    boardCall.current = call
     setLoadingLive(true)
+    setBoardError(null)
     try {
-      const res = await fetch(`/api/live/stations/${encodeURIComponent(code)}/departures`)
-      setBoard(res.ok ? ((await res.json()) as DepartureBoard) : null)
-    } catch {
+      const res = await client.departures(code, { signal: call.signal })
+      if (!call.signal.aborted) setBoard(res)
+    } catch (err) {
+      if (call.signal.aborted || (err instanceof ApiError && err.isAborted)) return
       setBoard(null)
+      setBoardError(failureMessage(err, `${m.alerts.board.loadFailed} ${code}.`))
     } finally {
-      setLoadingLive(false)
+      if (!call.signal.aborted) setLoadingLive(false)
     }
   }
 
   useEffect(() => {
     fetchLiveBoard(selectedStation)
+    return () => boardCall.current?.abort()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStation])
 
   const runDelayPrediction = async () => {
     setLoadingPred(true)
+    setPredictionError(null)
     try {
-      const res = await fetch(`/api/predict/delay?train_number=${encodeURIComponent(predictTrainNo)}&destination=${selectedStation}`)
-      if (res.ok) {
-        const data = await res.json()
-        setPrediction(data)
-      }
-    } catch {
-      // Fallback
+      setPrediction(await client.predictDelay(predictTrainNo.trim(), selectedStation))
+    } catch (err) {
+      setPrediction(null)
+      setPredictionError(failureMessage(err, m.alerts.delay.unavailableTitle))
     } finally {
       setLoadingPred(false)
     }
   }
 
+  const d = m.alerts.delay
   return (
     <Page title={m.alerts.title}>
       {/* Required test & standard notice */}
@@ -116,19 +169,17 @@ export function Alerts() {
 
       {/* Delay estimate from historical records */}
       <section className="rounded-2xl bg-white p-4 shadow-card ring-1 ring-ink-100">
-        <div className="flex items-center justify-between">
-          <span className="rounded bg-brand-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-800">Statistical estimate</span>
-          <span className="text-[11px] font-semibold text-brand-600">Historical records</span>
-        </div>
-        <h3 className="mt-1 text-sm font-bold text-brand-900">Delay Estimate</h3>
-        <p className="text-xs text-ink-500">Typical delay for a train at a station, estimated from historical records. Not a live prediction.</p>
+        <span className="rounded bg-brand-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-800">{d.badge}</span>
+        <h3 className="mt-1 text-sm font-bold text-brand-900">{d.title}</h3>
+        <p className="text-xs text-ink-500">{d.intro}</p>
 
         <div className="mt-3 flex gap-2">
           <input
             type="text"
             value={predictTrainNo}
             onChange={(e) => setPredictTrainNo(e.target.value)}
-            placeholder="e.g. 12658"
+            placeholder={d.trainPlaceholder}
+            aria-label={d.train}
             className="flex-1 rounded-xl border border-ink-300 px-3 py-2 text-xs font-semibold text-ink-900"
           />
           <button
@@ -137,70 +188,39 @@ export function Alerts() {
             disabled={loadingPred}
             className="rounded-xl bg-brand-600 px-4 py-2 text-xs font-bold text-white hover:bg-brand-700 disabled:opacity-50"
           >
-            {loadingPred ? 'Predicting...' : 'Predict Delay'}
+            {loadingPred ? d.predicting : d.predict}
           </button>
         </div>
 
-        {prediction && (
-          <div className="mt-3 rounded-xl bg-ink-100/60 p-3" data-testid="delay-result">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-ink-900">Train {prediction.train_number}</span>
-              {prediction.predicted_delay_minutes !== null && (
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                  prediction.predicted_delay_minutes <= 15
-                    ? 'bg-match-50 text-match-600'
-                    : 'bg-red-50 text-red-600'
-                }`}>
-                  {prediction.predicted_delay_minutes <= 15 ? 'Low Delay Risk' : 'High Delay Risk'}
-                </span>
-              )}
-            </div>
-            {prediction.predicted_delay_minutes === null ? (
-              <p className="mt-2 text-xs text-ink-500">No historical data is available for this train and station.</p>
-            ) : (
-              <div className="mt-2 grid grid-cols-2 gap-2 text-center text-xs">
-                <div className="rounded-lg bg-white p-2">
-                  <span className="block text-[10px] text-ink-500">Typical Delay</span>
-                  <span className="font-extrabold text-brand-900">+{prediction.predicted_delay_minutes} mins</span>
-                </div>
-                {prediction.on_time_probability !== null && (
-                  <div className="rounded-lg bg-white p-2">
-                    <span className="block text-[10px] text-ink-500">Chance on time (15 min)</span>
-                    <span className="font-extrabold text-brand-600">{Math.round(prediction.on_time_probability * 100)}%</span>
-                  </div>
-                )}
-              </div>
-            )}
+        {predictionError && (
+          <div className="mt-3">
+            <ProvenanceBadge provenance={null} variant="full" unavailableTitle={d.unavailableTitle} reason={predictionError} />
           </div>
         )}
+        {prediction && <DelayResult prediction={prediction} />}
       </section>
 
-      {/* Pillar 2: Live Station Departure Board */}
+      {/* Live station departure board */}
       <section className="rounded-2xl bg-white p-4 shadow-card ring-1 ring-ink-100">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="rounded bg-match-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-match-600">Pillar 2</span>
-            <span className="text-xs font-bold text-brand-900">Departure Board</span>
-          </div>
+          <span className="text-xs font-bold text-brand-900">{m.alerts.board.title}</span>
           <button
             type="button"
             onClick={() => fetchLiveBoard(selectedStation)}
             className="text-brand-600 hover:text-brand-800"
-            title="Refresh departure board"
+            title={m.alerts.board.refresh}
+            aria-label={m.alerts.board.refresh}
           >
             <RefreshIcon size={16} />
           </button>
         </div>
 
         <div className="mt-3 flex gap-2">
-          {([
-            ['MAS', 'Chennai Central'],
-            ['NDLS', 'New Delhi'],
-            ['SBC', 'Bengaluru'],
-          ] as const).map(([code]) => (
+          {(['MAS', 'NDLS', 'SBC'] as const).map((code) => (
             <button
               key={code}
               type="button"
+              aria-pressed={selectedStation === code}
               onClick={() => setSelectedStation(code)}
               className={`flex-1 rounded-xl py-1.5 text-xs font-semibold ${
                 selectedStation === code
@@ -215,10 +235,10 @@ export function Alerts() {
 
         <div className="mt-3 space-y-2">
           {loadingLive ? (
-            <p className="py-4 text-center text-xs text-ink-500">Loading departures...</p>
+            <p className="py-4 text-center text-xs text-ink-500">{m.alerts.board.loading}</p>
           ) : !board ? (
             <ProvenanceBadge provenance={null} variant="full" unavailableTitle={m.alerts.board.unavailableTitle}
-              reason={`${m.alerts.board.loadFailed} ${selectedStation}.`} />
+              reason={boardError ?? `${m.alerts.board.loadFailed} ${selectedStation}.`} />
           ) : board.provenance.mode === 'unavailable' ? (
             <ProvenanceBadge provenance={{ ...board.provenance, note: board.reason ?? board.provenance.note }}
               variant="full" unavailableTitle={m.alerts.board.unavailableTitle} />
@@ -245,7 +265,7 @@ export function Alerts() {
               </div>
             ))
           )}
-          {board && board.provenance.mode !== 'unavailable' && (
+          {!loadingLive && board && board.provenance.mode !== 'unavailable' && (
             <>
               {!board.complete && (
                 <p role="alert" data-testid="board-incomplete" className="rounded-lg bg-amber-50 p-2 text-[11px] text-amber-800">
@@ -281,7 +301,7 @@ export function Profile() {
       </section>
       <section className="space-y-2 rounded-2xl bg-white p-4 text-sm shadow-card ring-1 ring-ink-100">
         <p className="flex items-center justify-between"><span className="text-ink-500">{m.profile.dataSource}</span>
-          <span className="flex items-center gap-2">{provider?.active ?? '—'} <ModeBadge mode={h?.data_mode} /></span></p>
+          <span className="flex items-center gap-2">{provider?.active ?? '—'} {h && <ProvenanceBadge provenance={null} mode={h.data_mode} labels={{ live: m.live }} />}</span></p>
         {provider?.reason && <p className="text-xs text-red-700">{provider.reason}</p>}
         <p className="flex items-center justify-between"><span className="text-ink-500">{m.profile.ai}</span>
           <span>{h?.ai?.active ? 'Claude (AWS Bedrock)' : 'Built-in parser'}</span></p>

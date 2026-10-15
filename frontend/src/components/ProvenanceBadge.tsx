@@ -25,6 +25,8 @@ const STYLE: Record<DataMode, string> = {
 
 export interface ProvenanceBadgeProps {
   provenance: Provenance | null | undefined
+  /** Mode only, for places that know the data mode but have no provenance object (health, saved trips). */
+  mode?: string | null
   /** `chip`: compact label (cards); `full`: label + source, retrieval time and note. */
   variant?: 'chip' | 'full'
   /** Reason shown when there is no provenance at all. */
@@ -36,8 +38,18 @@ export interface ProvenanceBadgeProps {
 }
 
 export function ProvenanceBadge({
-  provenance, variant = 'chip', reason, labels, unavailableTitle = 'Data unavailable', className = '',
+  provenance, mode, variant = 'chip', reason, labels, unavailableTitle = 'Data unavailable', className = '',
 }: ProvenanceBadgeProps) {
+  if (!provenance && mode && mode !== 'unavailable') {
+    const known: DataMode = mode in DEFAULT_PROVENANCE_LABELS ? (mode as DataMode) : 'unknown'
+    return (
+      <span data-testid="provenance-badge" data-mode={known} className={className}>
+        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${STYLE[known]}`}>
+          {labels?.[known] ?? DEFAULT_PROVENANCE_LABELS[known]}
+        </span>
+      </span>
+    )
+  }
   if (!provenance || provenance.mode === 'unavailable') {
     const why = provenance?.note || reason || 'No data could be obtained from the data source.'
     return (

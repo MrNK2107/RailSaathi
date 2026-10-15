@@ -76,12 +76,6 @@ export function Screen({ children, nav = false, footer }: { children: ReactNode;
   )
 }
 
-export function ModeBadge({ mode }: { mode: string | undefined }) {
-  const { m } = useApp()
-  if (mode !== 'live') return null
-  return <span className="rounded-full bg-match-50 px-2 py-0.5 text-[11px] font-semibold text-match-600">{m.live}</span>
-}
-
 /** "Source: … · retrieved 10 Oct 15:21 IST" — from the backend's provenance fields. */
 export function SourceLine({ provenance }: { provenance: DataProvenance }) {
   const { m } = useApp()

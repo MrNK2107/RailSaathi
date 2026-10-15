@@ -43,4 +43,12 @@ describe('ProvenanceBadge', () => {
     render(<ProvenanceBadge provenance={base} labels={{ live: 'LIVE · RailRadar' }} />)
     expect(screen.getByText('LIVE · RailRadar')).toBeInTheDocument()
   })
+
+  it('renders a mode-only chip (health, saved trips) and treats an unrecognised mode as unverified', () => {
+    const { rerender } = render(<ProvenanceBadge provenance={null} mode="demo" />)
+    expect(screen.getByTestId('provenance-badge')).toHaveAttribute('data-mode', 'demo')
+    expect(screen.getByText('DEMO')).toBeInTheDocument()
+    rerender(<ProvenanceBadge provenance={null} mode="something-old" />)
+    expect(screen.getByTestId('provenance-badge')).toHaveAttribute('data-mode', 'unknown')
+  })
 })
