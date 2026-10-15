@@ -95,6 +95,9 @@ printf '' | gcloud secrets create RAILRADAR_API_KEY --data-file=-
 # later: printf 'real-key' | gcloud secrets versions add RAILRADAR_API_KEY --data-file=-
 printf 'redis://:%s@%s:%s/0' "$REDIS_AUTH" "$REDIS_HOST" "$REDIS_PORT" | gcloud secrets create REDIS_URL --data-file=-
 openssl rand -base64 48 | tr -d '\n' | gcloud secrets create SESSION_SIGNING_KEY --data-file=-
+# Public Maps JavaScript key for the virtual tour's Street View, restricted to the frontend's HTTP referrer and
+# to the Maps JavaScript API. GET /api/client-config sends it to browsers; empty means the tour links out.
+printf '' | gcloud secrets create GOOGLE_MAPS_BROWSER_KEY --data-file=-
 
 # Deploy service account used by GitHub Actions (networkUser lets it attach the service to the VPC subnet)
 gcloud iam service-accounts create github-deployer --display-name "GitHub Actions deployer"
@@ -106,7 +109,7 @@ done
 # Cloud Run runtime service account: read the secrets and call Gemini on Vertex AI
 PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format 'value(projectNumber)')"
 RUNTIME_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
-for SECRET in RAILRADAR_API_KEY REDIS_URL SESSION_SIGNING_KEY; do
+for SECRET in RAILRADAR_API_KEY REDIS_URL SESSION_SIGNING_KEY GOOGLE_MAPS_BROWSER_KEY; do
   gcloud secrets add-iam-policy-binding "$SECRET" \
     --member "serviceAccount:${RUNTIME_SA}" --role roles/secretmanager.secretAccessor
 done

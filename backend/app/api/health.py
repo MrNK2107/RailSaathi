@@ -31,7 +31,8 @@ def redis_status(c: Container) -> dict[str, Any]:
 
 def llm_status(c: Container) -> dict[str, Any]:
     return {"provider_setting": c.settings.llm_provider, "configured": c.settings.llm_configured,
-            **c.extractor.llm_status, "chat": c.chat_llm_status}
+            **c.extractor.llm_status, "chat": c.chat_llm_status,
+            "vision": {"provider": c.vision.name if c.vision else None, "reason": c.vision_reason}}
 
 
 def model_status(c: Container) -> dict[str, Any]:

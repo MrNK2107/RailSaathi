@@ -20,6 +20,7 @@ from app.harness.planner import PlannerService
 from app.intent.extractor import IntentExtractor
 from app.intent.llm import IntentLLM, LLMError
 from app.llm.base import ChatLLM
+from app.llm.vision import VisionLocalizer
 from app.navigation.services.disruption_store import DisruptionStore, build_disruption_store
 from app.navigation.services.station_store import StationCatalogue, build_source, load_catalogue
 from app.intent.rules import RuleBasedExtractor
@@ -67,6 +68,8 @@ class Container:
     observation_sink: ObservationSink | None = None  # where collected observations are appended
     stations: StationCatalogue | None = None  # navigation catalogue with prebuilt graphs, loaded once
     station_disruptions: DisruptionStore | None = None  # closures and outages, TTL'd, internal writes only
+    vision: VisionLocalizer | None = None  # AR localisation; None -> /localize answers `unavailable`
+    vision_reason: str | None = None
 
     @property
     def agent_llm(self) -> ChatLLM:
@@ -141,6 +144,20 @@ def build_chat_llm(settings: Settings) -> tuple[ChatLLM | None, str | None]:
         return GeminiChatLLM(settings, system_instruction=SYSTEM_INSTRUCTION), None
     except Exception as exc:  # noqa: BLE001 - degrade, never fail startup
         log.warning("Gemini chat unavailable (%s); using the rule-based agent", type(exc).__name__)
+        return None, "gemini_unavailable"
+
+
+def build_vision_localizer(settings: Settings) -> tuple[VisionLocalizer | None, str | None]:
+    """AR camera localisation: (localizer, reason_if_unavailable). Gemini only, configured like the chat LLM; a
+    construction failure degrades to None (the endpoint answers `unavailable`). Never contacts Google here."""
+    if not settings.gemini_configured:
+        return None, "gemini_not_configured" if settings.llm_provider.lower() == "gemini" else "llm_disabled"
+    try:
+        from app.llm.vision import GeminiVisionLocalizer
+
+        return GeminiVisionLocalizer(settings), None
+    except Exception as exc:  # noqa: BLE001 - degrade, never fail startup
+        log.warning("Gemini vision unavailable (%s); AR localisation is off", type(exc).__name__)
         return None, "gemini_unavailable"
 
 
@@ -273,7 +290,8 @@ def prepare_knowledge_db(settings: Settings) -> None:
 
 def build_container(settings: Settings, clock: Clock | None = None,
                     llm: IntentLLM | None = None, use_configured_llm: bool = True,
-                    redis: Redis | None = None, chat_llm: ChatLLM | None = None) -> Container:
+                    redis: Redis | None = None, chat_llm: ChatLLM | None = None,
+                    vision: VisionLocalizer | None = None) -> Container:
     """`redis` lets tests inject fakeredis; otherwise a client is built from REDIS_URL (or None)."""
     clock = clock or build_clock(settings)
     redis = redis if redis is not None else build_redis(settings)
@@ -288,6 +306,11 @@ def build_container(settings: Settings, clock: Clock | None = None,
         chat_llm, chat_reason = build_chat_llm(settings)
     elif chat_llm is None:
         chat_reason = "llm_disabled"
+    vision_reason = None
+    if vision is None and use_configured_llm:
+        vision, vision_reason = build_vision_localizer(settings)
+    elif vision is None:
+        vision_reason = "llm_disabled"
     extractor = IntentExtractor(RuleBasedExtractor(resolver), llm, reason or ("llm_disabled" if llm is None else None))
     audit = AuditLog()
     recommender = Recommender(provider, settings.min_transfer_minutes)
@@ -308,4 +331,4 @@ def build_container(settings: Settings, clock: Clock | None = None,
                      build_conversation_store(settings, redis), build_live_source(settings, provider, clock),
                      load_delay_model(settings), build_seen_trains(settings, clock, redis),
                      build_observation_sink(settings), build_station_catalogue(settings),
-                     build_disruption_store(clock, redis, settings.redis_key_prefix))
+                     build_disruption_store(clock, redis, settings.redis_key_prefix), vision, vision_reason)

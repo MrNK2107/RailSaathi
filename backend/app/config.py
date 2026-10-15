@@ -42,6 +42,19 @@ class Settings(BaseSettings):
     disruption_ttl_seconds: int = Field(default=6 * 3600, ge=60, le=7 * 86_400)  # default disruption lifetime
     walking_speed_mps: float = 1.2
 
+    # AR guidance (POST /api/navigation/localize) and the virtual tour. AR_GUIDANCE_ENABLED is a comma-separated
+    # list of station ids, or "*" for every station whose data sets ar_enabled. Unset means "*" outside
+    # production and none in production (AR stays off until its localisation evaluation passes).
+    ar_guidance_enabled: str | None = None
+    localize_confidence_threshold: float = Field(default=0.6, ge=0, le=1)  # below it: candidates, no fix
+    localize_max_image_bytes: int = Field(default=1_500_000, ge=10_000, le=5_000_000)  # JPEG/WebP frame
+    localize_rate_limit: int = Field(default=20, ge=1)  # per session per window
+    localize_ip_rate_limit: int = Field(default=120, ge=1)  # per client IP per window (stops token farming)
+    localize_rate_window_seconds: int = Field(default=600, ge=60)
+    localize_deadline_seconds: float = Field(default=8.0, gt=0)
+    # Public, referrer-restricted Maps JavaScript key for the tour's Street View (Secret Manager on Cloud Run).
+    google_maps_browser_key: str | None = None
+
     # Knowledge & LLM. Gemini runs on Vertex AI (GOOGLE_CLOUD_PROJECT / GOOGLE_CLOUD_LOCATION) with the service
     # account's credentials. GEMINI_API_KEY is only honoured outside production when no project is set.
     gemini_api_key: str = ""
@@ -152,6 +165,18 @@ class Settings(BaseSettings):
     def disruption_simulation_enabled(self) -> bool:
         """Public what-if closures: only outside production, whatever PUBLIC_DISRUPTION_SIMULATION says."""
         return self.public_disruption_simulation and not self.is_production
+
+    @property
+    def localize_max_body_bytes(self) -> int:
+        """Whole multipart body for /localize: the frame plus a small allowance for boundaries and form fields."""
+        return self.localize_max_image_bytes + 16_384
+
+    def ar_guidance_on(self, station_id: str) -> bool:
+        raw = self.ar_guidance_enabled
+        if raw is None:
+            return not self.is_production
+        ids = {part.strip() for part in raw.split(",") if part.strip()}
+        return "*" in ids or station_id in ids
 
     @property
     def cors_origin_list(self) -> list[str]:

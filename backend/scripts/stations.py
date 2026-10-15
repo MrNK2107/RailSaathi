@@ -7,17 +7,24 @@ The runtime only reads station data; this is the one way it changes. Usage (from
     uv run python scripts/stations.py catalogue --check             # fail if catalogue.json is out of date
     uv run python scripts/stations.py preview chennai_central --from ent_wall_tax --to platform_10 --step-free
     uv run python scripts/stations.py publish chennai_central --dest gs://BUCKET/stations
+    uv run python scripts/stations.py panoramas chennai_central --radius 150 --out panos.json
 
 `publish` validates first, uploads the station folder to a new versioned folder
 (`<dest>/<station_id>/<version>/`, never overwritten) and then points `<dest>/catalogue.json` at it. Earlier
 versions stay in the bucket, so rolling back is re-pointing the catalogue. Credentials come from Application
 Default Credentials; bucket IAM is the access control.
+
+`panoramas` lists Street View pano ids near the station's geo_reference (Street View Static API metadata
+endpoint, key from GOOGLE_MAPS_API_KEY) with their plan position and nearest node, so an author can map them to
+nodes in station.json. It stores metadata only, never imagery, as the Google Maps terms require.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import math
+import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -274,6 +281,129 @@ def cmd_publish(args) -> int:
     return 0
 
 
+# ---- panoramas ----------------------------------------------------------------------------------------------
+
+STREET_VIEW_METADATA_URL = "https://maps.googleapis.com/maps/api/streetview/metadata"
+EARTH_RADIUS_M = 6_371_008.8
+MAX_PANORAMA_QUERIES = 400
+FATAL_STATUSES = frozenset({"REQUEST_DENIED", "OVER_QUERY_LIMIT", "INVALID_REQUEST", "UNKNOWN_ERROR"})
+
+
+class PanoramaLookupError(Exception):
+    pass
+
+
+def _geo_reference(metadata: StationMetadata | None) -> dict:
+    geo = ((metadata.model_extra or {}) if metadata else {}).get("geo_reference")
+    if not isinstance(geo, dict) or not isinstance(geo.get("anchor"), dict):
+        raise PanoramaLookupError("metadata.json has no geo_reference anchor")
+    return geo
+
+
+def offset_latlon(lat: float, lon: float, east_m: float, north_m: float) -> tuple[float, float]:
+    """Small-offset (equirectangular) move from (lat, lon)."""
+    return (lat + math.degrees(north_m / EARTH_RADIUS_M),
+            lon + math.degrees(east_m / (EARTH_RADIUS_M * math.cos(math.radians(lat)))))
+
+
+def latlon_to_plan(station: Station, geo: dict, mpp: float, lat: float, lon: float) -> tuple[float, float]:
+    """Inverse of the geo_reference: anchor point, metres per pixel and the rotation of plan-up from north
+    (degrees clockwise)."""
+    anchor = geo["anchor"]
+    north = math.radians(lat - anchor["lat"]) * EARTH_RADIUS_M
+    east = math.radians(lon - anchor["lon"]) * EARTH_RADIUS_M * math.cos(math.radians(anchor["lat"]))
+    rot = math.radians(float(geo.get("rotation_deg") or 0))
+    right = east * math.cos(rot) - north * math.sin(rot)  # along plan x
+    up = east * math.sin(rot) + north * math.cos(rot)  # along plan-up
+    x = anchor["x"] + right / mpp / station.map.width
+    y = anchor["y"] - up / mpp / station.map.height
+    return round(x, 5), round(y, 5)
+
+
+def sample_points(radius_m: float, step_m: float) -> list[tuple[float, float]]:
+    """(east, north) offsets on a square grid clipped to the circle, centre first."""
+    n = int(radius_m // step_m)
+    points = [(i * step_m, j * step_m) for i in range(-n, n + 1) for j in range(-n, n + 1)
+              if math.hypot(i * step_m, j * step_m) <= radius_m]
+    return sorted(points, key=lambda p: math.hypot(*p))
+
+
+def find_panoramas(root: Path, station_id: str, api_key: str, radius_m: float = 150, step_m: float = 30,
+                   source: str = "default", client=None) -> list[dict]:
+    """Query the Street View metadata endpoint on a grid around the geo_reference and return each distinct pano
+    with its location, plan position and nearest node. Metadata only: no imagery is requested or stored."""
+    import httpx
+
+    station, metadata = _load_station(root, station_id)
+    if metadata is None or metadata.map_scale is None:
+        raise PanoramaLookupError("metadata.json needs map_scale.metres_per_pixel")
+    geo = _geo_reference(metadata)
+    mpp = metadata.map_scale.metres_per_pixel
+    if step_m <= 0 or radius_m <= 0:
+        raise PanoramaLookupError("--radius and --step must be positive")
+    points = sample_points(radius_m, step_m)
+    if len(points) > MAX_PANORAMA_QUERIES:
+        raise PanoramaLookupError(f"{len(points)} queries needed; increase --step or reduce --radius")
+    anchor = geo["anchor"]
+    w, h = station.map.width, station.map.height
+    http = client or httpx.Client(timeout=10.0)
+    found: dict[str, dict] = {}
+    try:
+        for east, north in points:
+            lat, lon = offset_latlon(anchor["lat"], anchor["lon"], east, north)
+            params = {"location": f"{lat:.6f},{lon:.6f}", "radius": str(max(1, round(step_m))), "source": source,
+                      "key": api_key}
+            try:
+                res = http.get(STREET_VIEW_METADATA_URL, params=params)
+                res.raise_for_status()
+                body = res.json()
+            except (httpx.HTTPError, ValueError):  # the request URL carries the key: report the type only
+                raise PanoramaLookupError("Street View metadata request failed") from None
+            status = body.get("status")
+            if status in FATAL_STATUSES:
+                raise PanoramaLookupError(f"Street View metadata API answered {status}")
+            pano_id = body.get("pano_id")
+            if status != "OK" or not pano_id or pano_id in found:
+                continue
+            loc = body.get("location") or {}
+            plat, plon = float(loc["lat"]), float(loc["lng"])
+            x, y = latlon_to_plan(station, geo, mpp, plat, plon)
+            nearest = min(station.nodes, key=lambda n: math.hypot((n.position[0] - x) * w, (n.position[1] - y) * h))
+            node_m = math.hypot((nearest.position[0] - x) * w, (nearest.position[1] - y) * h) * mpp
+            copyright_ = str(body.get("copyright") or "")
+            found[pano_id] = {
+                "pano_id": pano_id, "lat": plat, "lng": plon, "date": body.get("date"), "copyright": copyright_,
+                "kind": "street_view" if "Google" in copyright_ else "photosphere",
+                "plan_position": [x, y], "inside_plan": 0 <= x <= 1 and 0 <= y <= 1,
+                "nearest_node": nearest.id, "nearest_node_m": round(node_m, 1),
+            }
+    finally:
+        if client is None:
+            http.close()
+    return sorted(found.values(), key=lambda p: p["nearest_node_m"])
+
+
+def cmd_panoramas(args) -> int:
+    api_key = os.environ.get(args.key_env, "").strip()
+    if not api_key:
+        print(f"Set {args.key_env} to a Maps Platform key with the Street View Static API enabled")
+        return 2
+    try:
+        panos = find_panoramas(Path(args.root), args.station, api_key, args.radius, args.step, args.source)
+    except PanoramaLookupError as exc:
+        print(f"Panorama lookup failed: {exc}")
+        return 1
+    text = json.dumps({"station_id": args.station, "radius_m": args.radius, "panoramas": panos}, indent=2) + "\n"
+    if args.out:
+        Path(args.out).write_text(text, encoding="utf-8")
+        print(f"Wrote {len(panos)} panorama(s) to {args.out}")
+    else:
+        print(text, end="")
+    print("Map each pano to a node in station.json panoramas (heading, kind, verified_on once checked).",
+          file=sys.stderr)
+    return 0
+
+
 # ---- entry point --------------------------------------------------------------------------------------------
 
 def main(argv: list[str] | None = None) -> int:
@@ -302,6 +432,16 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--dest", required=True, help="gs://bucket/prefix")
     p.add_argument("--version", help="version folder name (default: UTC timestamp)")
     p.set_defaults(func=cmd_publish)
+
+    p = sub.add_parser("panoramas", help="list Street View pano ids near the station (metadata only)")
+    p.add_argument("station")
+    p.add_argument("--radius", type=float, default=150, help="search radius in metres (default: %(default)s)")
+    p.add_argument("--step", type=float, default=30, help="grid spacing in metres (default: %(default)s)")
+    p.add_argument("--source", choices=("default", "outdoor"), default="default",
+                   help="'outdoor' excludes indoor and user photospheres")
+    p.add_argument("--key-env", default="GOOGLE_MAPS_API_KEY", help="environment variable holding the API key")
+    p.add_argument("--out", help="write the JSON here instead of stdout")
+    p.set_defaults(func=cmd_panoramas)
 
     args = parser.parse_args(argv)
     return args.func(args)

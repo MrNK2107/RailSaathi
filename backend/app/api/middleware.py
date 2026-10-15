@@ -25,10 +25,12 @@ def error_json(status: int, code: str, message: str, headers: dict[str, str] | N
 
 
 def is_llm_route(method: str, path: str) -> bool:
-    """Routes that can reach an LLM: ticketing chat, goal-planner prompt parsing and planner messages."""
+    """Routes that can reach an LLM: ticketing chat, goal-planner prompt parsing, planner messages and AR
+    localisation."""
     if method != "POST":
         return False
-    return path in ("/api/chat", "/api/journey/plan", "/api/journey/refine") or path.endswith("/messages")
+    return (path in ("/api/chat", "/api/journey/plan", "/api/journey/refine", "/api/navigation/localize")
+            or path.endswith("/messages"))
 
 
 def client_ip(headers: Headers, scope: Scope, trusted_hops: int = 0) -> str:
@@ -43,17 +45,21 @@ def client_ip(headers: Headers, scope: Scope, trusted_hops: int = 0) -> str:
 
 
 class BodySizeLimitMiddleware:
-    def __init__(self, app: ASGIApp, max_bytes: int) -> None:
+    """`max_bytes` for every body, except the exact paths in `path_limits` (e.g. the camera-frame upload)."""
+
+    def __init__(self, app: ASGIApp, max_bytes: int, path_limits: dict[str, int] | None = None) -> None:
         self.app = app
-        self._max = max_bytes
+        self._default = max_bytes
+        self._path_limits = dict(path_limits or {})
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http" or scope["method"] not in BODY_METHODS:
             await self.app(scope, receive, send)
             return
+        limit = self._path_limits.get(scope.get("path", ""), self._default)
         length = Headers(scope=scope).get("content-length")
         too_large = error_json(413, "payload_too_large", "Request body is too large.")
-        if length and length.isdigit() and int(length) > self._max:
+        if length and length.isdigit() and int(length) > limit:
             await too_large(scope, receive, send)
             return
 
@@ -67,7 +73,7 @@ class BodySizeLimitMiddleware:
             message = await receive()
             if message["type"] == "http.request":
                 received += len(message.get("body", b""))
-                if received > self._max:
+                if received > limit:
                     # Stop feeding the app; whatever it answers is replaced by the 413 below.
                     exceeded = True
                     return {"type": "http.disconnect"}

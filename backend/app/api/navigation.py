@@ -127,6 +127,61 @@ async def get_station_info(request: Request, station_id: str) -> dict:
             "layout_note": loaded.info.get("layout_note"), "provenance": _provenance(c, loaded).model_dump(mode="json")}
 
 
+TOUR_FRAME = ("Metres from the plan's top-left corner: x to the right, y down the plan. Bearings are degrees clockwise "
+              "from plan-up; geo_reference.rotation_deg relates plan-up to true north.")
+
+
+@router.get("/api/stations/{station_id}/tour")
+async def get_station_tour(request: Request, station_id: str) -> dict:
+    """Everything the 3D tour draws, in one payload: levels, areas and the graph in metres, and panoramas."""
+    c = _c(request)
+    loaded = _station(c, station_id)
+    station, meta = loaded.station, loaded.metadata
+    extra = (meta.model_extra or {}) if meta else {}
+    scale = meta.map_scale if meta else None
+    w, h = station.map.width, station.map.height
+
+    def m(point) -> list[float] | None:
+        if scale is None:
+            return None
+        return [round(point[0] * w * scale.metres_per_pixel, 2), round(point[1] * h * scale.metres_per_pixel, 2)]
+
+    def path_m(points) -> list[list[float]] | None:
+        return None if scale is None else [m(p) for p in points]
+
+    return {
+        "station_id": station.station_id,
+        "station_name": station.station_name,
+        "version": loaded.entry.version,
+        "layout_basis": _layout_basis(loaded),
+        "routing_enabled": _routing_enabled(loaded),
+        "ar_enabled": station.ar_enabled,
+        "ar_guidance_available": station.ar_enabled and c.settings.ar_guidance_on(station_id) and c.vision is not None,
+        "map": {"url": f"/api/stations/{station.station_id}/map", "width_px": w, "height_px": h},
+        "scale": None if scale is None else {
+            "metres_per_pixel": scale.metres_per_pixel, "width_m": round(w * scale.metres_per_pixel, 2),
+            "height_m": round(h * scale.metres_per_pixel, 2), "source": scale.source,
+            "verification": scale.verification},
+        "frame": TOUR_FRAME,
+        "geo_reference": extra.get("geo_reference"),
+        "levels": [lv.model_dump(mode="json") for lv in station.levels],
+        "areas": [{"id": a.id, "kind": a.kind, "name": a.name, "level": a.level, "height_m": a.height_m,
+                   "polygon": [list(p) for p in a.polygon], "polygon_m": path_m(a.polygon)} for a in station.areas],
+        "nodes": [{"id": n.id, "name": n.name, "type": n.type.value, "level": n.level, "position": list(n.position),
+                   "position_m": m(n.position), "verification": n.verification, "step_free": n.step_free,
+                   "status": n.status, "cues": [cue.model_dump(mode="json") for cue in n.cues]}
+                  for n in station.nodes],
+        "edges": [{"id": e.id, "from": e.from_, "to": e.to, "bidirectional": e.bidirectional,
+                   "path_type": e.path_type.value, "level_change": e.level_change, "steps": e.steps,
+                   "step_free": e.step_free, "status": e.status, "verification": e.verification,
+                   "distance_m": e.distance_m, "geometry": [list(p) for p in e.geometry],
+                   "geometry_m": path_m(e.geometry)} for e in station.edges],
+        "panoramas": [p.model_dump(mode="json") for p in station.panoramas],
+        "panoramas_note": extra.get("panoramas_note"),
+        "provenance": _provenance(c, loaded).model_dump(mode="json"),
+    }
+
+
 @router.get("/api/stations/{station_code}/navigation")
 async def get_navigation_topology(station_code: str):
     """Returns curbside gates, security checkpoints, and FOB connections."""
