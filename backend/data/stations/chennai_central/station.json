@@ -20,7 +20,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Main Entrance (Wall Tax Road)",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "ent_jn_road",
@@ -34,7 +43,16 @@
       "step_free": "unknown",
       "step_free_exception": "The traced plan shows only steps at this entrance (edge_004); no step-free alternative is mapped or verified. Ask station staff for assistance.",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Main Entrance (Jawaharlal Nehru Road)",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "ent_bus_stop",
@@ -48,7 +66,16 @@
       "step_free": "unknown",
       "step_free_exception": "The traced plan shows only steps at this entrance (edge_037); no step-free alternative is mapped or verified. Ask station staff for assistance.",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Entrance from Central Station Bus Stop",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "ent_suburban",
@@ -61,7 +88,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": "No passenger walkway to the rest of the station could be traced on the plan; left unconnected."
+      "notes": "No passenger walkway to the rest of the station could be traced on the plan; left unconnected.",
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Station Entrance (Chennai Suburban Side)",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "ent_parking",
@@ -75,7 +111,16 @@
       "step_free": "unknown",
       "step_free_exception": "The traced plan shows only steps at this entrance (sug_008); no step-free alternative is mapped or verified. Ask station staff for assistance.",
       "status": "open",
-      "notes": "Plan shows this entrance opening into station-building rooms; no passenger walkway traced. Left unconnected."
+      "notes": "Plan shows this entrance opening into station-building rooms; no passenger walkway traced. Left unconnected.",
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Parking & Drop-off Zone Entrance",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "concourse_centre",
@@ -88,7 +133,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "feature",
+          "text": "Main Concourse waiting area with rows of seats",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "cj_north",
@@ -101,7 +155,23 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Information",
+          "facing_deg": 175.2,
+          "source": "Derived from the schematic plan (map.png) via station.json: the adjacent mapped node info_desk is about 4 m away at this bearing (plan scale bar); expected, not verified on site.",
+          "verified_on": null
+        },
+        {
+          "kind": "signboard",
+          "text": "Main Entrance (Wall Tax Road)",
+          "facing_deg": 0.0,
+          "source": "Derived from the schematic plan (map.png) via station.json: the adjacent mapped node ent_wall_tax is about 21 m away at this bearing (plan scale bar); expected, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "cj_south",
@@ -114,7 +184,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Main Entrance (Jawaharlal Nehru Road)",
+          "facing_deg": 180.0,
+          "source": "Derived from the schematic plan (map.png) via station.json: the adjacent mapped node ent_jn_road is about 14 m away at this bearing (plan scale bar); expected, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "nj_west",
@@ -127,7 +206,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "feature",
+          "text": "Food / Shop",
+          "facing_deg": 0.0,
+          "source": "Derived from the schematic plan (map.png) via station.json: the adjacent mapped node shop_nw is about 2 m away at this bearing (plan scale bar); expected, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "nj_east",
@@ -140,7 +228,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "feature",
+          "text": "Food / Shop",
+          "facing_deg": 0.0,
+          "source": "Derived from the schematic plan (map.png) via station.json: the adjacent mapped node shop_ne is about 2 m away at this bearing (plan scale bar); expected, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "wa_north",
@@ -153,7 +250,23 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Platform 12",
+          "facing_deg": 350.5,
+          "source": "Derived from the schematic plan (map.png) via station.json: the adjacent mapped node p12_access is about 11 m away at this bearing (plan scale bar); expected, not verified on site.",
+          "verified_on": null
+        },
+        {
+          "kind": "signboard",
+          "text": "Platform 11",
+          "facing_deg": 202.6,
+          "source": "Derived from the schematic plan (map.png) via station.json: the adjacent mapped node p11_access is about 5 m away at this bearing (plan scale bar); expected, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "wa_centre",
@@ -166,7 +279,23 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Platform 10",
+          "facing_deg": 348.2,
+          "source": "Derived from the schematic plan (map.png) via station.json: the adjacent mapped node p10_access is about 9 m away at this bearing (plan scale bar); expected, not verified on site.",
+          "verified_on": null
+        },
+        {
+          "kind": "signboard",
+          "text": "Platform 9",
+          "facing_deg": 193.4,
+          "source": "Derived from the schematic plan (map.png) via station.json: the adjacent mapped node p9_access is about 8 m away at this bearing (plan scale bar); expected, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "wa_south",
@@ -179,7 +308,23 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Platform 9",
+          "facing_deg": 338.2,
+          "source": "Derived from the schematic plan (map.png) via station.json: the adjacent mapped node p9_access is about 5 m away at this bearing (plan scale bar); expected, not verified on site.",
+          "verified_on": null
+        },
+        {
+          "kind": "signboard",
+          "text": "Platform 8",
+          "facing_deg": 201.9,
+          "source": "Derived from the schematic plan (map.png) via station.json: the adjacent mapped node p8_access is about 12 m away at this bearing (plan scale bar); expected, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "sj_west",
@@ -192,7 +337,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Toilet",
+          "facing_deg": 256.6,
+          "source": "Derived from the schematic plan (map.png) via station.json: the adjacent mapped node toilet_west is about 8 m away at this bearing (plan scale bar); expected, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "ea_north",
@@ -231,7 +385,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Toilet",
+          "facing_deg": 101.0,
+          "source": "Derived from the schematic plan (map.png) via station.json: the adjacent mapped node toilet_east is about 6 m away at this bearing (plan scale bar); expected, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "ne_passage",
@@ -257,7 +420,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Entrance from Central Station Bus Stop",
+          "facing_deg": 31.5,
+          "source": "Derived from the schematic plan (map.png) via station.json: the adjacent mapped node ent_bus_stop is about 13 m away at this bearing (plan scale bar); expected, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "se_passage_w",
@@ -283,7 +455,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "feature",
+          "text": "Food / Shop",
+          "facing_deg": 53.9,
+          "source": "Derived from the schematic plan (map.png) via station.json: the adjacent mapped node shop_se is about 11 m away at this bearing (plan scale bar); expected, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "ticketing_approach",
@@ -296,7 +477,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Ticketing & Reservation",
+          "facing_deg": 47.9,
+          "source": "Derived from the schematic plan (map.png) via station.json: the adjacent mapped node ticketing is about 25 m away at this bearing (plan scale bar); expected, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "p12_access",
@@ -309,7 +499,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Platform 12",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "p11_access",
@@ -322,7 +521,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Platform 11",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "p10_access",
@@ -335,7 +543,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Platform 10",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "p9_access",
@@ -348,7 +565,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Platform 9",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "p8_access",
@@ -361,7 +587,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Platform 8",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "p7_access",
@@ -374,7 +609,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Platform 7",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "platform_12",
@@ -387,7 +631,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Platform 12",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "platform_11",
@@ -400,7 +653,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Platform 11",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "platform_10",
@@ -413,7 +675,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Platform 10",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "platform_9",
@@ -426,7 +697,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Platform 9",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "platform_8",
@@ -439,7 +719,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Platform 8",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "platform_7",
@@ -452,7 +741,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Platform 7",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "info_desk",
@@ -465,7 +763,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Information",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "shop_nw",
@@ -478,7 +785,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "feature",
+          "text": "Food / Shop",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "shop_ne",
@@ -491,7 +807,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "feature",
+          "text": "Food / Shop",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "shop_se",
@@ -504,7 +829,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "feature",
+          "text": "Food / Shop",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "toilet_west",
@@ -517,7 +851,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Toilet",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "toilet_east",
@@ -530,7 +873,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Toilet",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "ticketing",
@@ -543,7 +895,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": null
+      "notes": null,
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Ticketing & Reservation",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "reserved_lounge",
@@ -556,7 +917,16 @@
       "verification": "pending",
       "step_free": "unknown",
       "status": "open",
-      "notes": "Shaded as restricted on the plan; its door is not identifiable, so no pathway is traced."
+      "notes": "Shaded as restricted on the plan; its door is not identifiable, so no pathway is traced.",
+      "cues": [
+        {
+          "kind": "signboard",
+          "text": "Reserved Lounge (AC Waiting Area)",
+          "facing_deg": null,
+          "source": "Label or symbol on the team-supplied schematic plan (map.png), carried in station.json as this node's name; expected signage text, not verified on site.",
+          "verified_on": null
+        }
+      ]
     },
     {
       "id": "east_hall_north",
@@ -1954,5 +2324,422 @@
       ],
       "notes": "SUGGESTED by proximity (not traced from a visible walkway). Assumes the shop room opens to the north."
     }
-  ]
+  ],
+  "ar_enabled": true,
+  "levels": [
+    {
+      "level": 0,
+      "name": "Ground level (concourse and platforms)",
+      "elevation_m": 0.0
+    }
+  ],
+  "areas": [
+    {
+      "id": "building",
+      "kind": "building_footprint",
+      "name": "Station building (traced from the schematic plan, approximate)",
+      "level": 0,
+      "height_m": 8.0,
+      "polygon": [
+        [
+          0.30533,
+          0.17593
+        ],
+        [
+          0.91818,
+          0.17593
+        ],
+        [
+          0.91818,
+          0.77315
+        ],
+        [
+          0.30533,
+          0.77315
+        ],
+        [
+          0.30533,
+          0.17593
+        ]
+      ]
+    },
+    {
+      "id": "main_concourse",
+      "kind": "concourse",
+      "name": "Main Concourse (Waiting Area) (traced from the schematic plan, approximate)",
+      "level": 0,
+      "height_m": 0.05,
+      "polygon": [
+        [
+          0.34596,
+          0.20602
+        ],
+        [
+          0.62493,
+          0.20602
+        ],
+        [
+          0.62493,
+          0.7037
+        ],
+        [
+          0.34596,
+          0.7037
+        ],
+        [
+          0.34596,
+          0.20602
+        ]
+      ]
+    },
+    {
+      "id": "ticketing_hall",
+      "kind": "concourse",
+      "name": "Ticketing & Reservation hall (traced from the schematic plan, approximate)",
+      "level": 0,
+      "height_m": 0.05,
+      "polygon": [
+        [
+          0.7743,
+          0.46875
+        ],
+        [
+          0.87315,
+          0.46875
+        ],
+        [
+          0.87315,
+          0.64236
+        ],
+        [
+          0.7743,
+          0.64236
+        ],
+        [
+          0.7743,
+          0.46875
+        ]
+      ]
+    },
+    {
+      "id": "platform_12_area",
+      "kind": "platform",
+      "name": "Platform 12 (traced from the schematic plan, approximate)",
+      "level": 0,
+      "height_m": 0.84,
+      "polygon": [
+        [
+          0.0,
+          0.22685
+        ],
+        [
+          0.34377,
+          0.22685
+        ],
+        [
+          0.34377,
+          0.27315
+        ],
+        [
+          0.0,
+          0.27315
+        ],
+        [
+          0.0,
+          0.22685
+        ]
+      ]
+    },
+    {
+      "id": "platform_11_area",
+      "kind": "platform",
+      "name": "Platform 11 (traced from the schematic plan, approximate)",
+      "level": 0,
+      "height_m": 0.84,
+      "polygon": [
+        [
+          0.0,
+          0.32407
+        ],
+        [
+          0.34377,
+          0.32407
+        ],
+        [
+          0.34377,
+          0.37037
+        ],
+        [
+          0.0,
+          0.37037
+        ],
+        [
+          0.0,
+          0.32407
+        ]
+      ]
+    },
+    {
+      "id": "platform_10_area",
+      "kind": "platform",
+      "name": "Platform 10 (traced from the schematic plan, approximate)",
+      "level": 0,
+      "height_m": 0.84,
+      "polygon": [
+        [
+          0.0,
+          0.41667
+        ],
+        [
+          0.34377,
+          0.41667
+        ],
+        [
+          0.34377,
+          0.47454
+        ],
+        [
+          0.0,
+          0.47454
+        ],
+        [
+          0.0,
+          0.41667
+        ]
+      ]
+    },
+    {
+      "id": "platform_9_area",
+      "kind": "platform",
+      "name": "Platform 9 (traced from the schematic plan, approximate)",
+      "level": 0,
+      "height_m": 0.84,
+      "polygon": [
+        [
+          0.0,
+          0.52199
+        ],
+        [
+          0.34377,
+          0.52199
+        ],
+        [
+          0.34377,
+          0.57407
+        ],
+        [
+          0.0,
+          0.57407
+        ],
+        [
+          0.0,
+          0.52199
+        ]
+      ]
+    },
+    {
+      "id": "platform_8_area",
+      "kind": "platform",
+      "name": "Platform 8 (traced from the schematic plan, approximate)",
+      "level": 0,
+      "height_m": 0.84,
+      "polygon": [
+        [
+          0.0,
+          0.62037
+        ],
+        [
+          0.34377,
+          0.62037
+        ],
+        [
+          0.34377,
+          0.67245
+        ],
+        [
+          0.0,
+          0.67245
+        ],
+        [
+          0.0,
+          0.62037
+        ]
+      ]
+    },
+    {
+      "id": "platform_7_area",
+      "kind": "platform",
+      "name": "Platform 7 (traced from the schematic plan, approximate)",
+      "level": 0,
+      "height_m": 0.84,
+      "polygon": [
+        [
+          0.0,
+          0.71644
+        ],
+        [
+          0.34377,
+          0.71644
+        ],
+        [
+          0.34377,
+          0.76736
+        ],
+        [
+          0.0,
+          0.76736
+        ],
+        [
+          0.0,
+          0.71644
+        ]
+      ]
+    },
+    {
+      "id": "track_bed_1",
+      "kind": "track_bed",
+      "name": "Tracks (traced from the schematic plan, approximate)",
+      "level": 0,
+      "height_m": 0.0,
+      "polygon": [
+        [
+          0.0,
+          0.27315
+        ],
+        [
+          0.34377,
+          0.27315
+        ],
+        [
+          0.34377,
+          0.32407
+        ],
+        [
+          0.0,
+          0.32407
+        ],
+        [
+          0.0,
+          0.27315
+        ]
+      ]
+    },
+    {
+      "id": "track_bed_2",
+      "kind": "track_bed",
+      "name": "Tracks (traced from the schematic plan, approximate)",
+      "level": 0,
+      "height_m": 0.0,
+      "polygon": [
+        [
+          0.0,
+          0.37037
+        ],
+        [
+          0.34377,
+          0.37037
+        ],
+        [
+          0.34377,
+          0.41667
+        ],
+        [
+          0.0,
+          0.41667
+        ],
+        [
+          0.0,
+          0.37037
+        ]
+      ]
+    },
+    {
+      "id": "track_bed_3",
+      "kind": "track_bed",
+      "name": "Tracks (traced from the schematic plan, approximate)",
+      "level": 0,
+      "height_m": 0.0,
+      "polygon": [
+        [
+          0.0,
+          0.47454
+        ],
+        [
+          0.34377,
+          0.47454
+        ],
+        [
+          0.34377,
+          0.52199
+        ],
+        [
+          0.0,
+          0.52199
+        ],
+        [
+          0.0,
+          0.47454
+        ]
+      ]
+    },
+    {
+      "id": "track_bed_4",
+      "kind": "track_bed",
+      "name": "Tracks (traced from the schematic plan, approximate)",
+      "level": 0,
+      "height_m": 0.0,
+      "polygon": [
+        [
+          0.0,
+          0.57407
+        ],
+        [
+          0.34377,
+          0.57407
+        ],
+        [
+          0.34377,
+          0.62037
+        ],
+        [
+          0.0,
+          0.62037
+        ],
+        [
+          0.0,
+          0.57407
+        ]
+      ]
+    },
+    {
+      "id": "track_bed_5",
+      "kind": "track_bed",
+      "name": "Tracks (traced from the schematic plan, approximate)",
+      "level": 0,
+      "height_m": 0.0,
+      "polygon": [
+        [
+          0.0,
+          0.67245
+        ],
+        [
+          0.34377,
+          0.67245
+        ],
+        [
+          0.34377,
+          0.71644
+        ],
+        [
+          0.0,
+          0.71644
+        ],
+        [
+          0.0,
+          0.67245
+        ]
+      ]
+    }
+  ],
+  "panoramas": []
 }

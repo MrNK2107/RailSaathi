@@ -200,6 +200,46 @@ def test_cue_requires_source_and_explicit_verified_on():
     assert codes(raw) == []
 
 
+# ---- Chennai Central AR and tour content ------------------------------------------------------------------------
+
+def _chennai() -> tuple[Station, dict]:
+    folder = STATIONS_DIR / "chennai_central"
+    return (Station.model_validate(json.loads((folder / "station.json").read_text(encoding="utf-8"))),
+            json.loads((folder / "metadata.json").read_text(encoding="utf-8")))
+
+
+def test_chennai_ar_cues_cover_80_percent_of_routable_nodes_honestly():
+    station, _ = _chennai()
+    routable = {e.from_ for e in station.edges} | {e.to for e in station.edges}
+    with_cues = [n for n in station.nodes if n.id in routable and n.cues]
+    assert station.ar_enabled and len(with_cues) >= 0.8 * len(routable)
+    # Every cue names its source and none claims an on-site check that has not happened.
+    cues = [c for n in station.nodes for c in n.cues]
+    assert cues and all(c.source and c.verified_on is None for c in cues)
+    # Cue text comes from the station's own labels (node names, platform numbers, plan symbols), never an
+    # invented landmark.
+    names = {n.name for n in station.nodes}
+    platforms = {f"Platform {n.name.split()[1]}" for n in station.nodes if n.name.startswith("Platform ")}
+    plan_symbols = {"Information", "Toilet", "Food / Shop", "Ticketing & Reservation",
+                    "Main Concourse waiting area with rows of seats"}
+    assert {c.text for c in cues} <= names | platforms | plan_symbols
+
+
+def test_chennai_levels_and_areas_are_declared_and_labelled_as_traced():
+    station, metadata = _chennai()
+    assert [lv.level for lv in station.levels] == [0]
+    assert station.areas and all(a.name and "traced from the schematic plan" in a.name for a in station.areas)
+    assert {a.kind for a in station.areas} == {"platform", "concourse", "building_footprint", "track_bed"}
+    assert any("traced by hand from map.png" in note for note in metadata["notes"])
+
+
+def test_chennai_panoramas_are_not_invented():
+    station, metadata = _chennai()
+    # No pano id could be verified offline: the list stays empty and the owner is told how to fill it.
+    assert station.panoramas == []
+    assert "scripts/stations.py panoramas" in metadata["panoramas_note"]
+
+
 # ---- image bounds -----------------------------------------------------------------------------------------------
 
 def test_coordinates_outside_the_image_are_errors():
