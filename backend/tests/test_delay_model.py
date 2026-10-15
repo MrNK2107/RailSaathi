@@ -193,3 +193,27 @@ def test_observations_with_a_station_add_time_features(sample_csv, tmp_path):
     assert {"hour", "weekday"} <= set(metrics["features"])
     assert load_delay_model(settings(delay_model_uri=str(tmp_path / "m" / "model.joblib"))).predict(
         "12658", "MAS", hour=9, weekday=2).basis == "trained_model"
+
+
+def test_artifact_from_another_scikit_learn_release_falls_back(trained, tmp_path):
+    artifact = joblib.load(trained / "model.joblib")
+    path = tmp_path / "old.joblib"
+    joblib.dump({**artifact, "metrics": {**artifact["metrics"], "sklearn_version": "0.24.2"}}, path)
+    model = load_delay_model(settings(delay_model_uri=str(path)))
+    assert model.mode == "history_only" and model.reason.startswith("artifact_unavailable")
+    # a patch-level difference is fine
+    major_minor = ".".join(artifact["metrics"]["sklearn_version"].split(".")[:2])
+    joblib.dump({**artifact, "metrics": {**artifact["metrics"], "sklearn_version": major_minor + ".99"}}, path)
+    assert load_delay_model(settings(delay_model_uri=str(path))).loaded
+
+
+def test_serving_features_do_not_depend_on_history_size():
+    from app.delay.features import BASE_FEATURES
+
+    assert "station_count" not in BASE_FEATURES
+
+
+def test_prediction_note_says_modelled():
+    note = client().get("/api/predict/delay", params={"train_number": "12658", "destination": "MAS"}
+                        ).json()["provenance"]["note"]
+    assert "Modelled" in note and "not live" in note

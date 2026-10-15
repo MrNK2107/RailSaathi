@@ -14,8 +14,9 @@ import numpy as np
 ON_TIME_MINUTES = 15  # a train is "on time" when it is at most this many minutes late
 CLASS_CATEGORIES = ["special", "mail_express", "superfast", "premium", "express_2xxxx", "suburban", "passenger",
                     "memu", "dmu", "unknown"]
-BASE_FEATURES = ["train_number", "train_class", "station_mean", "station_median", "station_count", "pair_mean",
-                 "pair_count"]
+# station_count is deliberately not a feature: it scales with the size of the history it was counted in, which
+# differs between training folds and serving. Counts stay in FrozenHistory for display only.
+BASE_FEATURES = ["train_number", "train_class", "station_mean", "station_median", "pair_mean", "pair_count"]
 TIME_FEATURES = ["hour", "weekday"]
 
 
@@ -87,7 +88,6 @@ def feature_row(station: str, train: str, hist: FrozenHistory, features: list[st
         "train_number": float(train) if train.isdigit() else nan,
         "train_class": float(CLASS_CATEGORIES.index(train_class(train))),
         "station_mean": st[0] if st else nan, "station_median": st[1] if st else nan,
-        "station_count": float(st[2]) if st else 0.0,
         "pair_mean": pr[0] if pr else nan, "pair_count": float(pr[1]) if pr else 0.0,
         "hour": float(hour) if hour is not None else nan, "weekday": float(weekday) if weekday is not None else nan,
     }

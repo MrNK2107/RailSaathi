@@ -114,7 +114,7 @@ class DelayModel:
             prob = float(np.clip(self._calibrator.predict([predicted])[0], 0.0, 1.0))
             basis = "trained_model"
             insights.append(self.metrics.get("summary") or "Estimate from a trained statistical model.")
-            note = ("Statistical estimate from historical delay records, not live data. Typical error is about "
+            note = ("Modelled statistical estimate from historical delay records, not live data. Typical error is about "
                     f"{self.metrics.get('mae_minutes')} min on held-out trains.")
             source = f"RailSaathi delay model {self.version} ({self.metrics.get('data_source', {}).get('name', 'historical delays')})"
         else:
@@ -157,6 +157,15 @@ def _read_bytes(uri: str) -> bytes:
     return data
 
 
+def _check_sklearn_version(metrics: dict) -> None:
+    """Pickled estimators are only safe to load with the scikit-learn release that wrote them (major.minor)."""
+    import sklearn
+
+    trained = str(metrics.get("sklearn_version") or "")
+    if trained.split(".")[:2] != sklearn.__version__.split(".")[:2]:
+        raise ValueError(f"artifact trained with scikit-learn {trained or 'unknown'}, running {sklearn.__version__}")
+
+
 def _load_artifact(uri: str) -> dict:
     import joblib  # lazy: scikit-learn is only imported when an artifact exists
 
@@ -168,6 +177,7 @@ def _load_artifact(uri: str) -> dict:
         raise ValueError("artifact version not supported")
     if not isinstance(artifact["history"], FrozenHistory):
         raise ValueError("artifact history is invalid")
+    _check_sklearn_version(artifact["metrics"])
     features = artifact["features"]
     valid = set(feature_names(True, True))
     if not isinstance(features, list) or not features or not set(features) <= valid:

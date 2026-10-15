@@ -151,12 +151,14 @@ def train(csv_path: Path, out_dir: Path, observations_dir: Path | None = None, s
     # when no pair has repeat records, hour and weekday when no training row has them.
     all_features = feature_names(include_time, True)
     X_fit = out_of_fold_features(rows, fit_idx, trains, all_features)
-    X_cal = out_of_fold_features(rows, cal_idx, trains, all_features)
     keep = [j for j in range(len(all_features)) if _informative(X_fit[:, j])]
     features = [all_features[j] for j in keep]
-    X_fit, X_cal = X_fit[:, keep], X_cal[:, keep]
-    train_hist = History.build([(rows[i][0], rows[i][1], rows[i][2]) for i in rest]).freeze()
-    X_test = matrix(rows, test_idx, train_hist, features)
+    X_fit = X_fit[:, keep]
+    # Serving looks stations up in one history: the rows the estimator was fitted on. Calibration and test features
+    # use exactly that history, so reported metrics describe the deployed lookups (no scale or content shift).
+    fit_hist = History.build([(rows[i][0], rows[i][1], rows[i][2]) for i in fit_idx]).freeze()
+    X_cal = matrix(rows, cal_idx, fit_hist, features)
+    X_test = matrix(rows, test_idx, fit_hist, features)
 
     estimator = HistGradientBoostingRegressor(
         loss="absolute_error", learning_rate=0.05, max_iter=300, max_leaf_nodes=15, min_samples_leaf=40,
@@ -171,11 +173,10 @@ def train(csv_path: Path, out_dir: Path, observations_dir: Path | None = None, s
     pred = np.maximum(estimator.predict(X_test), 0)
     err = y[test_idx] - pred
     mae, rmse = float(np.mean(np.abs(err))), float(np.sqrt(np.mean(err**2)))
-    base = baselines(rows, rest, test_idx)
+    base = baselines(rows, fit_idx, test_idx)
     improvement = 100.0 * (base["pair_mean_mae"] - mae) / base["pair_mean_mae"]
     on_time = (y[test_idx] <= ON_TIME_MINUTES).astype(float)
     prob = np.clip(calibrator.predict(pred), 0, 1)
-    full_hist = History.build([(r[0], r[1], r[2]) for r in rows]).freeze()  # deployed lookups use every row
 
     trained_at = datetime.now(timezone.utc).replace(microsecond=0)
     data_hash = sha256(csv_path)
@@ -205,7 +206,7 @@ def train(csv_path: Path, out_dir: Path, observations_dir: Path | None = None, s
     }
     out_dir.mkdir(parents=True, exist_ok=True)
     joblib.dump({"artifact_version": ARTIFACT_VERSION, "model_version": version, "estimator": estimator,
-                 "calibrator": calibrator, "history": full_hist, "features": features, "metrics": metrics},
+                 "calibrator": calibrator, "history": fit_hist, "features": features, "metrics": metrics},
                 out_dir / "model.joblib", compress=3)
     (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2) + "\n", encoding="utf-8")
     return metrics

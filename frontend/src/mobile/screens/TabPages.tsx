@@ -60,10 +60,9 @@ export function MyTrips() {
 interface DelayPrediction {
   train_number: string
   train_name: string
-  predicted_delay_minutes: number
-  risk_level: string
-  confidence_score: number
-  cascading_impact?: string
+  predicted_delay_minutes: number | null
+  risk_level: string | null
+  on_time_probability: number | null
 }
 
 export function Alerts() {
@@ -143,27 +142,35 @@ export function Alerts() {
         </div>
 
         {prediction && (
-          <div className="mt-3 rounded-xl bg-ink-100/60 p-3">
+          <div className="mt-3 rounded-xl bg-ink-100/60 p-3" data-testid="delay-result">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-ink-900">Train {prediction.train_number}</span>
-              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                prediction.predicted_delay_minutes <= 15
-                  ? 'bg-match-50 text-match-600'
-                  : 'bg-red-50 text-red-600'
-              }`}>
-                {prediction.predicted_delay_minutes <= 15 ? 'Low Delay Risk' : 'High Delay Risk'}
-              </span>
+              {prediction.predicted_delay_minutes !== null && (
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                  prediction.predicted_delay_minutes <= 15
+                    ? 'bg-match-50 text-match-600'
+                    : 'bg-red-50 text-red-600'
+                }`}>
+                  {prediction.predicted_delay_minutes <= 15 ? 'Low Delay Risk' : 'High Delay Risk'}
+                </span>
+              )}
             </div>
-            <div className="mt-2 grid grid-cols-2 gap-2 text-center text-xs">
-              <div className="rounded-lg bg-white p-2">
-                <span className="block text-[10px] text-ink-500">Predicted Delay</span>
-                <span className="font-extrabold text-brand-900">+{prediction.predicted_delay_minutes} mins</span>
+            {prediction.predicted_delay_minutes === null ? (
+              <p className="mt-2 text-xs text-ink-500">No historical data is available for this train and station.</p>
+            ) : (
+              <div className="mt-2 grid grid-cols-2 gap-2 text-center text-xs">
+                <div className="rounded-lg bg-white p-2">
+                  <span className="block text-[10px] text-ink-500">Typical Delay</span>
+                  <span className="font-extrabold text-brand-900">+{prediction.predicted_delay_minutes} mins</span>
+                </div>
+                {prediction.on_time_probability !== null && (
+                  <div className="rounded-lg bg-white p-2">
+                    <span className="block text-[10px] text-ink-500">Chance on time (15 min)</span>
+                    <span className="font-extrabold text-brand-600">{Math.round(prediction.on_time_probability * 100)}%</span>
+                  </div>
+                )}
               </div>
-              <div className="rounded-lg bg-white p-2">
-                <span className="block text-[10px] text-ink-500">Confidence</span>
-                <span className="font-extrabold text-brand-600">{Math.round((prediction.confidence_score || 0.88) * 100)}%</span>
-              </div>
-            </div>
+            )}
           </div>
         )}
       </section>
