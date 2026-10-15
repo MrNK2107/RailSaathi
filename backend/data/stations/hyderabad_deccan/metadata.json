@@ -1,0 +1,13 @@
+{
+  "station_id": "hyderabad_deccan",
+  "station_name": "Hyderabad Deccan (Nampally)",
+  "city": "Hyderabad",
+  "map_source": "Generated schematic diagram (map.png); not a survey or an official plan.",
+  "data_status": "schematic",
+  "layout_basis": "schematic",
+  "notes": [
+    "Schematic layout, not surveyed and not to scale. The platform count and station location come from the cited public sources; the walkways, junctions and positions on the map are illustrative only. No step-free claim is made for any node or pathway.",
+    "Every node and pathway is pending on-site verification.",
+    "Distances are unknown; no scale is declared."
+  ]
+}

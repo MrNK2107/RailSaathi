@@ -1,0 +1,23 @@
+{
+  "checked_on": "2026-10-15",
+  "layout_basis": "schematic",
+  "layout_note": "Schematic layout, not surveyed and not to scale. The platform count and station location come from the cited public sources; the walkways, junctions and positions on the map are illustrative only. No step-free claim is made for any node or pathway.",
+  "facts": {
+    "official_name": "Chennai Egmore",
+    "station_code": "MS",
+    "platforms": "11",
+    "coordinates": {
+      "lat": 13.078,
+      "lon": 80.2616
+    },
+    "sources": [
+      {
+        "name": "Wikipedia - Chennai Egmore railway station",
+        "url": "https://en.wikipedia.org/wiki/Chennai_Egmore_railway_station"
+      }
+    ]
+  },
+  "helplines": [],
+  "amenities": [],
+  "amenity_sources": []
+}

@@ -1,0 +1,496 @@
+{
+  "schema_version": 2,
+  "station_id": "hyderabad_deccan",
+  "station_name": "Hyderabad Deccan (Nampally)",
+  "map": {
+    "image": "map.png",
+    "width": 1200,
+    "height": 700,
+    "coordinate_system": "normalized_image"
+  },
+  "nodes": [
+    {
+      "id": "entrance_main",
+      "name": "Station entrance (schematic)",
+      "type": "entrance",
+      "position": [
+        0.5,
+        0.12
+      ],
+      "verification": "pending",
+      "step_free": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "concourse",
+      "name": "Station concourse (schematic)",
+      "type": "concourse",
+      "position": [
+        0.5,
+        0.3
+      ],
+      "verification": "pending",
+      "step_free": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "spine_1",
+      "name": "Platform 1 approach (schematic)",
+      "type": "junction",
+      "position": [
+        0.1,
+        0.5
+      ],
+      "verification": "pending",
+      "step_free": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "spine_2",
+      "name": "Platform 2 approach (schematic)",
+      "type": "junction",
+      "position": [
+        0.26,
+        0.5
+      ],
+      "verification": "pending",
+      "step_free": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "spine_3",
+      "name": "Platform 3 approach (schematic)",
+      "type": "junction",
+      "position": [
+        0.42,
+        0.5
+      ],
+      "verification": "pending",
+      "step_free": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "spine_4",
+      "name": "Platform 4 approach (schematic)",
+      "type": "junction",
+      "position": [
+        0.58,
+        0.5
+      ],
+      "verification": "pending",
+      "step_free": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "spine_5",
+      "name": "Platform 5 approach (schematic)",
+      "type": "junction",
+      "position": [
+        0.74,
+        0.5
+      ],
+      "verification": "pending",
+      "step_free": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "spine_6",
+      "name": "Platform 6 approach (schematic)",
+      "type": "junction",
+      "position": [
+        0.9,
+        0.5
+      ],
+      "verification": "pending",
+      "step_free": "unknown",
+      "status": "open",
+      "notes": null
+    },
+    {
+      "id": "platform_1",
+      "name": "Platform 1",
+      "type": "platform",
+      "position": [
+        0.1,
+        0.75
+      ],
+      "verification": "pending",
+      "step_free": "unknown",
+      "status": "open",
+      "notes": "Platform numbering and order on the map are nominal."
+    },
+    {
+      "id": "platform_2",
+      "name": "Platform 2",
+      "type": "platform",
+      "position": [
+        0.26,
+        0.75
+      ],
+      "verification": "pending",
+      "step_free": "unknown",
+      "status": "open",
+      "notes": "Platform numbering and order on the map are nominal."
+    },
+    {
+      "id": "platform_3",
+      "name": "Platform 3",
+      "type": "platform",
+      "position": [
+        0.42,
+        0.75
+      ],
+      "verification": "pending",
+      "step_free": "unknown",
+      "status": "open",
+      "notes": "Platform numbering and order on the map are nominal."
+    },
+    {
+      "id": "platform_4",
+      "name": "Platform 4",
+      "type": "platform",
+      "position": [
+        0.58,
+        0.75
+      ],
+      "verification": "pending",
+      "step_free": "unknown",
+      "status": "open",
+      "notes": "Platform numbering and order on the map are nominal."
+    },
+    {
+      "id": "platform_5",
+      "name": "Platform 5",
+      "type": "platform",
+      "position": [
+        0.74,
+        0.75
+      ],
+      "verification": "pending",
+      "step_free": "unknown",
+      "status": "open",
+      "notes": "Platform numbering and order on the map are nominal."
+    },
+    {
+      "id": "platform_6",
+      "name": "Platform 6",
+      "type": "platform",
+      "position": [
+        0.9,
+        0.75
+      ],
+      "verification": "pending",
+      "step_free": "unknown",
+      "status": "open",
+      "notes": "Platform numbering and order on the map are nominal."
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge_001",
+      "from": "entrance_main",
+      "to": "concourse",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "step_free": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.5,
+          0.12
+        ],
+        [
+          0.5,
+          0.3
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_002",
+      "from": "concourse",
+      "to": "spine_4",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "step_free": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.5,
+          0.3
+        ],
+        [
+          0.58,
+          0.5
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_003",
+      "from": "spine_1",
+      "to": "spine_2",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "step_free": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.1,
+          0.5
+        ],
+        [
+          0.26,
+          0.5
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_004",
+      "from": "spine_2",
+      "to": "spine_3",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "step_free": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.26,
+          0.5
+        ],
+        [
+          0.42,
+          0.5
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_005",
+      "from": "spine_3",
+      "to": "spine_4",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "step_free": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.42,
+          0.5
+        ],
+        [
+          0.58,
+          0.5
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_006",
+      "from": "spine_4",
+      "to": "spine_5",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "step_free": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.58,
+          0.5
+        ],
+        [
+          0.74,
+          0.5
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_007",
+      "from": "spine_5",
+      "to": "spine_6",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "step_free": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.74,
+          0.5
+        ],
+        [
+          0.9,
+          0.5
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_008",
+      "from": "spine_1",
+      "to": "platform_1",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "step_free": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.1,
+          0.5
+        ],
+        [
+          0.1,
+          0.75
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_009",
+      "from": "spine_2",
+      "to": "platform_2",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "step_free": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.26,
+          0.5
+        ],
+        [
+          0.26,
+          0.75
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_010",
+      "from": "spine_3",
+      "to": "platform_3",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "step_free": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.42,
+          0.5
+        ],
+        [
+          0.42,
+          0.75
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_011",
+      "from": "spine_4",
+      "to": "platform_4",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "step_free": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.58,
+          0.5
+        ],
+        [
+          0.58,
+          0.75
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_012",
+      "from": "spine_5",
+      "to": "platform_5",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "step_free": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.74,
+          0.5
+        ],
+        [
+          0.74,
+          0.75
+        ]
+      ],
+      "notes": null
+    },
+    {
+      "id": "edge_013",
+      "from": "spine_6",
+      "to": "platform_6",
+      "bidirectional": true,
+      "distance_m": null,
+      "path_type": "walkway",
+      "steps": null,
+      "step_free": "unknown",
+      "status": "open",
+      "verification": "pending",
+      "geometry": [
+        [
+          0.9,
+          0.5
+        ],
+        [
+          0.9,
+          0.75
+        ]
+      ],
+      "notes": null
+    }
+  ]
+}

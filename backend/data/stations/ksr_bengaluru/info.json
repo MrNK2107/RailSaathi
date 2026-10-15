@@ -1,0 +1,23 @@
+{
+  "checked_on": "2026-10-15",
+  "layout_basis": "schematic",
+  "layout_note": "Schematic layout, not surveyed and not to scale. The platform count and station location come from the cited public sources; the walkways, junctions and positions on the map are illustrative only. No step-free claim is made for any node or pathway.",
+  "facts": {
+    "official_name": "Krantivira Sangolli Rayanna Bengaluru City Junction",
+    "station_code": "SBC",
+    "platforms": "10",
+    "coordinates": {
+      "lat": 12.97833,
+      "lon": 77.56944
+    },
+    "sources": [
+      {
+        "name": "Wikipedia - KSR Bengaluru City Junction railway station",
+        "url": "https://en.wikipedia.org/wiki/KSR_Bengaluru_railway_station"
+      }
+    ]
+  },
+  "helplines": [],
+  "amenities": [],
+  "amenity_sources": []
+}

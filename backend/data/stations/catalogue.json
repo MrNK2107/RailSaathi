@@ -5,9 +5,33 @@
       "station_id": "chennai_central",
       "station_name": "Chennai Central",
       "city": "Chennai",
-      "data_status": "mock",
+      "data_status": "schematic",
       "version": "local",
       "path": "chennai_central"
+    },
+    {
+      "station_id": "chennai_egmore",
+      "station_name": "Chennai Egmore",
+      "city": "Chennai",
+      "data_status": "schematic",
+      "version": "local",
+      "path": "chennai_egmore"
+    },
+    {
+      "station_id": "hyderabad_deccan",
+      "station_name": "Hyderabad Deccan (Nampally)",
+      "city": "Hyderabad",
+      "data_status": "schematic",
+      "version": "local",
+      "path": "hyderabad_deccan"
+    },
+    {
+      "station_id": "ksr_bengaluru",
+      "station_name": "KSR Bengaluru City Junction",
+      "city": "Bengaluru",
+      "data_status": "schematic",
+      "version": "local",
+      "path": "ksr_bengaluru"
     }
   ]
 }

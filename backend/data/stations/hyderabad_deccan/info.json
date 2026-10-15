@@ -1,0 +1,23 @@
+{
+  "checked_on": "2026-10-15",
+  "layout_basis": "schematic",
+  "layout_note": "Schematic layout, not surveyed and not to scale. The platform count and station location come from the cited public sources; the walkways, junctions and positions on the map are illustrative only. No step-free claim is made for any node or pathway.",
+  "facts": {
+    "official_name": "Hyderabad Deccan",
+    "station_code": "HYB",
+    "platforms": "6",
+    "coordinates": {
+      "lat": 17.3924,
+      "lon": 78.4675
+    },
+    "sources": [
+      {
+        "name": "Wikipedia - Hyderabad Deccan (Nampally) railway station",
+        "url": "https://en.wikipedia.org/wiki/Hyderabad_Deccan_railway_station"
+      }
+    ]
+  },
+  "helplines": [],
+  "amenities": [],
+  "amenity_sources": []
+}

@@ -59,7 +59,7 @@ def test_station_endpoints(tmp_path):
         "station_id": "test_station", "station_name": "Test Station", "node_count": 7, "edge_count": 8,
         "version": "local", "data_status": "mock", "city": "Testpur"}]
     details = client.get("/api/stations/test_station?draft=true").json()
-    assert set(details) == {"station", "metadata", "version"}  # no drafts any more
+    assert set(details) == {"station", "metadata", "version", "layout_basis", "provenance"}  # no drafts
     assert details["station"]["nodes"][0]["step_free"] == "unknown"
     assert details["station"]["edges"][0]["from"] == "ent"
     res = client.get("/api/stations/test_station/map")

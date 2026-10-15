@@ -6,6 +6,7 @@ written only through the OIDC-protected internal endpoints in `app/api/internal.
 """
 
 import logging
+from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
@@ -13,6 +14,8 @@ from redis.exceptions import RedisError
 
 from app.api.deps import offload
 from app.container import Container
+from app.domain.enums import DataMode
+from app.domain.options import DataProvenance
 from app.navigation.curbside_topology import get_station_topology
 from app.navigation.models.station import RouteRequest, RouteResponse, Station
 from app.navigation.services.geometry import project_to_polyline
@@ -39,6 +42,24 @@ def _station(c: Container, station_id: str) -> LoadedStation:
         return _catalogue(c).get(station_id)
     except StationNotFound:
         raise HTTPException(404, {"code": "station_not_found", "message": "Station not found."}) from None
+
+
+PROVENANCE_SOURCE = "RailSaathi station catalogue (schematic)"
+PROVENANCE_NOTE = "The layout is schematic: not surveyed, not to scale. Verify on site and ask station staff."
+
+
+def _layout_basis(loaded: LoadedStation) -> str:
+    extra = (loaded.metadata.model_extra or {}) if loaded.metadata else {}
+    return loaded.info.get("layout_basis") or extra.get("layout_basis") or "unknown"
+
+
+def _provenance(c: Container, loaded: LoadedStation) -> DataProvenance:
+    """Station layouts are authored static data, so they are reported as `cached`, dated by the authoring check."""
+    try:
+        as_of = datetime.combine(date.fromisoformat(str(loaded.info.get("checked_on"))), datetime.min.time(), UTC)
+    except ValueError:
+        as_of = c.clock.now()
+    return DataProvenance(mode=DataMode.CACHED, source=PROVENANCE_SOURCE, as_of=as_of, note=PROVENANCE_NOTE)
 
 
 def _verify(station: Station, resp: RouteResponse) -> list[str]:
@@ -80,6 +101,8 @@ async def get_station_details(request: Request, station_id: str) -> dict:
         "station": loaded.station.to_json_dict(),
         "metadata": loaded.metadata.model_dump(mode="json") if loaded.metadata else None,
         "version": loaded.entry.version,
+        "layout_basis": _layout_basis(loaded),
+        "provenance": _provenance(_c(request), loaded).model_dump(mode="json"),
     }
 
 
@@ -93,8 +116,10 @@ async def get_station_map(request: Request, station_id: str) -> Response:
 @router.get("/api/stations/{station_id}/info")
 async def get_station_info(request: Request, station_id: str) -> dict:
     """Helplines, station facts, and amenities gathered for the station."""
-    _station(_c(request), station_id)
-    return _catalogue(_c(request)).info(station_id)
+    c = _c(request)
+    loaded = _station(c, station_id)
+    return {**_catalogue(c).info(station_id), "layout_basis": _layout_basis(loaded),
+            "layout_note": loaded.info.get("layout_note"), "provenance": _provenance(c, loaded).model_dump(mode="json")}
 
 
 @router.get("/api/stations/{station_code}/navigation")
@@ -132,6 +157,7 @@ def _calculate_route(c: Container, req: RouteRequest) -> RouteResponse:
         resp = find_route(graph, req, c.settings.walking_speed_mps)
     except RoutingError as exc:
         raise HTTPException(exc.status_code, {"code": exc.code, "message": exc.message}) from exc
+    resp.provenance = _provenance(c, loaded)
     if overlay_missing:
         resp.warnings.insert(0, DISRUPTIONS_UNAVAILABLE)
     if resp.status == "ok":

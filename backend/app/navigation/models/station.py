@@ -19,6 +19,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.domain.options import DataProvenance
+
 STATION_ID_PATTERN = r"^[a-z0-9_]{1,64}$"
 ELEMENT_ID_PATTERN = r"^[A-Za-z0-9_\-]{1,80}$"
 MAP_IMAGE_PATTERN = r"^[a-z0-9_\-]{1,64}\.png$"
@@ -348,6 +350,7 @@ class RouteResponse(BaseModel):
     start_snap: Optional[SnapResult] = None
     source_position_origin: Optional[Literal["gps", "mock_gps", "manual"]] = None
     along_the_way: list[AlongTheWayItem] = []
+    provenance: Optional[DataProvenance] = None  # station layouts are static, schematic data
 
 
 # ---------------------------------------------------------------------------

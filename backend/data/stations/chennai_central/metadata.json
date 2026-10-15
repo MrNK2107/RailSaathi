@@ -8,12 +8,12 @@
     "source": "Scale bar printed on the plan: 0–50 m spans 281 px.",
     "verification": "pending"
   },
-  "data_status": "mock",
+  "data_status": "schematic",
   "notes": [
-    "Seed graph traced from the plan drawing; every node and pathway is pending on-site verification.",
+    "Schematic layout, not surveyed and not to scale. Node and pathway positions were traced by hand from the team-supplied plan image (map.png); every node and pathway is pending on-site verification.",
     "Accessibility of every pathway is unknown. Nothing here is a verified accessibility claim.",
     "Distances are not measured; any distance shown is an estimate from the plan scale bar.",
-    "Pathways with verification 'simulated' (sug_*) were suggested by proximity where the plan shows no clear walkway; review them in the editor."
+    "Pathways with verification 'simulated' (sug_*) were suggested by proximity where the plan shows no clear walkway."
   ],
   "geo_reference": {
     "method": "anchor_scale_rotation",
@@ -28,5 +28,6 @@
     "verification": "pending",
     "source": "Station coordinate (13.0825 N, 80.2750 E, Wikipedia) pinned to the main concourse; plan treated as north-up per its compass; scale from the plan's scale bar.",
     "expected_error_m": 50
-  }
+  },
+  "layout_basis": "schematic"
 }
