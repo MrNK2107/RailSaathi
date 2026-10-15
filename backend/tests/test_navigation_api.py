@@ -13,6 +13,7 @@ from app.config import Settings
 from app.container import build_container
 from app.main import create_app
 from app.navigation.services import station_store
+from app.navigation.services.routing_engine import find_route
 from app.navigation.services.station_store import GcsStationSource, load_catalogue
 from tests.conftest import FIXED_NOW
 from tests.station_fixture import entry, png_bytes, station_raw, station_root, write_catalogue, write_station
@@ -44,10 +45,12 @@ def closure(target_id="e_ramp", **kw):
 def test_catalogue_is_loaded_once_and_graphs_are_not_rebuilt_per_request(tmp_path):
     client, container = make(tmp_path)
     assert container.stations.ids() == ["test_station"]
-    with patch("app.navigation.services.graph_builder.build_graph") as rebuild:
+    prebuilt = container.stations.get("test_station").graph
+    with patch("app.api.navigation.find_route", wraps=find_route) as spy:
         for _ in range(3):
             assert client.post("/api/navigation/route", json=ROUTE).json()["status"] == "ok"
-        rebuild.assert_not_called()
+    assert spy.call_count == 3
+    assert all(call.args[0] is prebuilt for call in spy.call_args_list)  # the startup graph, not a rebuilt one
 
 
 def test_station_endpoints(tmp_path):

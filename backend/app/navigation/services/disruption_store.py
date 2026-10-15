@@ -120,13 +120,14 @@ class RedisDisruptionStore:
     def add(self, disruption: Disruption) -> None:
         ttl = max(1, int((disruption.expires_at - self._clock.now()).total_seconds()))
         index = self._index(disruption.station_id)
-        pipe = self._r.pipeline()
+        # One MULTI/EXEC: the index never exists without a TTL. NX gives a fresh index this TTL; GT only ever
+        # lengthens it, so the index lives as long as its longest-lived member (Redis >= 7).
+        pipe = self._r.pipeline(transaction=True)
         pipe.set(self._key(disruption.station_id, disruption.id), disruption.model_dump_json(), ex=ttl)
         pipe.zadd(index, {disruption.id: disruption.expires_at.timestamp()})
+        pipe.expire(index, ttl + 1, nx=True)
+        pipe.expire(index, ttl + 1, gt=True)
         pipe.execute()
-        longest = self._r.zrange(index, -1, -1, withscores=True)
-        if longest:  # relative to the app clock, like the per-disruption TTLs
-            self._r.expire(index, max(1, int(longest[0][1] - self._clock.now().timestamp()) + 1))
 
     def delete(self, station_id: str, disruption_id: str) -> bool:
         removed = self._r.zrem(self._index(station_id), disruption_id)

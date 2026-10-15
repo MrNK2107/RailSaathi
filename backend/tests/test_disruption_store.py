@@ -89,6 +89,28 @@ def test_every_redis_key_has_a_ttl():
     assert 600 < redis.ttl("t:navdis:test_station") <= 1201  # the index lives as long as its longest member
 
 
+def test_index_ttl_is_set_in_the_same_transaction_and_only_grows():
+    redis = fakeredis.FakeRedis(decode_responses=True)
+    store = RedisDisruptionStore(redis, MovingClock(), "t")
+    pipelines = []
+    real = redis.pipeline
+
+    def spy(*args, **kwargs):
+        pipe = real(*args, **kwargs)
+        pipelines.append(pipe)
+        return pipe
+
+    redis.pipeline = spy
+    redis.expire = redis.expireat = None  # any expiry outside the transaction would fail loudly
+    store.add(make(ttl=1200))
+    assert len(pipelines) == 1
+    assert 1200 <= redis.ttl("t:navdis:test_station") <= 1201  # TTL right after the first add
+    store.add(make("node", "hall", ttl=300))  # a shorter disruption never shortens the index
+    assert redis.ttl("t:navdis:test_station") > 1000
+    store.add(make("node", "p1", ttl=3000))
+    assert redis.ttl("t:navdis:test_station") > 2900
+
+
 def test_redis_store_is_shared_between_instances():
     redis = fakeredis.FakeRedis(decode_responses=True)
     a = RedisDisruptionStore(redis, MovingClock(), "t")
