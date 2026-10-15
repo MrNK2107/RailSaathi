@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { formatDate, formatDuration, formatRupees } from '../../utils/format'
-import { ArrowLeft, ArrowRight, CheckIcon, ClockIcon, EditIcon, InfoIcon, LiveIcon, RupeeIcon, SaveIcon, SeatIcon, TrainIcon } from '../icons'
+import { ArrowLeft, ArrowRight, CheckIcon, ClockIcon, CompassIcon, EditIcon, InfoIcon, LiveIcon, RupeeIcon, SaveIcon, SeatIcon, TrainIcon } from '../icons'
 import { useApp } from '../PlannerContext'
 import { saveTrip } from '../trips'
 import { ErrorBanner, PrimaryButton, Screen, SecondaryButton, SourceLine, selectedRecommendation } from '../ui'
@@ -87,6 +87,7 @@ export default function Confirmation() {
         </p>
 
         <PrimaryButton onClick={() => go('navigation')}>{m.confirmation.toStationGuide} <ArrowRight size={20} /></PrimaryButton>
+        <SecondaryButton onClick={() => go('tour')}><CompassIcon size={18} /> {m.confirmation.exploreStation}</SecondaryButton>
         <SecondaryButton onClick={onSave} disabled={saved}><SaveIcon size={18} /> {saved ? m.confirmation.saved : m.confirmation.save}</SecondaryButton>
         <SecondaryButton onClick={() => go('plan')}><EditIcon size={18} /> {m.confirmation.modify}</SecondaryButton>
 

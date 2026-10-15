@@ -25,11 +25,11 @@ const details = (over: Partial<StationDetails> = {}): StationDetails => ({
 })
 
 const route = (over: Partial<RouteResult> = {}): RouteResult => ({
-  status: 'ok', geometry: [[0.1, 0.5], [0.8, 0.5]],
+  status: 'ok', node_ids: ['ent_a', 'x', 'y', 'platform_10'], edge_ids: ['e1', 'e2', 'e3'], geometry: [[0.1, 0.5], [0.8, 0.5]],
   segments: [
-    { edge_id: 'e1', path_type: 'walkway', step_free: 'verified' },
-    { edge_id: 'e2', path_type: 'stairs', step_free: 'unknown' },
-    { edge_id: 'e3', path_type: 'ramp', step_free: 'reported' },
+    { edge_id: 'e1', from_node: 'ent_a', to_node: 'x', geometry: [[0.1, 0.5], [0.3, 0.5]], level_change: 0, path_type: 'walkway', step_free: 'verified' },
+    { edge_id: 'e2', from_node: 'x', to_node: 'y', geometry: [[0.3, 0.5], [0.6, 0.5]], level_change: 1, path_type: 'stairs', step_free: 'unknown' },
+    { edge_id: 'e3', from_node: 'y', to_node: 'platform_10', geometry: [[0.6, 0.5], [0.8, 0.5]], level_change: -1, path_type: 'ramp', step_free: 'reported' },
   ],
   instructions: [
     { step: 1, text: 'Walk along the concourse', node_id: 'ent_a', edge_id: 'e1', distance_m: 120.4, distance_is_estimate: true },

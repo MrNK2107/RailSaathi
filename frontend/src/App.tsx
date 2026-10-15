@@ -1,4 +1,4 @@
-import { useEffect, type ComponentType } from 'react'
+import { lazy, Suspense, useEffect, type ComponentType } from 'react'
 import type { ApiClient } from './api/client'
 import { ClassicView } from './ClassicApp'
 import { usePlanner } from './hooks/usePlanner'
@@ -15,6 +15,9 @@ import StationNavigation from './mobile/screens/StationNavigation'
 import { Alerts, MyTrips, Profile } from './mobile/screens/TabPages'
 import VoiceAgent from './mobile/screens/VoiceAgent'
 
+// The virtual tour (three.js, Maps) is a separate chunk, kept out of the initial bundle.
+const StationTour = lazy(() => import('./mobile/screens/StationTour'))
+
 const SCREENS: Record<Exclude<Route, 'classic'>, ComponentType> = {
   home: Dashboard,
   plan: VoiceAgent,
@@ -28,6 +31,7 @@ const SCREENS: Record<Exclude<Route, 'classic'>, ComponentType> = {
   profile: Profile,
   goal: GoalPlanner,
   ticketing: TicketingGuidance,
+  tour: StationTour,
 }
 
 /** Mobile-first RailSaathi app. One planner session is shared by every screen. */
@@ -43,7 +47,9 @@ export default function App({ client }: { client?: ApiClient }) {
   const ScreenComponent = SCREENS[route]
   return (
     <AppProvider value={{ planner, route, go, back }}>
-      <ScreenComponent />
+      <Suspense fallback={<p role="status" className="p-6 text-center text-sm text-ink-500">{planner.language === 'ta' ? 'ஏற்றப்படுகிறது…' : 'Loading…'}</p>}>
+        <ScreenComponent />
+      </Suspense>
     </AppProvider>
   )
 }

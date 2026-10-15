@@ -14,6 +14,11 @@ export default defineConfig(async () => {
   }
   return {
     plugins,
+    build: {
+      // Only the lazy virtual-tour chunk (three.js + @react-three/fiber, ~850 kB raw) is above Vite's 500 kB default;
+      // it loads on #/tour and only when WebGL exists. The initial chunk stays far below this limit.
+      chunkSizeWarningLimit: 900,
+    },
     server: {
       host: '0.0.0.0',
       port: 5173,

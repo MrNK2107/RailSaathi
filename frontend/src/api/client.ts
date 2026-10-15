@@ -1,5 +1,6 @@
 // Centralised typed API client. All backend calls go through here.
 import type {
+  ClientConfig,
   DelayPrediction,
   DepartureBoard,
   ErrorEnvelope,
@@ -17,6 +18,7 @@ import type {
   StationDetails,
   StationInfo,
   StationSummary,
+  StationTour,
   TicketingRequest,
   TicketingResponse,
 } from './types'
@@ -236,6 +238,11 @@ export function createApiClient(options: ApiClientOptions = {}) {
       request<StationDetails>('GET', `/api/stations/${encodeURIComponent(id)}`, { signal: o?.signal }),
     stationInfo: (id: string, o?: O) =>
       request<StationInfo>('GET', `/api/stations/${encodeURIComponent(id)}/info`, { signal: o?.signal }),
+    /** Everything the virtual tour draws: levels, traced areas, the graph in metres and panoramas. */
+    stationTour: (id: string, o?: O) =>
+      request<StationTour>('GET', `/api/stations/${encodeURIComponent(id)}/tour`, { signal: o?.signal }),
+    /** Start-up config: the public Maps browser key (or null) and per-station feature flags. */
+    clientConfig: (o?: O) => request<ClientConfig>('GET', '/api/client-config', { signal: o?.signal }),
     stationRoute: (body: RouteRequestBody, o?: O) =>
       request<RouteResult>('POST', '/api/navigation/route', { body, idempotent: true, signal: o?.signal }),
     rakePosition: (composition: string, targetCoach: string, o?: O) =>

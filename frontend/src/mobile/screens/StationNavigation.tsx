@@ -8,8 +8,9 @@ import StationBlueprintModal from '../../components/StationBlueprintModal'
 import { RoutePickers, RouteStatus, StationNotice } from '../../components/WayfinderParts'
 import { useStationWayfinding } from '../../hooks/useStationWayfinding'
 import { formatDay, formatTime } from '../../utils/format'
-import { MapIcon, StepsIcon, TrainIcon } from '../icons'
+import { CompassIcon, MapIcon, StepsIcon, TrainIcon } from '../icons'
 import { useApp } from '../PlannerContext'
+import { routeHref } from '../router'
 import { AppHeader, Screen, selectedRecommendation } from '../ui'
 import CoachPosition from './CoachPosition'
 
@@ -99,6 +100,10 @@ export default function StationNavigation() {
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5 text-xs font-bold text-brand-800 hover:bg-brand-100">
               <MapIcon size={16} /> {n.openBlueprint}
             </button>
+            <a href={routeHref('tour', { station: stationId })}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-brand-200 bg-white px-4 py-2.5 text-xs font-bold text-brand-800 hover:bg-brand-50">
+              <CompassIcon size={16} /> {n.openTour}
+            </a>
           </section>
         </>
       )}

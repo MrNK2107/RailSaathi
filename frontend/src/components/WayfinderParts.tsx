@@ -11,7 +11,9 @@ type Nav = MobileStrings['navigation']
 const SELECT = 'mt-1 w-full rounded-xl border border-ink-300 bg-white px-3 py-2 text-xs font-medium text-ink-900 focus:border-brand-600 focus:outline-none'
 
 /** The schematic notice (when the layout is not surveyed) and the provenance badge. */
-export function StationNotice({ details, note, m }: { details: StationDetails; note?: string | null; m: Nav }) {
+export function StationNotice({ details, note, m }: {
+  details: Pick<StationDetails, 'layout_basis' | 'provenance'>; note?: string | null; m: Nav
+}) {
   const schematic = details.layout_basis === 'schematic'
   return (
     <div className="space-y-2">
@@ -37,7 +39,7 @@ export interface PickerProps {
   m: Nav
 }
 
-const FACILITY_TYPES = ['toilet', 'ticket_counter', 'information_desk', 'shop']
+export const FACILITY_TYPES = ['toilet', 'ticket_counter', 'information_desk', 'shop']
 
 export function RoutePickers({ details, source, destination, mobility, onSource, onDestination, onMobility, idPrefix, m }: PickerProps) {
   const nodes = details.station.nodes

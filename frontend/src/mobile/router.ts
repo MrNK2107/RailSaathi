@@ -3,13 +3,25 @@ import { useCallback, useEffect, useState } from 'react'
 
 export const ROUTES = [
   'home', 'plan', 'options', 'navigation', 'details', 'help', 'confirmation',
-  'trips', 'alerts', 'profile', 'goal', 'ticketing', 'classic',
+  'trips', 'alerts', 'profile', 'goal', 'ticketing', 'tour', 'classic',
 ] as const
 export type Route = (typeof ROUTES)[number]
 
 export function parseRoute(hash: string): Route {
   const name = hash.replace(/^#\/?/, '').split('?')[0]
   return (ROUTES as readonly string[]).includes(name) ? (name as Route) : 'home'
+}
+
+/** A query parameter of the current hash route, e.g. `station` in  #/tour?station=chennai_central. */
+export function routeParam(name: string, hash: string = window.location.hash): string | null {
+  const query = hash.split('?')[1]
+  return query ? new URLSearchParams(query).get(name) : null
+}
+
+/** The hash for a route with query parameters, for links such as  #/tour?station=chennai_central. */
+export function routeHref(route: Route, params: Record<string, string> = {}): string {
+  const query = new URLSearchParams(params).toString()
+  return `#/${route}${query ? `?${query}` : ''}`
 }
 
 export function useRoute(): [Route, (route: Route) => void, () => void] {

@@ -587,7 +587,15 @@ export interface RouteRequestBody {
 
 export interface RouteSegment {
   edge_id: string
+  /** True when the walk starts part-way along this edge. */
+  partial?: boolean
+  from_node: string
+  to_node: string
+  /** Normalised image coordinates in travel direction. */
+  geometry: Point[]
   path_type: string
+  /** Level change in travel direction (0 on one level). */
+  level_change: number
   step_free: StepFree
 }
 
@@ -602,6 +610,9 @@ export interface RouteInstruction {
 
 export interface RouteResult {
   status: 'ok' | 'no_route'
+  /** Node ids along the route, in travel direction (the AR prior and the tour's panorama stops use them). */
+  node_ids: string[]
+  edge_ids: string[]
   geometry: Point[]
   segments: RouteSegment[]
   instructions: RouteInstruction[]
@@ -632,4 +643,126 @@ export interface RakePosition {
   total_rake_length_meters?: number
   coaches: RakeCoach[]
   target_coach_info: RakeCoach | null
+}
+
+// ---- Virtual tour (backend api/navigation.py get_station_tour, api/client_config.py) ----
+
+export type AreaKind = 'platform' | 'concourse' | 'building_footprint' | 'track_bed'
+export type NodeVerification = 'verified' | 'simulated' | 'pending'
+export type OperationalStatus = 'open' | 'closed' | 'unknown'
+
+export interface TourLevel {
+  level: number
+  name: string
+  /** Floor height above ground level in metres, if known. */
+  elevation_m: number | null
+}
+
+export interface TourArea {
+  id: string
+  kind: AreaKind
+  name: string | null
+  level: number
+  /** Extrusion height (nominal for traced areas). */
+  height_m: number
+  /** Closed ring in normalised image coordinates. */
+  polygon: Point[]
+  /** The same ring in metres (plan top-left origin, x right, y down); null when the station has no map scale. */
+  polygon_m: Point[] | null
+}
+
+export interface TourCue {
+  kind: 'signboard' | 'feature'
+  text: string
+  facing_deg: number | null
+  source: string
+  verified_on: string | null
+}
+
+export interface TourNode {
+  id: string
+  name: string
+  type: string
+  level: number
+  position: Point
+  position_m: Point | null
+  verification: NodeVerification
+  step_free: StepFree
+  status: OperationalStatus
+  cues: TourCue[]
+}
+
+export interface TourEdge {
+  id: string
+  from: string
+  to: string
+  bidirectional: boolean
+  path_type: string
+  level_change: number
+  steps: number | null
+  step_free: StepFree
+  status: OperationalStatus
+  verification: NodeVerification
+  distance_m: number | null
+  geometry: Point[]
+  geometry_m: Point[] | null
+}
+
+export interface TourPanorama {
+  pano_id: string
+  /** The nearest node. */
+  node_id: string
+  heading: number
+  pitch: number
+  kind: 'street_view' | 'photosphere'
+  verified_on: string | null
+}
+
+export interface TourScale {
+  metres_per_pixel: number
+  width_m: number
+  height_m: number
+  source: string
+  verification: string
+}
+
+/** metadata.json geo_reference, passed through verbatim by the backend. */
+export interface GeoReference {
+  method: string
+  anchor: { lat: number; lon: number; x: number; y: number }
+  rotation_deg: number
+  metres_per_pixel: number
+  verification: string
+  source: string
+  expected_error_m: number
+}
+
+/** GET /api/stations/{id}/tour */
+export interface StationTour {
+  station_id: string
+  station_name: string
+  version: string
+  /** "schematic" for every bundled station. */
+  layout_basis: LayoutBasis
+  routing_enabled: boolean
+  ar_enabled: boolean
+  ar_guidance_available: boolean
+  map: { url: string; width_px: number; height_px: number }
+  scale: TourScale | null
+  frame: string
+  geo_reference: GeoReference | null
+  levels: TourLevel[]
+  areas: TourArea[]
+  nodes: TourNode[]
+  edges: TourEdge[]
+  panoramas: TourPanorama[]
+  panoramas_note: string | null
+  provenance: Provenance
+}
+
+/** GET /api/client-config */
+export interface ClientConfig {
+  /** The public, referrer-restricted Maps JavaScript key; null when not configured. */
+  google_maps_browser_key: string | null
+  features: { ar_guidance_stations: string[] }
 }
