@@ -33,7 +33,7 @@ export default function StationNavigation() {
   const [blueprintOpen, setBlueprintOpen] = useState(false)
   const [arStations, setArStations] = useState<string[]>([])
   const [arCapable, setArCapable] = useState(false)
-  const [arExit, setArExit] = useState<FallbackReason | null>(null)
+  const [arExit, setArExit] = useState<{ reason: FallbackReason; message: string | null } | null>(null)
 
   // Per-station AR flag. A failure only means no AR tab; the wayfinder works without it.
   useEffect(() => {
@@ -74,8 +74,8 @@ export default function StationNavigation() {
   useEffect(() => {
     if (!arOffered && view === 'ar') setView('steps')
   }, [arOffered, view])
-  const leaveAr = useCallback((reason: FallbackReason | null) => {
-    setArExit(reason)
+  const leaveAr = useCallback((reason: FallbackReason | null, message: string | null) => {
+    setArExit(reason ? { reason, message } : null)
     setView('steps')
   }, [])
 
@@ -143,8 +143,8 @@ export default function StationNavigation() {
             ) : (
               <>
                 {arExit && (
-                  <div role="status" data-code={`ar_${arExit}`} className="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
-                    <p className="flex-1">{m.ar.fallback[arExit]}</p>
+                  <div role="status" data-code={`ar_${arExit.reason}`} className="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
+                    <p className="flex-1">{m.ar.fallback[arExit.reason]}{arExit.reason === 'rejected' && arExit.message ? ` (${arExit.message})` : ''}</p>
                     <button type="button" onClick={() => setArExit(null)} className="font-semibold underline">{m.ar.dismiss}</button>
                   </div>
                 )}

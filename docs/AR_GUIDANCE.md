@@ -64,6 +64,7 @@ Today only Chennai Central opts in.
   - Failures back off exponentially: 8 s, 16 s, 32 s and so on, up to 120 s.
   - Sustained, this is about one fix every 30 s. The 8 s cadence holds only for roughly the first minute of a walk.
 - **WebXR (progressive enhancement):** when `navigator.xr.isSessionSupported('immersive-ar')` is true (Android Chrome), "Show the arrow on the floor" starts an immersive session with hit-test.
+  - `dom-overlay` is a required feature, so the safety banner, the "Approximate" copy and the exit control stay visible over the immersive view. If the browser does not grant it, the session is ended at once and the camera overlay stays.
   - The arrow lies on the floor and is held in place by the device's 6DoF tracking.
   - WebXR gives no camera frames without raw-camera-access, so floor mode uses the last fix. Leaving floor mode resumes re-localisation.
   - The camera overlay is the default path. It also covers iOS.
@@ -138,6 +139,9 @@ Model, date and set version: to be filled in when the owner runs the evaluation.
 - **Accuracy at the threshold** is at least **80 %**, measured on fixes the localiser accepts.
 - **p95 latency** is **under 4 s**.
 - The set has **at least 30 photos**. About 40 are planned, spread over the station's nodes.
+- At least **20 accepted fixes**, so accuracy is not judged on a handful of answers.
+- **Coverage** (accepted fixes divided by all photos) of at least **50 %**. A localiser that rarely commits does not guide anyone, however accurate its few fixes are.
+- The verdict is judged only at the **production threshold** (`LOCALIZE_CONFIDENCE_THRESHOLD`, 0.6). A run with `--threshold` set to any other value reports the gate as `not_applicable`.
 
 Until then:
 

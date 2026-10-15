@@ -93,6 +93,12 @@ describe('AR state machine', () => {
     expect(run([{ type: 'LOCALISE_FAILED', reason: 'ar_off' }], guiding)).toMatchObject({ phase: 'fallback', fallback: 'ar_off' })
   })
 
+  it('a refused request (4xx) falls back with the server message, even with a fix', () => {
+    const guiding = run([...ready, result(res({ fix: fix('cj_north') }))])
+    expect(run([{ type: 'LOCALISE_START' }, { type: 'LOCALISE_FAILED', reason: 'rejected', message: 'The image is too large.' }], guiding))
+      .toMatchObject({ phase: 'fallback', fallback: 'rejected', message: 'The image is too large.' })
+  })
+
   it('a fix at the destination is arrival; a late answer after leaving is ignored', () => {
     expect(run([...ready, result(res({ fix: fix('platform_10') }))]).phase).toBe('arrived')
     const guiding = run([...ready, result(res({ fix: fix('cj_north') }))])

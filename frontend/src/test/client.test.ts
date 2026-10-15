@@ -238,6 +238,22 @@ describe('localize (multipart camera frame)', () => {
     expect(down).toHaveBeenCalledTimes(1)
   })
 
+  it('uses the planner token when there is one; freshSession sends none and keeps the newly issued token', async () => {
+    const fetchImpl = vi.fn()
+      .mockImplementationOnce(() => json(201, { session_token: 'planner' }))
+      .mockImplementationOnce(() => ok('planner'))
+      .mockImplementationOnce(() => ok('fresh'))
+      .mockImplementationOnce(() => ok('fresh'))
+    const api = createApiClient({ baseUrl: 'http://api', fetchImpl })
+    await api.createSession('en')
+    await api.localize({ station_id: 's', image: image() })
+    expect((init(fetchImpl, 1).headers as Record<string, string>)['X-Session-Token']).toBe('planner')
+    await api.localize({ station_id: 's', image: image() }, { freshSession: true })
+    expect((init(fetchImpl, 2).headers as Record<string, string>)['X-Session-Token']).toBeUndefined()
+    await api.localize({ station_id: 's', image: image() })
+    expect((init(fetchImpl, 3).headers as Record<string, string>)['X-Session-Token']).toBe('fresh')
+  })
+
   it('a 429 carries Retry-After seconds', async () => {
     const fetchImpl = vi.fn(() => json(429, { error: { code: 'rate_limited', message: 'Too many camera fixes.', details: {} } }, { 'Retry-After': '37' }))
     const api = createApiClient({ baseUrl: 'http://api', fetchImpl })

@@ -117,7 +117,7 @@ interface Call {
   form?: FormData
   /** Overrides the read/planner timeout for this call. */
   timeoutMs?: number
-  /** Session token for this call when the client holds none (the localize session). */
+  /** Session token for this call, overriding the planner token; null sends none (the localize session). */
   token?: string | null
   /** Only idempotent calls are retried, so a lost response never duplicates a state change. */
   idempotent?: boolean
@@ -165,7 +165,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
     const controller = new AbortController()
     let timedOut = false
     const timeoutMs = options.timeoutMs ?? call.timeoutMs ?? (call.planner ? PLANNER_TIMEOUT_MS : READ_TIMEOUT_MS)
-    const token = sessionToken ?? call.token ?? null
+    const token = call.token !== undefined ? call.token : sessionToken
     const timer = setTimeout(() => {
       timedOut = true
       controller.abort()
@@ -267,15 +267,18 @@ export function createApiClient(options: ApiClientOptions = {}) {
      * AR guidance: where in the station one camera frame was taken. Multipart; never retried (each call spends the
      * per-session localisation budget). 429 rejects with ApiError `rate_limited` and `retryAfterS`.
      */
-    localize: async (req: LocalizeRequest, o?: O) => {
+    localize: async (req: LocalizeRequest, o?: RequestOptions & { freshSession?: boolean }) => {
       const form = new FormData()
       form.append('station_id', req.station_id)
       if (req.previous_node_id) form.append('previous_node_id', req.previous_node_id)
       if (req.route_node_ids?.length) form.append('route_node_ids', req.route_node_ids.join(','))
       form.append('image', req.image, req.image.type === 'image/webp' ? 'frame.webp' : 'frame.jpg')
+      // `freshSession` (after invalid_session_token) sends no token, so the server issues a new session.
+      if (o?.freshSession) localizeToken = null
+      const token = o?.freshSession ? null : (localizeToken ?? sessionToken)
       const res = await request<LocalizeResponse>('POST', '/api/navigation/localize',
-        { form, token: localizeToken, idempotent: false, timeoutMs: LOCALIZE_TIMEOUT_MS, signal: o?.signal })
-      if (!sessionToken && res.session_token) localizeToken = res.session_token
+        { form, token, idempotent: false, timeoutMs: LOCALIZE_TIMEOUT_MS, signal: o?.signal })
+      if (res.session_token) localizeToken = res.session_token
       return res
     },
     stationRoute: (body: RouteRequestBody, o?: O) =>

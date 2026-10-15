@@ -17,7 +17,9 @@ Reported:
   change, so none are built in). Every call is paid for, so the cost of rejected answers is spread over the fixes.
 
 Gate (docs/AR_GUIDANCE.md): AR may be enabled for a station in production only when accuracy at the threshold is
-at least 80 %, p95 latency is under 4 s, and the set has at least MIN_SAMPLES photos.
+at least 80 %, p95 latency is under 4 s, the set has at least MIN_SAMPLES photos, at least MIN_ACCEPTED_FIXES of them
+are accepted fixes and coverage (accepted / all) is at least MIN_COVERAGE. The verdict applies only to the production
+threshold (LOCALIZE_CONFIDENCE_THRESHOLD): a run with `--threshold` set to anything else reports "not_applicable".
 
 Privacy: the photos are real people's surroundings. Keep them in the private bucket, blur faces before use, and
 never put them in this repository: the script refuses an image set inside the git checkout. It never prints,
@@ -52,6 +54,8 @@ JPEG_QUALITY = 80
 GATE_MIN_ACCURACY = 0.80
 GATE_MAX_P95_MS = 4000
 MIN_SAMPLES = 30
+MIN_ACCEPTED_FIXES = 20  # accuracy over 1-2 accepted fixes proves nothing
+MIN_COVERAGE = 0.5  # a localiser that rarely commits is not useful guidance, however accurate its few fixes
 
 
 @dataclass(frozen=True)
@@ -91,6 +95,7 @@ class Report:
     cost_usd_total: float | None
     cost_usd_per_fix: float | None
     gate: str  # pass | fail | insufficient_data | not_applicable
+    production_threshold: float | None = None
     gate_reasons: list[str] = field(default_factory=list)
     dry_run: bool = False
     outcomes: list[Outcome] = field(default_factory=list)
@@ -158,7 +163,7 @@ def _ratio(num: int, den: int) -> float | None:
 
 def summarise(station_id: str, model: str, threshold: float, outcomes: list[Outcome],
               usd_per_mtok_input: float | None = None, usd_per_mtok_output: float | None = None,
-              dry_run: bool = False) -> Report:
+              dry_run: bool = False, production_threshold: float | None = None) -> Report:
     n = len(outcomes)
     accepted = [o for o in outcomes if o.status == "fix"]
     latencies = [o.latency_ms for o in outcomes]
@@ -177,7 +182,7 @@ def summarise(station_id: str, model: str, threshold: float, outcomes: list[Outc
         latency_p50_ms=percentile(latencies, 50), latency_p95_ms=percentile(latencies, 95),
         input_tokens=tokens_in, output_tokens=tokens_out, cost_usd_total=cost,
         cost_usd_per_fix=round(cost / len(accepted), 6) if cost is not None and accepted else None,
-        gate="not_applicable", dry_run=dry_run, outcomes=outcomes,
+        gate="not_applicable", production_threshold=production_threshold, dry_run=dry_run, outcomes=outcomes,
     )
     report.gate, report.gate_reasons = gate(report)
     return report
@@ -186,9 +191,16 @@ def summarise(station_id: str, model: str, threshold: float, outcomes: list[Outc
 def gate(report: Report) -> tuple[str, list[str]]:
     if report.dry_run:
         return "not_applicable", ["dry run: the mock echoes the true node, so the numbers mean nothing"]
+    if report.production_threshold is None or abs(report.threshold - report.production_threshold) > 1e-9:
+        return "not_applicable", [f"threshold {report.threshold} is not the production threshold "
+                                  f"{report.production_threshold}; the gate is judged at the production threshold only"]
     if report.samples < MIN_SAMPLES:
         return "insufficient_data", [f"{report.samples} photos; at least {MIN_SAMPLES} are needed"]
     reasons = []
+    if report.accepted < MIN_ACCEPTED_FIXES:
+        reasons.append(f"{report.accepted} accepted fixes; at least {MIN_ACCEPTED_FIXES} are needed")
+    if report.coverage is None or report.coverage < MIN_COVERAGE:
+        reasons.append(f"coverage {report.coverage} is below {MIN_COVERAGE}")
     if report.accuracy_at_threshold is None or report.accuracy_at_threshold < GATE_MIN_ACCURACY:
         reasons.append(f"accuracy at threshold {report.accuracy_at_threshold} is below {GATE_MIN_ACCURACY}")
     if report.latency_p95_ms is None or report.latency_p95_ms >= GATE_MAX_P95_MS:
@@ -322,7 +334,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     outcomes = run(localizer, station, samples, threshold, settings.localize_deadline_seconds, usage=usage)
     report = summarise(args.station, model, threshold, outcomes, args.usd_per_mtok_input,
-                       args.usd_per_mtok_output, dry_run=args.dry_run)
+                       args.usd_per_mtok_output, dry_run=args.dry_run,
+                       production_threshold=settings.localize_confidence_threshold)
     if args.out:
         args.out.write_text(json.dumps(asdict(report), indent=2) + "\n", encoding="utf-8")
     print(markdown_rows(report))

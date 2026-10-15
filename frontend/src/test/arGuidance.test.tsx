@@ -68,8 +68,14 @@ function setup(localize: ReturnType<typeof vi.fn>, r: RouteResult | null = route
   const onExit = vi.fn()
   const c = { localize } as unknown as ApiClient
   const user = userEvent.setup()
-  render(<ArGuidance client={c} stationId="chennai_central" details={details()} route={r} m={a} onExit={onExit} now={() => clock} />)
-  return { onExit, user }
+  const view = render(<ArGuidance client={c} stationId="chennai_central" details={details()} route={r} m={a} onExit={onExit} now={() => clock} />)
+  return { onExit, user, unmount: view.unmount }
+}
+
+function deferred<T>() {
+  let resolve!: (v: T) => void
+  const promise = new Promise<T>((r) => { resolve = r })
+  return { promise, resolve }
 }
 
 function orient(alpha: number) {
@@ -238,6 +244,81 @@ describe('AR guidance', () => {
     expect(log).not.toHaveBeenCalled()
     setItem.mockRestore()
     log.mockRestore()
+  })
+
+  it('the camera is stopped on exit and on unmount', async () => {
+    const stream = { getTracks: () => [] }
+    dev.openRearCamera.mockResolvedValue({ ok: true, stream })
+    const first = setup(vi.fn().mockResolvedValue(fixAt('cj', 90)))
+    await first.user.click(screen.getByRole('button', { name: a.accept }))
+    await screen.findByTestId('ar-arrow')
+    expect(dev.stopStream).not.toHaveBeenCalledWith(stream)
+    await first.user.click(screen.getByRole('button', { name: a.exit }))
+    await waitFor(() => expect(dev.stopStream).toHaveBeenCalledWith(stream))
+    first.unmount()
+
+    dev.stopStream.mockClear()
+    const second = setup(vi.fn().mockResolvedValue(fixAt('cj', 90)))
+    await second.user.click(screen.getByRole('button', { name: a.accept }))
+    await screen.findByTestId('ar-arrow')
+    second.unmount()
+    expect(dev.stopStream).toHaveBeenCalledWith(stream)
+  })
+
+  it('a camera granted after AR was left is stopped at once and never used', async () => {
+    const stream = { getTracks: () => [] }
+    const pending = deferred<unknown>()
+    dev.openRearCamera.mockReturnValue(pending.promise)
+    const localize = vi.fn()
+    const { user, unmount } = setup(localize)
+    await user.click(screen.getByRole('button', { name: a.accept }))
+    unmount() // e.g. the user switched tab while the permission prompt was open
+    await act(async () => { pending.resolve({ ok: true, stream }) })
+    expect(dev.stopStream).toHaveBeenCalledWith(stream)
+    expect(frame.captureFrame).not.toHaveBeenCalled()
+    expect(localize).not.toHaveBeenCalled()
+  })
+
+  it('no frame is captured or uploaded when AR is left while waiting for the video', async () => {
+    const ready = deferred<boolean>()
+    frame.waitForFrame.mockReturnValueOnce(ready.promise)
+    const localize = vi.fn()
+    const { user, unmount } = setup(localize)
+    await user.click(screen.getByRole('button', { name: a.accept }))
+    await waitFor(() => expect(frame.waitForFrame).toHaveBeenCalled())
+    unmount()
+    await act(async () => { ready.resolve(true) })
+    expect(frame.captureFrame).not.toHaveBeenCalled()
+    expect(localize).not.toHaveBeenCalled()
+  })
+
+  it('a refused request (4xx) ends AR with the server message instead of retrying as a network error', async () => {
+    const localize = vi.fn().mockRejectedValue(new ApiError(415, 'unsupported_image_type', 'The image must be JPEG or WebP.'))
+    const { onExit, user } = setup(localize)
+    await user.click(screen.getByRole('button', { name: a.accept }))
+    await waitFor(() => expect(onExit).toHaveBeenCalledWith('rejected', 'The image must be JPEG or WebP.'))
+    expect(localize).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText(a.error.network)).not.toBeInTheDocument()
+  })
+
+  it('a stale session token is dropped and the frame retried once with a new session', async () => {
+    const stale = new ApiError(401, 'invalid_session_token', 'A valid session token is required.')
+    const localize = vi.fn().mockRejectedValueOnce(stale).mockResolvedValueOnce(fixAt('cj', 90))
+    const { user } = setup(localize)
+    await user.click(screen.getByRole('button', { name: a.accept }))
+    await screen.findByTestId('ar-arrow')
+    expect(localize).toHaveBeenCalledTimes(2)
+    expect(localize.mock.calls[0][1]).toMatchObject({ freshSession: false })
+    expect(localize.mock.calls[1][1]).toMatchObject({ freshSession: true })
+  })
+
+  it('a token still refused after the fresh retry ends AR (no endless retries)', async () => {
+    const stale = new ApiError(401, 'invalid_session_token', 'A valid session token is required.')
+    const localize = vi.fn().mockRejectedValue(stale)
+    const { onExit, user } = setup(localize)
+    await user.click(screen.getByRole('button', { name: a.accept }))
+    await waitFor(() => expect(onExit).toHaveBeenCalledWith('rejected', 'A valid session token is required.'))
+    expect(localize).toHaveBeenCalledTimes(2)
   })
 
   it('without a route it asks for one instead of opening the camera', () => {

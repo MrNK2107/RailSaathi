@@ -93,7 +93,7 @@ def test_metrics_from_mock_localizer(tmp_path):
     ]
     mock = MockVisionLocalizer(script)
     outcomes = ev.run(mock, STATION, ev.load_manifest(manifest), 0.6, 8.0, clock=Ticker([1.0, 2.0, 3.0, 5.0]))
-    report = ev.summarise("chennai_central", "mock", 0.6, outcomes)
+    report = ev.summarise("chennai_central", "mock", 0.6, outcomes, production_threshold=0.6)
 
     assert [o.status for o in outcomes] == ["fix", "fix", "low_confidence", "unavailable"]
     assert report.top1_accuracy == 0.5          # cj_north and wa_north
@@ -118,17 +118,57 @@ def _outcome(correct: bool, status: str = "fix", latency: float = 1000.0) -> ev.
     return ev.Outcome("x.jpg", "a", "a" if correct else "b", 0.9, status, latency, correct)
 
 
+def _gate(outcomes, threshold=0.6, **kw):
+    return ev.summarise("s", "m", threshold, outcomes, production_threshold=0.6, **kw)
+
+
 def test_gate_passes_only_with_enough_accurate_fast_fixes():
     good = [_outcome(True)] * 32 + [_outcome(False)] * 8  # 80 % at threshold
-    assert ev.summarise("s", "m", 0.6, good).gate == "pass"
+    assert _gate(good).gate == "pass"
     slow = [_outcome(True, latency=4000.0)] * 40
-    report = ev.summarise("s", "m", 0.6, slow)
+    report = _gate(slow)
     assert report.gate == "fail" and "p95" in report.gate_reasons[0]
     inaccurate = [_outcome(True)] * 31 + [_outcome(False)] * 9
-    assert ev.summarise("s", "m", 0.6, inaccurate).gate == "fail"
+    assert _gate(inaccurate).gate == "fail"
     none_accepted = [_outcome(False, status="low_confidence")] * 40
-    assert ev.summarise("s", "m", 0.6, none_accepted).gate == "fail"
-    assert ev.summarise("s", "m", 0.6, good, dry_run=True).gate == "not_applicable"
+    assert _gate(none_accepted).gate == "fail"
+    assert _gate(good, dry_run=True).gate == "not_applicable"
+
+
+def test_gate_needs_enough_accepted_fixes_and_coverage():
+    # 40 photos, 2 accepted and both correct: 100 % accuracy at threshold, but it must not pass.
+    few = [_outcome(True)] * 2 + [_outcome(False, status="low_confidence")] * 38
+    report = _gate(few)
+    assert report.accuracy_at_threshold == 1.0
+    assert report.gate == "fail"
+    assert any("accepted fixes" in r for r in report.gate_reasons)
+    assert any("coverage" in r for r in report.gate_reasons)
+    # 20 accepted (the minimum) but only 40 % coverage of 50 photos: still a fail, on coverage alone.
+    low_cov = [_outcome(True)] * 20 + [_outcome(False, status="low_confidence")] * 30
+    report = _gate(low_cov)
+    assert report.gate == "fail" and report.gate_reasons == [f"coverage 0.4 is below {ev.MIN_COVERAGE}"]
+    enough = [_outcome(True)] * 20 + [_outcome(False, status="low_confidence")] * 10
+    assert _gate(enough).gate == "pass"
+
+
+def test_gate_applies_only_at_the_production_threshold():
+    good = [_outcome(True)] * 40
+    report = _gate(good, threshold=0.4)
+    assert report.gate == "not_applicable" and "production threshold" in report.gate_reasons[0]
+    assert ev.summarise("s", "m", 0.6, good).gate == "not_applicable"  # unknown production threshold
+
+
+def test_cli_threshold_override_is_not_a_gate_verdict(tmp_path, capsys, monkeypatch):
+    manifest = _image_set(tmp_path, ["cj_north"] * 30)
+    script = [LocalizeResult(node_id="cj_north", confidence=0.5)] * 30  # accepted only at the lowered threshold
+    monkeypatch.setattr(ev, "build_localizer", lambda args, settings, samples: (MockVisionLocalizer(script), None, "mock"))
+    real = ev.Settings
+    monkeypatch.setattr(ev, "Settings", lambda: real(_env_file=None, localize_confidence_threshold=0.6))
+    assert ev.main(["--manifest", str(manifest), "--threshold", "0.4"]) == 0
+    out = capsys.readouterr().out
+    assert "| Gate | not_applicable |" in out and "production threshold" in out
+    assert ev.main(["--manifest", str(manifest)]) == 0  # at the production threshold nothing is accepted: fail
+    assert "| Gate | fail |" in capsys.readouterr().out
 
 
 def test_cost_per_fix_spreads_every_call_over_accepted_fixes():

@@ -5,10 +5,10 @@
 //                                    ↘ choosing (low confidence: "Are you near…?") → guiding
 // error: a recoverable failure before the first fix (rate limited, network); the user can retry or leave.
 // fallback: AR ends and the screen returns to the text steps with `reason` shown (declined, permission denied,
-// no camera, localisation unavailable, AR switched off for the station).
+// no camera, localisation unavailable, AR switched off for the station, a request the server rejects (4xx).
 import type { LocalizeCandidate, LocalizeFix, LocalizeResponse } from '../api/types'
 
-export type FallbackReason = 'declined' | 'camera_denied' | 'no_camera' | 'insecure' | 'unavailable' | 'ar_off' | 'camera_failed'
+export type FallbackReason = 'declined' | 'camera_denied' | 'no_camera' | 'insecure' | 'unavailable' | 'ar_off' | 'camera_failed' | 'rejected'
 export type ErrorReason = 'rate_limited' | 'network' | 'not_sure'
 
 /** The fix the arrow is computed from, with the phone's yaw when it was taken. */
@@ -40,7 +40,7 @@ export type ArEvent =
   | { type: 'PERMISSION_FAILED'; reason: Extract<FallbackReason, 'camera_denied' | 'no_camera' | 'insecure' | 'camera_failed'> }
   | { type: 'LOCALISE_START' }
   | { type: 'LOCALISE_RESULT'; response: LocalizeResponse; yawNow: number | null; destinationNodeId: string | null }
-  | { type: 'LOCALISE_FAILED'; reason: 'rate_limited' | 'network' | 'ar_off' }
+  | { type: 'LOCALISE_FAILED'; reason: 'rate_limited' | 'network' | 'ar_off' | 'rejected'; message?: string | null }
   | { type: 'CANDIDATE_PICKED'; candidate: LocalizeCandidate; position: [number, number] | null; yawNow: number | null; destinationNodeId: string | null }
   | { type: 'RETRY' }
   | { type: 'EXIT' }
@@ -87,6 +87,7 @@ export function arReducer(s: ArState, e: ArEvent): ArState {
     }
     case 'LOCALISE_FAILED':
       if (e.reason === 'ar_off') return fallback(s, 'ar_off')
+      if (e.reason === 'rejected') return fallback(s, 'rejected', e.message ?? null) // retrying cannot help
       if (s.phase !== 'localising' && s.phase !== 'relocalising') return s
       return s.active ? { ...s, phase: 'guiding', notice: e.reason } : { ...s, phase: 'error', error: e.reason }
     case 'CANDIDATE_PICKED': {

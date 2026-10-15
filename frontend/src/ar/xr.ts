@@ -21,6 +21,39 @@ export function floorDirection(yawDeg: number): [number, number, number] {
   return [Math.sin(r), 0, -Math.cos(r)]
 }
 
+/** The arrow shape's tip, in shape coordinates (x right, y down the screen of the shape editor). */
+export const ARROW_TIP: [number, number] = [0, -0.45]
+/** Tilt that lays the shape flat on the floor. */
+export const ARROW_TILT_X = Math.PI / 2
+
+/** Holder rotation about +Y that turns the flat arrow's tip onto a clockwise world yaw. */
+export function holderYawRad(yawDeg: number): number {
+  const [dx, , dz] = floorDirection(yawDeg)
+  return Math.atan2(-dx, -dz) // rotate local -Z onto the target direction
+}
+
+/**
+ * Where the tip ends up (unit x/z on the floor) after the mesh tilt and the holder yaw: the transform the scene
+ * applies, composed by hand so it can be checked without WebGL. Rx(tilt) then Ry(yaw), as three.js nests them.
+ */
+export function arrowTipDirection(yawDeg: number, tilt = ARROW_TILT_X): [number, number] {
+  const [sx, sy] = ARROW_TIP
+  // Rx(tilt): (x, y, z) -> (x, y cos - z sin, y sin + z cos), with z = 0 for the flat shape.
+  const x1 = sx
+  const z1 = sy * Math.sin(tilt)
+  // Ry(phi): (x, z) -> (x cos + z sin, -x sin + z cos)
+  const phi = holderYawRad(yawDeg)
+  const x2 = x1 * Math.cos(phi) + z1 * Math.sin(phi)
+  const z2 = -x1 * Math.sin(phi) + z1 * Math.cos(phi)
+  const len = Math.hypot(x2, z2)
+  return [x2 / len, z2 / len]
+}
+
+/** True when the session shows our DOM overlay (WebXR DOM Overlays: `domOverlayState` is set once granted). */
+export function hasDomOverlay(session: { domOverlayState?: { type?: string } | null }): boolean {
+  return !!session.domOverlayState?.type
+}
+
 export interface FloorArrowsOptions {
   /** Arrow angle relative to the camera's forward direction when the session starts (0 = ahead, + = right). */
   arrowAngleDeg: number
@@ -34,9 +67,15 @@ export async function startFloorArrows({ arrowAngleDeg, overlayRoot, onEnd }: Fl
   const xr = navigator.xr
   if (!xr) throw new Error('webxr_unavailable')
   const THREE = await import('three')
+  // dom-overlay is required: without it the safety banner, the "Approximate" copy and the exit control would not be
+  // visible in the immersive view, so the session must not start (or must end at once if the browser drops it).
   const session = await xr.requestSession('immersive-ar', {
-    requiredFeatures: ['hit-test'], optionalFeatures: ['dom-overlay'], domOverlay: { root: overlayRoot },
+    requiredFeatures: ['hit-test', 'dom-overlay'], domOverlay: { root: overlayRoot },
   })
+  if (!hasDomOverlay(session)) {
+    await session.end().catch(() => undefined)
+    throw new Error('dom_overlay_unavailable')
+  }
   const canvas = document.createElement('canvas')
   const gl = canvas.getContext('webgl2', { xrCompatible: true }) as WebGL2RenderingContext | null
   const renderer = new THREE.WebGLRenderer({ canvas, context: gl ?? undefined, alpha: true })
@@ -47,11 +86,11 @@ export async function startFloorArrows({ arrowAngleDeg, overlayRoot, onEnd }: Fl
 
   // A flat arrow lying on the floor, pointing along its local -Z.
   const shape = new THREE.Shape()
-  shape.moveTo(0, -0.45).lineTo(0.22, -0.1).lineTo(0.08, -0.1).lineTo(0.08, 0.3).lineTo(-0.08, 0.3)
-    .lineTo(-0.08, -0.1).lineTo(-0.22, -0.1).lineTo(0, -0.45)
+  shape.moveTo(ARROW_TIP[0], ARROW_TIP[1]).lineTo(0.22, -0.1).lineTo(0.08, -0.1).lineTo(0.08, 0.3).lineTo(-0.08, 0.3)
+    .lineTo(-0.08, -0.1).lineTo(-0.22, -0.1).lineTo(ARROW_TIP[0], ARROW_TIP[1])
   const arrow = new THREE.Mesh(new THREE.ShapeGeometry(shape),
     new THREE.MeshBasicMaterial({ color: 0x1d4ed8, transparent: true, opacity: 0.85, side: THREE.DoubleSide }))
-  arrow.rotation.x = -Math.PI / 2 // lie flat: local -Y of the shape becomes world -Z
+  arrow.rotation.x = ARROW_TILT_X // lie flat with the tip (shape -Y) along the holder's -Z
   const holder = new THREE.Group()
   holder.add(arrow)
   holder.visible = false
@@ -79,8 +118,7 @@ export async function startFloorArrows({ arrowAngleDeg, overlayRoot, onEnd }: Fl
     if (hitPose && worldYaw !== null) {
       const p = hitPose.transform.position
       holder.position.set(p.x, p.y + 0.01, p.z)
-      const [dx, , dz] = floorDirection(worldYaw)
-      holder.rotation.y = Math.atan2(-dx, -dz) // rotate local -Z onto the target direction
+      holder.rotation.y = holderYawRad(worldYaw)
       holder.visible = true
     }
     renderer.render(scene, camera)

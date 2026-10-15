@@ -58,13 +58,19 @@ export default function ArGuidance({ client, stationId, details, route, m, onExi
   const rootRef = useRef<HTMLDivElement | null>(null)
   const inflight = useRef<AbortController | null>(null)
   const endFloor = useRef<(() => void) | null>(null)
+  // False once AR is left (unmounted or fallen back): late camera grants are stopped, late frames never sent.
+  const alive = useRef(true)
   const { yaw, yawRef } = useCameraYaw(ar.motion)
   const destination = route?.node_ids[route.node_ids.length - 1] ?? null
 
   // Leaving: stop the camera, cancel any upload, end floor mode.
-  useEffect(() => () => {
-    inflight.current?.abort()
-    endFloor.current?.()
+  useEffect(() => {
+    alive.current = true
+    return () => {
+      alive.current = false
+      inflight.current?.abort()
+      endFloor.current?.()
+    }
   }, [])
   useEffect(() => () => stopStream(stream), [stream])
 
@@ -76,7 +82,12 @@ export default function ArGuidance({ client, stationId, details, route, m, onExi
   }, [stream])
 
   useEffect(() => {
-    if (ar.phase === 'fallback') onExit(ar.fallback, ar.message)
+    if (ar.phase !== 'fallback') return
+    alive.current = false
+    inflight.current?.abort()
+    endFloor.current?.()
+    setStream(null) // the stream effect's cleanup stops the tracks
+    onExit(ar.fallback, ar.message)
   }, [ar.phase, ar.fallback, ar.message, onExit])
 
   useEffect(() => {
@@ -91,6 +102,10 @@ export default function ArGuidance({ client, stationId, details, route, m, onExi
     const motion = requestMotionPermission()
     const camera = openRearCamera()
     Promise.all([motion, camera]).then(([motionOk, cam]) => {
+      if (!alive.current) { // left AR while the permission prompt was open
+        if (cam.ok) stopStream(cam.stream)
+        return
+      }
       if (!cam.ok) {
         dispatch({ type: 'PERMISSION_FAILED', reason: cam.reason })
         return
@@ -108,36 +123,56 @@ export default function ArGuidance({ client, stationId, details, route, m, onExi
       dispatch({ type: 'LOCALISE_FAILED', reason: 'rate_limited' })
       return
     }
-    const video = videoRef.current
-    const ready = video ? await waitForFrame(video) : false
-    const yawAtCapture = yawRef.current
-    let frame: Blob | null = ready && video ? await captureFrame(video) : null
-    if (!frame) {
-      dispatch({ type: 'PERMISSION_FAILED', reason: 'camera_failed' }) // the camera gives no picture
-      return
-    }
+    // Claimed before any await, so leaving AR during frame capture aborts this attempt too.
     const ctl = new AbortController()
     inflight.current = ctl
-    sessionBudget = recordSend(sessionBudget, t)
+    const gone = () => ctl.signal.aborted || !alive.current
+    let frame: Blob | null = null
     try {
-      const res = await client.localize({
-        station_id: stationId, image: frame, route_node_ids: route.node_ids,
-        previous_node_id: ar.active?.fix.node_id ?? null,
-      }, { signal: ctl.signal })
+      const video = videoRef.current
+      const ready = video ? await waitForFrame(video) : false
+      if (gone()) return
+      const yawAtCapture = yawRef.current
+      frame = ready && video ? await captureFrame(video) : null
+      if (gone()) return
+      if (!frame) {
+        dispatch({ type: 'PERMISSION_FAILED', reason: 'camera_failed' }) // the camera gives no picture
+        return
+      }
+      const image = frame
+      const send = (fresh: boolean) => {
+        sessionBudget = recordSend(sessionBudget, now())
+        return client.localize({
+          station_id: stationId, image, route_node_ids: route.node_ids,
+          previous_node_id: ar.active?.fix.node_id ?? null,
+        }, { signal: ctl.signal, freshSession: fresh })
+      }
+      let res
+      try {
+        res = await send(false)
+      } catch (e) {
+        // A stale session token (e.g. the backend restarted with a new key): drop it and try once with a new session.
+        if (!(e instanceof ApiError && e.code === 'invalid_session_token') || gone() || !canSend(sessionBudget, now(), 'manual')) throw e
+        res = await send(true)
+      }
       frame = null // the only reference: dropped as soon as the upload is done
+      if (gone()) return
       sessionBudget = res.status === 'unavailable' ? recordFailure(sessionBudget, now()) : recordSuccess(sessionBudget)
       setProvenance(res.provenance)
       dispatch({ type: 'LOCALISE_RESULT', response: res, yawNow: yawAtCapture, destinationNodeId: destination })
     } catch (e) {
       frame = null
-      if (e instanceof ApiError && e.isAborted) return
+      if (gone() || (e instanceof ApiError && e.isAborted)) return
       if (e instanceof ApiError && e.status === 429) {
         sessionBudget = recordRateLimited(sessionBudget, now(), e.retryAfterS)
         dispatch({ type: 'LOCALISE_FAILED', reason: 'rate_limited' })
       } else if (e instanceof ApiError && e.code === 'ar_guidance_unavailable') {
         dispatch({ type: 'LOCALISE_FAILED', reason: 'ar_off' })
+      } else if (e instanceof ApiError && e.status >= 400 && e.status < 500) {
+        // 413/415/422/401 and the like: the request itself is refused, so retrying would only repeat it.
+        dispatch({ type: 'LOCALISE_FAILED', reason: 'rejected', message: e.message })
       } else {
-        sessionBudget = recordFailure(sessionBudget, now())
+        sessionBudget = recordFailure(sessionBudget, now()) // network, timeout or 5xx: back off and retry
         dispatch({ type: 'LOCALISE_FAILED', reason: 'network' })
       }
     } finally {
