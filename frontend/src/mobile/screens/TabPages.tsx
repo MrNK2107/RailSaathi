@@ -1,6 +1,6 @@
 // Bottom-navigation pages: My Trips (device-local saved plans), Alerts (Live departures & ML delay), Profile.
 import { useState, useEffect } from 'react'
-import type { Language } from '../../api/types'
+import type { DepartureBoard, Language } from '../../api/types'
 import { formatDate, formatTime } from '../../utils/format'
 import {
   BellIcon,
@@ -11,7 +11,7 @@ import {
 } from '../icons'
 import { useApp } from '../PlannerContext'
 import { loadTrips, removeTrip, type SavedTrip } from '../trips'
-import { Logo, ModeBadge, Screen } from '../ui'
+import { Logo, ModeBadge, Screen, SourceLine } from '../ui'
 
 function Page({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -56,20 +56,6 @@ export function MyTrips() {
   )
 }
 
-interface LiveTrain {
-  train_number: string
-  train_name: string
-  source: string
-  destination: string
-  scheduled_arrival: string
-  expected_arrival: string
-  scheduled_departure: string
-  expected_departure: string
-  platform: string
-  delay_arrival: string
-  status: string
-}
-
 interface DelayPrediction {
   train_number: string
   train_name: string
@@ -82,7 +68,7 @@ interface DelayPrediction {
 export function Alerts() {
   const { m } = useApp()
   const [selectedStation, setSelectedStation] = useState('MAS')
-  const [liveTrains, setLiveTrains] = useState<LiveTrain[]>([])
+  const [board, setBoard] = useState<DepartureBoard | null>(null)
   const [loadingLive, setLoadingLive] = useState(false)
 
   // Delay predictor state
@@ -93,13 +79,10 @@ export function Alerts() {
   const fetchLiveBoard = async (code: string) => {
     setLoadingLive(true)
     try {
-      const res = await fetch(`/stations/${code}/live`)
-      if (res.ok) {
-        const data = await res.json()
-        setLiveTrains(data.trains || [])
-      }
+      const res = await fetch(`/api/live/stations/${encodeURIComponent(code)}/departures`)
+      setBoard(res.ok ? ((await res.json()) as DepartureBoard) : null)
     } catch {
-      // Fallback silent
+      setBoard(null)
     } finally {
       setLoadingLive(false)
     }
@@ -188,8 +171,8 @@ export function Alerts() {
       <section className="rounded-2xl bg-white p-4 shadow-card ring-1 ring-ink-100">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="rounded bg-match-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-match-600">Pillar 2 Live</span>
-            <span className="text-xs font-bold text-brand-900">Live Station Board</span>
+            <span className="rounded bg-match-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-match-600">Pillar 2</span>
+            <span className="text-xs font-bold text-brand-900">Departure Board</span>
           </div>
           <button
             type="button"
@@ -224,32 +207,35 @@ export function Alerts() {
 
         <div className="mt-3 space-y-2">
           {loadingLive ? (
-            <p className="py-4 text-center text-xs text-ink-500">Loading live departures...</p>
-          ) : liveTrains.length === 0 ? (
-            <p className="py-3 text-center text-xs text-ink-500">No active departures found for {selectedStation}.</p>
+            <p className="py-4 text-center text-xs text-ink-500">Loading departures...</p>
+          ) : !board ? (
+            <p className="py-3 text-center text-xs text-ink-500">Departures could not be loaded for {selectedStation}.</p>
+          ) : board.provenance.mode === 'unavailable' ? (
+            <p className="py-3 text-center text-xs text-ink-500">{board.reason ?? 'Live departures are unavailable.'}</p>
+          ) : board.departures.length === 0 ? (
+            <p className="py-3 text-center text-xs text-ink-500">No departures found for {selectedStation} in the next hours.</p>
           ) : (
-            liveTrains.map((tr) => (
-              <div key={tr.train_number} className="flex items-center justify-between rounded-xl border border-ink-100 p-2.5 hover:bg-brand-50/50">
+            board.departures.map((tr) => (
+              <div key={tr.train_no} className="flex items-center justify-between rounded-xl border border-ink-100 p-2.5 hover:bg-brand-50/50">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-xs font-bold text-brand-900">{tr.train_number}</span>
+                    <span className="font-mono text-xs font-bold text-brand-900">{tr.train_no}</span>
                     <span className="truncate text-xs font-semibold text-ink-900 max-w-[150px]">{tr.train_name}</span>
                   </div>
                   <p className="text-[10px] text-ink-500">
-                    PF {tr.platform} · STA {tr.scheduled_arrival || tr.scheduled_departure}
+                    Dep {formatTime(tr.scheduled_departure)} · towards {tr.towards.map((t) => t.name).join(', ')}
                   </p>
                 </div>
-                <div className="text-right">
-                  <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                    tr.delay_arrival === 'RT' || !tr.delay_arrival ? 'bg-match-50 text-match-600' : 'bg-amber-50 text-amber-700'
-                  }`}>
-                    {tr.delay_arrival === 'RT' ? 'Right Time' : tr.delay_arrival}
-                  </span>
-                  <p className="text-[10px] text-ink-500">{tr.status}</p>
-                </div>
+                <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                  tr.cancelled ? 'bg-red-50 text-red-600' : tr.delay_minutes ? 'bg-amber-50 text-amber-700' : 'bg-ink-100 text-ink-700'
+                }`}>
+                  {tr.cancelled ? 'Cancelled' : tr.delay_minutes === null ? 'Status unknown'
+                    : tr.delay_minutes === 0 ? 'On time' : `+${tr.delay_minutes} min`}
+                </span>
               </div>
             ))
           )}
+          {board && <SourceLine provenance={board.provenance} />}
         </div>
       </section>
     </Page>

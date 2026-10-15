@@ -5,7 +5,7 @@ Two containers, both on Cloud Run:
 | Service | Image | What it does |
 |---|---|---|
 | `railsaathi-backend` | `backend/Dockerfile` | FastAPI app, one uvicorn worker, port from `PORT` |
-| `railsaathi-frontend` | `frontend/Dockerfile` | nginx serving the Vite build and reverse-proxying `/api/*` (and the legacy `/stations`, `/trains`, `/plan`, `/predict` aliases) to the backend, so the browser talks to one origin |
+| `railsaathi-frontend` | `frontend/Dockerfile` | nginx serving the Vite build and reverse-proxying `/api/*` to the backend, so the browser talks to one origin |
 
 `.github/workflows/deploy.yml` builds, pushes and deploys both on every push to `main`, then runs
 `backend/scripts/smoke.sh` and a frontend proxy check. The workflow is skipped until the

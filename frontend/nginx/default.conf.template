@@ -36,8 +36,8 @@ server {
         return 200 "ok\n";
     }
 
-    # API and the non-/api aliases the mobile screens still use (removed in Phase 5).
-    location ~ ^/(api|stations|trains|plan|predict)(/|$) {
+    # The backend API. There are no non-/api alias routes.
+    location ~ ^/api(/|$) {
         include /etc/nginx/snippets/security-headers.conf;
         set $backend "${BACKEND_URL}";
         proxy_pass $backend;

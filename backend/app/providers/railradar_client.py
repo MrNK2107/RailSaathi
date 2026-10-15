@@ -80,8 +80,10 @@ class RailRadarClient:
         fetched = await self.get(f"/v1/trains/between/{from_code}/{to_code}", {"date": day.isoformat()})
         return Fetched(_as_list(fetched.data, ("trains", "items", "results")), fetched.fetched_at, fetched.mode)
 
-    async def live_status(self, train_no: str, day: date) -> Fetched:
-        fetched = await self.get(f"/v1/trains/{train_no}/live", {"date": day.isoformat()}, use_cache=False)
+    async def live_status(self, train_no: str, day: date, use_cache: bool = False) -> Fetched:
+        """Never cached by default (the planner's "check live status"). Departure boards opt in to the response
+        cache so a popular board does not spend the shared quota on every view; they label the result cached."""
+        fetched = await self.get(f"/v1/trains/{train_no}/live", {"date": day.isoformat()}, use_cache=use_cache)
         return Fetched(fetched.data if isinstance(fetched.data, dict) else {}, fetched.fetched_at, fetched.mode)
 
     async def get(self, path: str, params: dict[str, str], use_cache: bool = True) -> Fetched:

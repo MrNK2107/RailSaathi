@@ -429,3 +429,35 @@ export interface TicketingResponse {
   message?: string
   links?: TicketingLink[]
 }
+
+/** GET /api/live/stations/{code}/departures (backend providers/live_source.py `DepartureBoard`). */
+export interface StationRef {
+  code: string
+  name: string
+}
+
+export interface LiveDeparture {
+  train_no: string
+  train_name: string
+  /** ISO-8601, at the board's station */
+  scheduled_departure: string
+  /** Nearby catalogue stations this train reaches directly (not necessarily its terminus). */
+  towards: StationRef[]
+  /** null: running status not known */
+  delay_minutes: number | null
+  cancelled: boolean | null
+  status_as_of: string | null
+}
+
+export interface DepartureBoard {
+  station: StationRef
+  window_start: string
+  window_end: string
+  neighbours_checked: StationRef[]
+  /** false when some neighbour queries failed (trains may be missing) */
+  complete: boolean
+  departures: LiveDeparture[]
+  provenance: Provenance
+  /** Only when provenance.mode is "unavailable". */
+  reason: string | null
+}

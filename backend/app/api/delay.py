@@ -11,7 +11,6 @@ from app.delay.engine import predict_train_delay
 router = APIRouter(tags=["ML Delay Forecaster"])
 
 
-@router.get("/predict/delay")
 @router.get("/api/predict/delay")
 async def get_delay_prediction(
     train_number: str = Query(..., description="Train number (e.g. 12952)"),

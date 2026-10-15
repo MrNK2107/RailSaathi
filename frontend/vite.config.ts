@@ -3,7 +3,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 const BACKEND = process.env.BACKEND_URL ?? 'http://127.0.0.1:8000'
-const PROXIED = ['/api', '/stations', '/trains', '/plan', '/predict', '/data']
+const PROXIED = ['/api']
 
 // HTTPS (needed for microphone access from other devices on the LAN) is opt-in: VITE_HTTPS=1 npm run dev
 export default defineConfig(async () => {

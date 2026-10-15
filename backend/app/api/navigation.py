@@ -116,7 +116,6 @@ async def get_station_info(station_id: str) -> dict:
         raise HTTPException(404, "Station information not found") from exc
 
 
-@router.get("/stations/{station_code}/navigation")
 @router.get("/api/stations/{station_code}/navigation")
 async def get_navigation_topology(station_code: str):
     """Returns curbside gates, security checkpoints, and FOB connections."""

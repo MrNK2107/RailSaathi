@@ -98,6 +98,10 @@ class Settings(BaseSettings):
     railradar_requests_per_minute: int = Field(default=10, ge=1)  # observed limit of the current key
     # How long a cached RailRadar response may still be served (labelled STALE) when the quota is exhausted.
     railradar_stale_seconds: int = Field(default=21_600, ge=0)
+    # Live departure boards: how many nearby catalogue stations are queried (one trains-between call each,
+    # cached) and for how many of the listed trains running status is fetched (one call each, cached).
+    live_board_neighbours: int = Field(default=3, ge=1, le=6)
+    live_board_status_limit: int = Field(default=3, ge=0, le=6)
 
     # LLM (optional). "gemini", "bedrock" or "none".
     llm_provider: str = "none"

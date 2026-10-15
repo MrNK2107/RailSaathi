@@ -57,6 +57,11 @@ class RailRadarJourneyProvider:
     def data_mode(self) -> DataMode:
         return DataMode.LIVE
 
+    @property
+    def client(self) -> RailRadarClient:
+        """The shared client (one quota and cache) so live boards reuse it."""
+        return self._client
+
     def provenance(self, fetched_at: datetime | None = None, mode: DataMode = DataMode.LIVE) -> DataProvenance:
         """as_of is when RailRadar was actually called (cached responses keep their original time)."""
         as_of = (fetched_at or datetime.now(self._tz)).astimezone(self._tz)

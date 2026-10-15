@@ -45,6 +45,7 @@ ignore = ["E501", "B905"]
 
 [tool.ruff.lint.per-file-ignores]
 "app/api/routes.py" = ["B008"]  # FastAPI Body(...) defaults are idiomatic
+"app/api/live.py" = ["B008"]  # FastAPI Query(...) defaults are idiomatic
 
 [tool.uv]
 package = false

@@ -23,9 +23,11 @@ from app.journey.planner import GoalPlanner
 from app.journey.venues import load_venues
 from app.providers.base import DisruptionSource, JourneyProvider
 from app.providers.demo import DemoDisruptionSource, DemoJourneyProvider
+from app.providers.live_source import DemoLiveSource, LiveSource, RailRadarLiveSource, UnavailableLiveSource
 from app.providers.railradar import RailRadarDisruptionSource, RailRadarJourneyProvider, UnconfiguredLiveProvider
 from app.providers.railradar_client import RailRadarClient
 from app.providers.railradar_shared import RedisQuotaGate, RedisResponseCache
+from app.providers.station_directory import StationDirectory
 from app.ranking.recommender import Recommender
 from app.infra.redis import build_redis
 from app.security.tokens import SessionTokenSigner, build_signer
@@ -54,6 +56,7 @@ class Container:
     goal_planner: GoalPlanner | None = None
     plan_store: PlanStore | None = None
     conversations: ConversationStore | None = None  # ticketing-agent history
+    live: LiveSource | None = None  # departure boards, schedules, running status
 
     @property
     def agent_llm(self) -> ChatLLM:
@@ -176,6 +179,25 @@ def build_data_sources(settings: Settings, redis: Redis | None = None) -> tuple[
         "requested": requested, "active": "demo", "configured": True, "reason": None}
 
 
+def build_live_source(settings: Settings, provider: JourneyProvider, clock: Clock) -> LiveSource:
+    """Live boards follow the journey data source. RailRadar reuses the planner's client (one shared quota and
+    cache). Demo boards exist only outside production; anything else answers `unavailable` with a reason."""
+    directory = StationDirectory(provider.stations())
+    if isinstance(provider, RailRadarJourneyProvider):
+        return RailRadarLiveSource(provider.client, directory, clock, settings.timezone,
+                                   neighbours=settings.live_board_neighbours,
+                                   status_limit=settings.live_board_status_limit,
+                                   max_concurrency=settings.railradar_max_concurrency)
+    if isinstance(provider, DemoJourneyProvider) and not settings.is_production:
+        return DemoLiveSource(directory, clock, settings.timezone)
+    if settings.is_production and settings.data_provider.lower() == "demo":
+        log.error("Demo live boards are refused when APP_ENV=production; configure RailRadar")
+        reason = "Demo data is disabled in production and live data is not configured."
+    else:
+        reason = "Live data is not configured (the RailRadar API key is missing)."
+    return UnavailableLiveSource(directory, clock, reason, settings.timezone)
+
+
 def build_session_store(settings: Settings, clock: Clock, redis: Redis | None) -> SessionStore:
     if redis is not None:
         return RedisSessionStore(redis, settings.session_ttl_minutes * 60, settings.redis_key_prefix,
@@ -247,4 +269,4 @@ def build_container(settings: Settings, clock: Clock | None = None,
     prepare_knowledge_db(settings)
     return Container(settings, clock, provider, disruptions, resolver, extractor, audit, planner, data_status, redis, signer,
                      chat_llm, chat_reason, goal_planner, build_plan_store(settings, redis),
-                     build_conversation_store(settings, redis))
+                     build_conversation_store(settings, redis), build_live_source(settings, provider, clock))
