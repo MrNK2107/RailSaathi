@@ -2,8 +2,10 @@ import { lazy, Suspense, useEffect, type ComponentType } from 'react'
 import type { ApiClient } from './api/client'
 import { ClassicView } from './ClassicApp'
 import { usePlanner } from './hooks/usePlanner'
+import { ScreenBoundary } from './components/ScreenBoundary'
 import { AppProvider } from './mobile/PlannerContext'
 import { useRoute, type Route } from './mobile/router'
+import { MOBILE_STRINGS } from './mobile/strings'
 import Confirmation from './mobile/screens/Confirmation'
 import Dashboard from './mobile/screens/Dashboard'
 import GoalPlanner from './mobile/screens/GoalPlanner'
@@ -45,11 +47,15 @@ export default function App({ client }: { client?: ApiClient }) {
 
   if (route === 'classic') return <ClassicView planner={planner} />
   const ScreenComponent = SCREENS[route]
+  const errors = MOBILE_STRINGS[planner.language].errors
   return (
     <AppProvider value={{ planner, route, go, back }}>
-      <Suspense fallback={<p role="status" className="p-6 text-center text-sm text-ink-500">{planner.language === 'ta' ? 'ஏற்றப்படுகிறது…' : 'Loading…'}</p>}>
-        <ScreenComponent />
-      </Suspense>
+      {/* Keyed by route so leaving a failed screen recovers. */}
+      <ScreenBoundary key={route} message={errors.screenFailed} reloadLabel={errors.reload}>
+        <Suspense fallback={<p role="status" className="p-6 text-center text-sm text-ink-500">{errors.loadingScreen}</p>}>
+          <ScreenComponent />
+        </Suspense>
+      </ScreenBoundary>
     </AppProvider>
   )
 }

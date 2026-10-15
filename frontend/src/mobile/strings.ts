@@ -223,6 +223,9 @@ const en = {
     schematicLabel: 'Schematic — not to scale',
     loading: 'Loading the station model…',
     failed: 'The station model could not be loaded.',
+    stationsFailed: 'The station list could not be loaded, so no station can be shown.',
+    noStations: 'No stations are available for the tour.',
+    detailsFailed: 'The station details could not be loaded, so route planning and the 2D plan are not available.',
     sceneLabel: '3D schematic model of {station}. Drag to turn it, pinch or scroll to zoom, tap a pin to see the place. The place list below does the same with a keyboard.',
     planUnits: 'This station has no map scale, so the model is in plan units, not metres.',
     nominalHeights: 'Heights of platforms and buildings are nominal, not measured.',
@@ -353,6 +356,9 @@ const en = {
   },
   errors: {
     generic: 'Something went wrong.',
+    loadingScreen: 'Loading…',
+    screenFailed: 'This screen could not be loaded. You may be offline, or the app was updated. Reload to try again.',
+    reload: 'Reload',
   },
 }
 
@@ -457,12 +463,21 @@ const taOverrides: DeepPartial<MobileStrings> = {
   },
   navigation: { openTour: 'நிலையத்தை 3D-ல் சுற்றிப் பாருங்கள்' },
   help: { title: 'உதவி', urgent: 'உடனடி உதவி தேவையா?' },
+  errors: {
+    generic: 'ஏதோ தவறு நடந்தது.',
+    loadingScreen: 'ஏற்றப்படுகிறது…',
+    screenFailed: 'இந்தத் திரையை ஏற்ற முடியவில்லை. இணைய இணைப்பு இல்லாமல் இருக்கலாம் அல்லது செயலி புதுப்பிக்கப்பட்டிருக்கலாம். மீண்டும் முயல மறுஏற்றம் செய்யவும்.',
+    reload: 'மறுஏற்றம்',
+  },
   tour: {
     title: 'நிலையத்தைச் சுற்றிப் பாருங்கள்',
     intro: 'நிலைய வரைபடத்திலிருந்து உருவாக்கிய திட்டவட்ட 3D மாதிரி; வருவதற்கு முன் சுற்றிப் பாருங்கள்.',
     schematicLabel: 'திட்டவட்ட வரைபடம் — அளவுக்கு ஏற்றதல்ல',
     loading: 'நிலைய மாதிரி ஏற்றப்படுகிறது…',
     failed: 'நிலைய மாதிரியை ஏற்ற முடியவில்லை.',
+    stationsFailed: 'நிலையப் பட்டியலை ஏற்ற முடியவில்லை; அதனால் எந்த நிலையத்தையும் காட்ட முடியாது.',
+    noStations: 'சுற்றுப்பயணத்திற்கு நிலையங்கள் எதுவும் இல்லை.',
+    detailsFailed: 'நிலைய விவரங்களை ஏற்ற முடியவில்லை; அதனால் வழித்தடத் திட்டமிடலும் 2D வரைபடமும் கிடைக்காது.',
     sceneLabel: '{station} நிலையத்தின் திட்டவட்ட 3D மாதிரி. சுழற்ற இழுக்கவும், பெரிதாக்க கிள்ளவும் அல்லது உருட்டவும், இடத்தைப் பார்க்க ஊசிக்குறியைத் தட்டவும். கீழே உள்ள இடப் பட்டியல் விசைப்பலகையில் இதையே செய்யும்.',
     planUnits: 'இந்த நிலையத்திற்கு வரைபட அளவு இல்லை; மாதிரி மீட்டரில் அல்ல, வரைபட அலகுகளில் உள்ளது.',
     nominalHeights: 'நடைமேடை மற்றும் கட்டட உயரங்கள் தோராயமானவை, அளக்கப்படவில்லை.',

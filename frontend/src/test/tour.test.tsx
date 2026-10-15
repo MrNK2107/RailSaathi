@@ -379,6 +379,32 @@ describe('Tour screen', () => {
     expect(screen.queryByTestId('tour-scene')).not.toBeInTheDocument()
   })
 
+  it('station list failure with no station in the link: an alert with the reason, not an empty screen', async () => {
+    const c = client(chennai, undefined, { stations: vi.fn().mockRejectedValue(new ApiError(503, 'service_unavailable', 'Try again shortly.')) })
+    await openTour(c, '/tour')
+    const alert = await screen.findByText(/The station list could not be loaded, so no station can be shown\. Try again shortly\./)
+    expect(alert).toHaveAttribute('role', 'alert')
+    expect(alert).toHaveAttribute('data-code', 'service_unavailable')
+    expect(c.stationTour).not.toHaveBeenCalled()
+  })
+
+  it('an empty station list says so', async () => {
+    const c = client(chennai, undefined, { stations: vi.fn().mockResolvedValue([]) })
+    await openTour(c, '/tour')
+    expect(await screen.findByText(m.tour.noStations)).toHaveAttribute('data-code', 'no_stations')
+  })
+
+  it('station details failure while the tour loads: an alert explains why route pickers and the 2D plan are missing', async () => {
+    env.webgl = false
+    const c = client(chennai, undefined, { station: vi.fn().mockRejectedValue(new ApiError(500, 'internal_error', 'Server error.')) })
+    await openTour(c)
+    const alert = await screen.findByText(/The station details could not be loaded, so route planning and the 2D plan are not available\. Server error\./)
+    expect(alert).toHaveAttribute('role', 'alert')
+    expect(alert).toHaveAttribute('data-code', 'internal_error')
+    expect(screen.queryByLabelText('To platform or facility')).not.toBeInTheDocument()
+    expect(screen.getByTestId('schematic-label')).toBeInTheDocument()
+  })
+
   it('opens on Chennai Central when the link names no station', async () => {
     const c = client()
     await openTour(c, '/tour')

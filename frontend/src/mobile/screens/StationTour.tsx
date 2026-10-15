@@ -50,7 +50,8 @@ export default function StationTour() {
   const client = planner.client
   const t = m.tour
   const n = m.navigation
-  const [stations, setStations] = useState<StationSummary[]>([])
+  const [stations, setStations] = useState<StationSummary[] | null>(null)
+  const [listError, setListError] = useState<ApiError | null>(null)
   const [stationId, setStationId] = useState(() => routeParam('station') ?? '')
   const [tour, setTour] = useState<Tour | null>(null)
   const [tourError, setTourError] = useState<ApiError | null>(null)
@@ -73,10 +74,15 @@ export default function StationTour() {
         setStations(list)
         setStationId((cur) => cur || (list.find((s) => s.station_id === DEFAULT_TOUR_STATION) ?? list[0])?.station_id || '')
       },
-      () => undefined, // the tour request below reports problems for the chosen station
+      (e) => {
+        if (e instanceof ApiError && e.isAborted) return
+        setListError(e instanceof ApiError ? e : new ApiError(0, 'unknown', t.stationsFailed))
+      },
     )
     client.clientConfig({ signal: ctl.signal }).then(setConfig, () => { if (!ctl.signal.aborted) setConfig(NO_CONFIG) })
     return () => ctl.abort()
+    // t.stationsFailed is only a fallback message; the list is fetched once per client.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client])
 
   useEffect(() => {
@@ -132,15 +138,23 @@ export default function StationTour() {
         <label htmlFor="tour-station" className="block text-xs font-semibold text-ink-700">
           {n.station}
           <select id="tour-station" value={stationId} onChange={(e) => setStationId(e.target.value)} className={SELECT}>
-            {stations.length === 0 && stationId && <option value={stationId}>{stationId}</option>}
-            {stations.map((s) => <option key={s.station_id} value={s.station_id}>{s.station_name}</option>)}
+            {!stations?.length && stationId && <option value={stationId}>{stationId}</option>}
+            {(stations ?? []).map((s) => <option key={s.station_id} value={s.station_id}>{s.station_name}</option>)}
           </select>
         </label>
+        {listError && (
+          <p role="alert" data-code={listError.code} className="rounded-xl bg-red-50 p-3 text-xs text-red-900">{t.stationsFailed} {listError.message}</p>
+        )}
+        {stations?.length === 0 && !stationId && <p role="alert" data-code="no_stations" className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900">{t.noStations}</p>}
+        {!stationId && !stations && !listError && <p role="status" className="text-xs text-ink-500">{t.loading}</p>}
         {stationId && !tour && !tourError && <p role="status" className="text-xs text-ink-500">{t.loading}</p>}
         {tourError && <p role="alert" data-code={tourError.code} className="rounded-xl bg-red-50 p-3 text-xs text-red-900">{t.failed} {tourError.message}</p>}
         {tour && (
           <>
             <StationNotice details={tour} m={n} />
+            {w.detailsError && (
+              <p role="alert" data-code={w.detailsError.code} className="rounded-xl bg-red-50 p-3 text-xs text-red-900">{t.detailsFailed} {w.detailsError.message}</p>
+            )}
             {spec?.frame.units === 'plan_units' && <p className="text-xs text-ink-500">{t.planUnits}</p>}
             {tour.areas.length > 0 && <p className="text-xs text-ink-500">{t.nominalHeights}</p>}
             {!tour.routing_enabled && (
