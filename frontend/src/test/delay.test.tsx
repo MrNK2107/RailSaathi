@@ -55,7 +55,7 @@ describe('Delay estimate result', () => {
       predicted_delay_minutes: 30, risk_level: 'MODERATE', on_time_probability: null, mae_minutes: null,
       basis: 'history_only', model_version: 'history-only',
     }))
-    expect(el).toHaveTextContent('+30 mins')
+    expect(el).toHaveTextContent('+30 min')
     expect(el).toHaveTextContent('Historical average only')
     expect(el).not.toHaveTextContent('%')
     expect(el).not.toHaveTextContent('Typical error')

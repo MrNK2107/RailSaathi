@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, api as defaultApi, type ApiClient } from '../api/client'
 import type { HealthResponse, JourneyPatch, Language, PlannerResponse, ReferenceData } from '../api/types'
 import { STRINGS } from '../i18n/strings'
+import { loadState, saveState } from '../mobile/persist'
 
 export interface ChatMessage {
   id: number
@@ -16,7 +17,7 @@ const message = (role: ChatMessage['role'], text: string): ChatMessage => ({ id:
 
 /** Session-scoped planner state. The backend response is always the source of truth. */
 export function usePlanner(client: ApiClient = defaultApi) {
-  const [language, setLanguage] = useState<Language>('en')
+  const [language, setLanguageState] = useState<Language>(() => loadState().language)
   const [response, setResponse] = useState<PlannerResponse | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [loading, setLoading] = useState(false)
@@ -27,8 +28,14 @@ export function usePlanner(client: ApiClient = defaultApi) {
   const langRef = useRef(language)
   langRef.current = language
 
+  const setLanguage = useCallback((lang: Language) => {
+    setLanguageState(lang)
+    saveState({ language: lang })
+  }, [])
+
   const startSession = useCallback(async (lang: Language) => {
     const res = await client.createSession(lang)
+    saveState({ session: { sessionId: res.session_id, token: res.session_token ?? null } })
     setResponse(res)
     setMessages([]) // run() appends the greeting
     return res
@@ -69,6 +76,7 @@ export function usePlanner(client: ApiClient = defaultApi) {
     setError(null)
     try {
       const fresh = await client.createSession(langRef.current)
+      saveState({ session: { sessionId: fresh.session_id, token: fresh.session_token ?? null } })
       setResponse(fresh)
       const res = await client.sendMessage(fresh.session_id, text, langRef.current)
       setResponse(res)
@@ -88,7 +96,22 @@ export function usePlanner(client: ApiClient = defaultApi) {
     initialised.current = true
     client.health().then(setHealth).catch(() => setHealth(null))
     client.reference().then(setReference).catch(() => setReference(null))
-    run(() => startSession(langRef.current))
+    // Resume this tab's session after a reload; the backend is the source of truth, so ask it for the state.
+    // Any failure (expired, unknown, offline) falls back to a fresh session, which `run` reports if it also fails.
+    const resume = async (): Promise<PlannerResponse> => {
+      const stored = loadState().session
+      if (stored) {
+        try {
+          client.setSessionToken(stored.token)
+          return await client.getSession(stored.sessionId) // run() shows its assistant message
+        } catch {
+          client.setSessionToken(null)
+          saveState({ session: null })
+        }
+      }
+      return startSession(langRef.current)
+    }
+    run(resume)
     // Run once on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

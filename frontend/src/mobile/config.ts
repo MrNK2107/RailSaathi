@@ -29,4 +29,3 @@ export const EMERGENCY_NUMBER = '139'
 export const RAIL_MADAD_URL = 'https://railmadad.indianrailways.gov.in/'
 
 /** Placeholder facility tiles (no station facility data is connected yet). */
-export const FACILITY_TILES = ['toilets', 'water', 'food', 'lounge', 'charging', 'atm'] as const

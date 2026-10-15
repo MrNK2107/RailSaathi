@@ -67,11 +67,12 @@ export default function Dashboard() {
             type="button"
             onClick={() => go('help')}
             className="flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-bold text-red-600 hover:bg-red-100"
-            title="Emergency SOS & Helplines"
+            aria-label={m.dashboard.sosTitle}
+            title={m.dashboard.sosTitle}
           >
-            SOS
+            {m.dashboard.sos}
           </button>
-          <div role="group" aria-label="Language" className="flex overflow-hidden rounded-full border border-ink-300 text-xs font-semibold">
+          <div role="group" aria-label={m.dashboard.language} className="flex overflow-hidden rounded-full border border-ink-300 text-xs font-semibold">
             {(['en', 'ta'] as Language[]).map((code) => (
               <button key={code} type="button" onClick={() => planner.setLanguage(code)} aria-pressed={lang === code}
                 className={`px-2.5 py-1 ${lang === code ? 'bg-brand-600 text-white' : 'text-ink-700'}`}>
@@ -102,7 +103,7 @@ export default function Dashboard() {
 
       <ErrorBanner />
 
-      <section aria-label="Services" className="grid grid-cols-2 gap-3 p-4">
+      <section aria-label={m.dashboard.services} className="grid grid-cols-2 gap-3 p-4">
         {shortcuts.map(({ label, Icon, onClick }) => (
           <button key={label} type="button" onClick={onClick}
             className="flex items-center gap-3 rounded-2xl bg-white p-3 text-left text-sm font-semibold text-brand-900 shadow-card ring-1 ring-ink-100 hover:ring-brand-200">

@@ -313,7 +313,7 @@ describe('Tour screen', () => {
     expect(card).toHaveTextContent(m.tour.facilitiesNearby)
     await user.selectOptions(screen.getByLabelText(m.tour.place), 'toilet_west')
     card = screen.getByTestId('place-card')
-    expect(card).toHaveTextContent('toilet · Open')
+    expect(card).toHaveTextContent('Toilet · Open')
     expect(scene.last!.selectedId).toBe('toilet_west')
     expect(within(card).queryByRole('button', { name: /Street View/ })).not.toBeInTheDocument() // no panorama here
   })

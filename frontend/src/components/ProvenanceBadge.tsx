@@ -1,6 +1,7 @@
 // The one provenance badge used on every screen that shows railway data (Honesty requirements).
 // `unavailable` (or missing provenance) renders an explicit empty state with the reason, never placeholder data.
 import type { DataMode, Provenance } from '../api/types'
+import { useOptionalApp } from '../mobile/PlannerContext'
 import { formatDay, formatTime } from '../utils/format'
 
 export const DEFAULT_PROVENANCE_LABELS: Record<DataMode, string> = {
@@ -38,8 +39,13 @@ export interface ProvenanceBadgeProps {
 }
 
 export function ProvenanceBadge({
-  provenance, mode, variant = 'chip', reason, labels, unavailableTitle = 'Data unavailable', className = '',
+  provenance, mode, variant = 'chip', reason, labels: labelProp, unavailableTitle: titleProp, className = '',
 }: ProvenanceBadgeProps) {
+  // Inside the mobile app the labels follow the UI language; explicit props still win.
+  const m = useOptionalApp()?.m
+  const labels = m ? { live: m.live, ...m.provenance, ...labelProp } : labelProp
+  const unavailableTitle = titleProp ?? m?.dataUnavailable ?? 'Data unavailable'
+  const defaultReason = m?.noDataReason ?? 'No data could be obtained from the data source.'
   if (!provenance && mode && mode !== 'unavailable') {
     const known: DataMode = mode in DEFAULT_PROVENANCE_LABELS ? (mode as DataMode) : 'unknown'
     return (
@@ -51,7 +57,7 @@ export function ProvenanceBadge({
     )
   }
   if (!provenance || provenance.mode === 'unavailable') {
-    const why = provenance?.note || reason || 'No data could be obtained from the data source.'
+    const why = provenance?.note || reason || defaultReason
     return (
       <section role="status" data-testid="provenance-badge" data-mode="unavailable"
         className={`rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-900 ${className}`}>

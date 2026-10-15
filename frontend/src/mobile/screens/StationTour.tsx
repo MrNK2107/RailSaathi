@@ -43,7 +43,6 @@ class SceneBoundary extends Component<{ onError: () => void; children: ReactNode
   }
 }
 
-const humanise = (type: string) => type.replace(/_/g, ' ')
 
 export default function StationTour() {
   const { planner, m } = useApp()
@@ -254,7 +253,7 @@ export default function StationTour() {
               {selected && (
                 <div data-testid="place-card" aria-live="polite" className="space-y-1 text-xs">
                   <p className="text-sm font-bold text-brand-900">{selected.name}</p>
-                  <p className="text-ink-500">{humanise(selected.type)} · {t.status[selected.status]}</p>
+                  <p className="text-ink-500">{t.nodeType[selected.type] ?? selected.type.replace(/_/g, ' ')} · {t.status[selected.status]}</p>
                   <p className="font-semibold text-ink-700">{n.stepFree[selected.step_free]}</p>
                   <p className="pt-1 font-semibold text-ink-700">{t.facilitiesNearby}</p>
                   {(() => {

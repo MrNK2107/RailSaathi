@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import type { Category, DataProvenance, Recommendation, SessionState } from '../api/types'
 import { formatDay, formatTime } from '../utils/format'
 import {
-  AlertIcon, ArrowLeft, BellIcon, BoltIcon, HomeIcon, HelpIcon, RefreshIcon, TagIcon, TrainIcon, TripsIcon,
+  AlertIcon, ArrowLeft, BellIcon, BoltIcon, HomeIcon, RefreshIcon, TagIcon, TrainIcon, TripsIcon,
   TrophyIcon, UserIcon,
 } from './icons'
 import { useApp } from './PlannerContext'
@@ -50,7 +50,7 @@ const NAV: { route: Route; key: 'home' | 'trips' | 'alerts' | 'profile'; Icon: t
 export function BottomNav() {
   const { route, go, m } = useApp()
   return (
-    <nav aria-label="Main" className="sticky bottom-0 z-20 grid grid-cols-4 border-t border-ink-100 bg-white pb-[env(safe-area-inset-bottom)]">
+    <nav aria-label={m.nav.main} className="sticky bottom-0 z-20 grid grid-cols-4 border-t border-ink-100 bg-white pb-[env(safe-area-inset-bottom)]">
       {NAV.map(({ route: target, key, Icon }) => {
         const active = route === target
         return (
@@ -104,7 +104,7 @@ export function CategoryBadge({ category }: { category: Category }) {
 }
 
 export function ErrorBanner() {
-  const { planner } = useApp()
+  const { planner, m } = useApp()
   if (!planner.error) return null
   return (
     <div role="alert" className="mx-4 my-2 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -112,7 +112,7 @@ export function ErrorBanner() {
       <span className="flex-1">{planner.error}</span>
       {planner.canRetry && (
         <button type="button" onClick={() => planner.retry()} className="inline-flex items-center gap-1 font-semibold underline">
-          <RefreshIcon size={14} /> Retry
+          <RefreshIcon size={14} /> {m.errors.retry}
         </button>
       )}
     </div>
@@ -136,14 +136,6 @@ export function SecondaryButton({ children, onClick, disabled }: { children: Rea
       className="flex w-full items-center justify-center gap-2 rounded-2xl border border-ink-300 bg-white px-4 py-3 text-base font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-50">
       {children}
     </button>
-  )
-}
-
-export function PreviewNotice({ children }: { children: ReactNode }) {
-  return (
-    <p role="note" className="mx-4 mt-3 flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs font-medium text-amber-900">
-      <HelpIcon size={16} className="mt-0.5 shrink-0" /> {children}
-    </p>
   )
 }
 

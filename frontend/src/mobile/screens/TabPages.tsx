@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { ApiError } from '../../api/client'
 import type { DelayPrediction, DepartureBoard, Language } from '../../api/types'
 import { formatDate, formatTime } from '../../utils/format'
+import { fill } from '../strings'
 import {
   BellIcon,
   GlobeIcon,
@@ -43,9 +44,9 @@ export function MyTrips() {
                 <p className="font-bold text-brand-900">{trip.trainNo} {trip.trainName}</p>
                 <p className="text-ink-700">{trip.fromLabel} → {trip.toLabel}</p>
                 <p className="text-xs text-ink-500">
-                  {trip.journeyDate ? formatDate(trip.journeyDate) : ''} · {formatTime(trip.departure)} → {formatTime(trip.arrival)} · {trip.passengers ?? '?'} pax
+                  {trip.journeyDate ? formatDate(trip.journeyDate) : ''} · {formatTime(trip.departure)} → {formatTime(trip.arrival)} · {trip.passengers ?? '?'} {trip.passengers === 1 ? m.options.passenger : m.options.passengers}
                 </p>
-                <p className="mt-1 text-[11px] text-ink-500">Ref {trip.confirmationId}</p>
+                <p className="mt-1 text-[11px] text-ink-500">{m.trips.ref} {trip.confirmationId}</p>
               </div>
               <ProvenanceBadge provenance={null} mode={trip.dataMode} labels={{ live: m.live }} />
             </div>
@@ -86,11 +87,11 @@ function DelayResult({ prediction }: { prediction: DelayPrediction }) {
         <div className="mt-2 grid grid-cols-2 gap-2 text-center text-xs">
           <div className="rounded-lg bg-white p-2">
             <span className="block text-[10px] text-ink-500">{d.typical}</span>
-            <span className="font-extrabold text-brand-900">+{p.predicted_delay_minutes} mins</span>
+            <span className="font-extrabold text-brand-900">{fill(d.typicalValue, { n: p.predicted_delay_minutes })}</span>
           </div>
           {p.on_time_probability !== null && (
             <div className="rounded-lg bg-white p-2">
-              <span className="block text-[10px] text-ink-500">{d.onTime}</span>
+              <span className="block text-[10px] text-ink-500">{fill(d.onTime, { n: p.on_time_threshold_minutes })}</span>
               <span className="font-extrabold text-brand-600">{Math.round(p.on_time_probability * 100)}%</span>
             </div>
           )}
@@ -134,7 +135,7 @@ export function Alerts() {
     } catch (err) {
       if (call.signal.aborted || (err instanceof ApiError && err.isAborted)) return
       setBoard(null)
-      setBoardError(failureMessage(err, `${m.alerts.board.loadFailed} ${code}.`))
+      setBoardError(failureMessage(err, fill(m.alerts.board.loadFailed, { station: code })))
     } finally {
       if (!call.signal.aborted) setLoadingLive(false)
     }
@@ -238,7 +239,7 @@ export function Alerts() {
             <p className="py-4 text-center text-xs text-ink-500">{m.alerts.board.loading}</p>
           ) : !board ? (
             <ProvenanceBadge provenance={null} variant="full" unavailableTitle={m.alerts.board.unavailableTitle}
-              reason={boardError ?? `${m.alerts.board.loadFailed} ${selectedStation}.`} />
+              reason={boardError ?? fill(m.alerts.board.loadFailed, { station: selectedStation })} />
           ) : board.provenance.mode === 'unavailable' ? (
             <ProvenanceBadge provenance={{ ...board.provenance, note: board.reason ?? board.provenance.note }}
               variant="full" unavailableTitle={m.alerts.board.unavailableTitle} />
@@ -253,14 +254,14 @@ export function Alerts() {
                     <span className="truncate text-xs font-semibold text-ink-900 max-w-[150px]">{tr.train_name}</span>
                   </div>
                   <p className="text-[10px] text-ink-500">
-                    Dep {formatTime(tr.scheduled_departure)} · towards {tr.towards.map((t) => t.name).join(', ')}
+                    {fill(m.alerts.board.departsTowards, { time: formatTime(tr.scheduled_departure), places: tr.towards.map((t) => t.name).join(', ') })}
                   </p>
                 </div>
                 <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${
                   tr.cancelled ? 'bg-red-50 text-red-600' : tr.delay_minutes ? 'bg-amber-50 text-amber-700' : 'bg-ink-100 text-ink-700'
                 }`}>
-                  {tr.cancelled ? 'Cancelled' : tr.delay_minutes === null ? 'Status unknown'
-                    : tr.delay_minutes === 0 ? 'On time' : `+${tr.delay_minutes} min`}
+                  {tr.cancelled ? m.alerts.board.cancelled : tr.delay_minutes === null ? m.alerts.board.statusUnknown
+                    : tr.delay_minutes === 0 ? m.alerts.board.onTime : fill(m.alerts.board.delayed, { n: tr.delay_minutes })}
                 </span>
               </div>
             ))
@@ -304,7 +305,7 @@ export function Profile() {
           <span className="flex items-center gap-2">{provider?.active ?? '—'} {h && <ProvenanceBadge provenance={null} mode={h.data_mode} labels={{ live: m.live }} />}</span></p>
         {provider?.reason && <p className="text-xs text-red-700">{provider.reason}</p>}
         <p className="flex items-center justify-between"><span className="text-ink-500">{m.profile.ai}</span>
-          <span>{h?.ai?.active ? 'Claude (AWS Bedrock)' : 'Built-in parser'}</span></p>
+          <span>{h?.ai?.active ? fill(m.profile.aiActive, { provider: String(h.ai.provider ?? '') }) : m.profile.aiInactive}</span></p>
       </section>
       <p className="flex items-start gap-2 text-xs text-ink-500"><InfoIcon size={16} className="shrink-0" /> {m.profile.noAccount}</p>
       <button type="button" onClick={() => go('classic')} className="text-sm font-semibold text-brand-600 underline">{m.profile.classic}</button>

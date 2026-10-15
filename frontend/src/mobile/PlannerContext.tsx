@@ -18,6 +18,11 @@ export function AppProvider({ value, children }: { value: Omit<AppContextValue, 
   return <AppContext.Provider value={{ ...value, m }}>{children}</AppContext.Provider>
 }
 
+/** For shared components that also render outside the mobile app (classic view): null there. */
+export function useOptionalApp(): AppContextValue | null {
+  return useContext(AppContext)
+}
+
 export function useApp(): AppContextValue {
   const ctx = useContext(AppContext)
   if (!ctx) throw new Error('useApp must be used inside AppProvider')

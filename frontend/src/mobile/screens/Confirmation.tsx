@@ -55,7 +55,7 @@ export default function Confirmation() {
         <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-match-600 text-white ring-8 ring-match-50"><CheckIcon size={40} /></span>
         <h1 className="mt-4 text-2xl font-extrabold text-brand-900">{m.confirmation.ready}</h1>
         <p className="mt-1 text-sm text-ink-500">{m.confirmation.readyBody}</p>
-        <p className="mt-1 text-[11px] text-ink-500">Ref {conf.confirmation_id}</p>
+        <p className="mt-1 text-[11px] text-ink-500">{m.confirmation.ref} {conf.confirmation_id}</p>
       </section>
 
       <div className="space-y-3 p-4">

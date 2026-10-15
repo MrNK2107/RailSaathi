@@ -39,7 +39,9 @@ export default function VoiceAgent() {
   const state = planner.state
   const [draft, setDraft] = useState('')
   const [fromVoice, setFromVoice] = useState(false)
-  const [speechLang, setSpeechLang] = useState<string>(lang === 'ta' ? 'ta-IN' : 'en-IN')
+  // The recognition language follows the UI language; a manual choice applies only until the UI language changes.
+  const [picked, setPicked] = useState<{ ui: string; code: string } | null>(null)
+  const speechLang = picked && picked.ui === lang ? picked.code : lang === 'ta' ? 'ta-IN' : 'en-IN'
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const listRef = useRef<HTMLOListElement>(null)
 
@@ -87,7 +89,7 @@ export default function VoiceAgent() {
 
         <button type="button" onClick={() => (listening ? mic.stop() : mic.start(draft))}
           disabled={mic.state === 'unsupported' || mic.state === 'processing'}
-          aria-label={listening ? 'Stop voice input' : 'Start voice input'} aria-pressed={listening}
+          aria-label={listening ? m.plan.stopVoice : m.plan.startVoice} aria-pressed={listening}
           className={`mx-auto -mt-2 grid h-20 w-20 place-items-center rounded-full text-white shadow-card ring-8 transition
             ${listening ? 'bg-red-600 ring-red-100' : 'bg-brand-600 ring-brand-100 hover:bg-brand-700'}
             disabled:cursor-not-allowed disabled:bg-ink-300 disabled:ring-ink-100`}>
@@ -95,12 +97,12 @@ export default function VoiceAgent() {
         </button>
         <p className="mt-3 text-sm font-medium text-ink-700" role="status">
           {listening ? m.plan.listening : mic.state === 'unsupported' ? m.plan.micUnsupported
-            : mic.state === 'error' ? m.plan.micError : m.plan.tapToSpeak}
+            : mic.state === 'error' ? m.plan.micErrors[mic.errorCode ?? 'start_failed'] : m.plan.tapToSpeak}
         </p>
 
         <label className="mx-auto mt-3 inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1.5 text-sm font-semibold text-brand-700">
           <span className="sr-only">{m.plan.speakIn}</span>
-          <select value={speechLang} onChange={(e) => setSpeechLang(e.target.value)} disabled={listening}
+          <select value={speechLang} onChange={(e) => setPicked({ ui: lang, code: e.target.value })} disabled={listening}
             aria-label={m.plan.speakIn} className="bg-transparent font-semibold outline-none">
             {SPEECH_OPTIONS.map((o) => <option key={o.code} value={o.code}>{o.label}</option>)}
           </select>
@@ -138,7 +140,7 @@ export default function VoiceAgent() {
 
       {planner.messages.length > 0 && (
         <section aria-label={m.plan.conversation} className="px-4 pt-4">
-          <ol ref={listRef} aria-live="polite" className="max-h-64 space-y-2 overflow-y-auto">
+          <ol ref={listRef} role="log" aria-live="polite" aria-label={m.plan.conversation} className="max-h-64 space-y-2 overflow-y-auto">
             {planner.messages.slice(-8).map((msg) => (
               <li key={msg.id} className={msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
                 <p className={`max-w-[88%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${
@@ -150,7 +152,7 @@ export default function VoiceAgent() {
             ))}
             {planner.loading && <li className="text-sm text-ink-500" role="status">…</li>}
           </ol>
-          {source && <p className="mt-1 text-[11px] text-ink-500">{source.startsWith('bedrock') ? m.plan.understoodBy.bedrock : m.plan.understoodBy.rules}</p>}
+          {source && <p className="mt-1 text-[11px] text-ink-500">{source === 'rules' ? m.plan.understoodBy.rules : m.plan.understoodBy.ai}</p>}
         </section>
       )}
 

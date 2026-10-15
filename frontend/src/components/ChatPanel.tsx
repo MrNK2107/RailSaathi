@@ -55,8 +55,10 @@ export function ChatPanel({ t, language, messages, loading, error, canRetry, onS
           {tts.supported && lastAssistant && (
             <button
               type="button"
+              disabled={tts.voice === 'missing'}
+              title={tts.voice === 'missing' ? t.noVoice : undefined}
               onClick={() => (tts.speaking ? tts.stop() : tts.speak(lastAssistant.text))}
-              className="rounded border border-slate-300 px-2 py-1 hover:bg-slate-50"
+              className="rounded border border-slate-300 px-2 py-1 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {tts.speaking ? t.stopReading : t.readAloud}
             </button>
@@ -70,7 +72,7 @@ export function ChatPanel({ t, language, messages, loading, error, canRetry, onS
         </div>
       </div>
 
-      <div ref={listRef} className="min-h-[260px] flex-1 space-y-3 overflow-y-auto px-4 py-3" aria-live="polite" aria-label="Conversation">
+      <div ref={listRef} role="log" aria-live="polite" className="min-h-[260px] flex-1 space-y-3 overflow-y-auto px-4 py-3" aria-label={t.chatTitle}>
         {messages.map((m) => (
           <div key={m.id} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
             <p
@@ -141,7 +143,8 @@ export function ChatPanel({ t, language, messages, loading, error, canRetry, onS
           </button>
         </div>
         {mic.state === 'unsupported' && <p className="mt-1 text-xs text-slate-500">{t.mic.unsupported}</p>}
-        {mic.state === 'error' && <p className="mt-1 text-xs text-red-700" role="alert">{t.mic.error}</p>}
+        {mic.state === 'error' && <p className="mt-1 text-xs text-red-700" role="alert">{t.mic.errors[mic.errorCode ?? 'start_failed']}</p>}
+        {tts.supported && tts.voice === 'missing' && <p className="mt-1 text-xs text-slate-500">{t.noVoice}</p>}
       </form>
     </section>
   )

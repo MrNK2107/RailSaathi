@@ -9,7 +9,7 @@ import { ApiError, type ApiClient } from '../api/client'
 import type { LocalizeCandidate, Provenance, RouteResult, StationDetails } from '../api/types'
 import { ProvenanceBadge } from '../components/ProvenanceBadge'
 import { AlertIcon, CameraIcon, CloseIcon, RefreshIcon, StepsIcon } from '../mobile/icons'
-import type { MobileStrings } from '../mobile/strings'
+import { fill, type MobileStrings } from '../mobile/strings'
 import {
   AUTO_INTERVAL_MS, canSend, earliestTurnRelocaliseAt, emptyBudget, nextAutoAt, recordFailure, recordRateLimited, recordSend, recordSuccess,
   type Budget, type SendKind,
@@ -41,9 +41,6 @@ export interface ArGuidanceProps {
   /** Tests: the clock used for the budget. */
   now?: () => number
 }
-
-const fill = (template: string, values: Record<string, string | number>) =>
-  template.replace(/\{(\w+)\}/g, (_, k: string) => String(values[k] ?? ''))
 
 const BTN = 'flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2'
 
