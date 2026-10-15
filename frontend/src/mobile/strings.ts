@@ -193,6 +193,13 @@ const en = {
   alerts: {
     title: 'Alerts',
     body: 'Push alerts are not connected yet. To check delays for a confirmed plan, open it and tap "Check live status".',
+    board: {
+      unavailableTitle: 'Departures unavailable',
+      loadFailed: 'Departures could not be loaded for',
+      incomplete: 'Some nearby-station lookups failed, so trains may be missing from this list.',
+      coverage: 'Only direct trains to nearby catalogue cities are checked, not every train at the station.',
+      empty: 'No departures found in the next hours among trains to nearby catalogue cities. This does not mean the station has no trains.',
+    },
   },
   profile: {
     title: 'Profile',

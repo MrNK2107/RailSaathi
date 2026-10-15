@@ -11,7 +11,8 @@ import {
 } from '../icons'
 import { useApp } from '../PlannerContext'
 import { loadTrips, removeTrip, type SavedTrip } from '../trips'
-import { Logo, ModeBadge, Screen, SourceLine } from '../ui'
+import { ProvenanceBadge } from '../../components/ProvenanceBadge'
+import { Logo, ModeBadge, Screen } from '../ui'
 
 function Page({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -209,11 +210,13 @@ export function Alerts() {
           {loadingLive ? (
             <p className="py-4 text-center text-xs text-ink-500">Loading departures...</p>
           ) : !board ? (
-            <p className="py-3 text-center text-xs text-ink-500">Departures could not be loaded for {selectedStation}.</p>
+            <ProvenanceBadge provenance={null} variant="full" unavailableTitle={m.alerts.board.unavailableTitle}
+              reason={`${m.alerts.board.loadFailed} ${selectedStation}.`} />
           ) : board.provenance.mode === 'unavailable' ? (
-            <p className="py-3 text-center text-xs text-ink-500">{board.reason ?? 'Live departures are unavailable.'}</p>
+            <ProvenanceBadge provenance={{ ...board.provenance, note: board.reason ?? board.provenance.note }}
+              variant="full" unavailableTitle={m.alerts.board.unavailableTitle} />
           ) : board.departures.length === 0 ? (
-            <p className="py-3 text-center text-xs text-ink-500">No departures found for {selectedStation} in the next hours.</p>
+            <p className="py-3 text-center text-xs text-ink-500">{m.alerts.board.empty}</p>
           ) : (
             board.departures.map((tr) => (
               <div key={tr.train_no} className="flex items-center justify-between rounded-xl border border-ink-100 p-2.5 hover:bg-brand-50/50">
@@ -235,7 +238,17 @@ export function Alerts() {
               </div>
             ))
           )}
-          {board && <SourceLine provenance={board.provenance} />}
+          {board && board.provenance.mode !== 'unavailable' && (
+            <>
+              {!board.complete && (
+                <p role="alert" data-testid="board-incomplete" className="rounded-lg bg-amber-50 p-2 text-[11px] text-amber-800">
+                  {m.alerts.board.incomplete}
+                </p>
+              )}
+              <p className="text-[11px] text-ink-500">{m.alerts.board.coverage}</p>
+              <ProvenanceBadge provenance={board.provenance} variant="full" />
+            </>
+          )}
         </div>
       </section>
     </Page>
