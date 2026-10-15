@@ -488,3 +488,148 @@ export interface DelayPrediction {
   provenance: Provenance
   insights: string[]
 }
+
+// ---- Station navigation (backend api/navigation.py, navigation/models/station.py) ----
+
+/** Whether a node or pathway can be used without steps: verified on site, reported by a source, or unknown. */
+export type StepFree = 'verified' | 'reported' | 'unknown'
+/** `schematic`: traced from a plan, not surveyed and not to scale. Anything else is shown as returned. */
+export type LayoutBasis = string
+export type Point = [number, number]
+
+export interface StationNode {
+  id: string
+  name: string
+  type: string
+  /** Normalised image coordinates, 0..1. */
+  position: Point
+  step_free: StepFree
+}
+
+export interface StationEdge {
+  id: string
+  from: string
+  to: string
+  path_type: string
+  step_free: StepFree
+  geometry: Point[]
+}
+
+export interface StationGraph {
+  station_id: string
+  station_name: string
+  map: { image: string; width: number; height: number }
+  nodes: StationNode[]
+  edges: StationEdge[]
+}
+
+/** GET /api/stations/{id} */
+export interface StationDetails {
+  station: StationGraph
+  version: string
+  layout_basis: LayoutBasis
+  /** false: the layout is an untraced schematic; only the map and information are served. */
+  routing_enabled: boolean
+  provenance: Provenance
+}
+
+export interface StationSummary {
+  station_id: string
+  station_name: string
+  city: string | null
+}
+
+export interface Helpline {
+  id: string
+  /** null for web-only entries (the Rail Madad portal) */
+  number: string | null
+  url?: string
+  label: string
+  purpose: string
+  category: string
+  priority: number
+  sources: { name: string; url: string }[]
+  notes?: string
+}
+
+export interface StationAmenity {
+  name: string
+  detail: string
+  mapped: boolean
+  node_id?: string
+}
+
+/** GET /api/stations/{id}/info */
+export interface StationInfo {
+  checked_on: string | null
+  disclaimer: string | null
+  helplines: Helpline[]
+  amenities: StationAmenity[]
+  layout_basis: LayoutBasis
+  layout_note: string | null
+  provenance: Provenance
+}
+
+export interface RoutePreferencesBody {
+  avoid_stairs: boolean
+  wheelchair: boolean
+  require_verified_accessibility: boolean
+}
+
+/** POST /api/navigation/route */
+export interface RouteRequestBody {
+  station_id: string
+  source: string
+  destination: string
+  preferences: RoutePreferencesBody
+  apply_disruptions?: boolean
+}
+
+export interface RouteSegment {
+  edge_id: string
+  path_type: string
+  step_free: StepFree
+}
+
+export interface RouteInstruction {
+  step: number
+  text: string
+  node_id: string
+  edge_id: string | null
+  distance_m: number | null
+  distance_is_estimate: boolean
+}
+
+export interface RouteResult {
+  status: 'ok' | 'no_route'
+  geometry: Point[]
+  segments: RouteSegment[]
+  instructions: RouteInstruction[]
+  distance_m: number | null
+  estimated_distance_m: number | null
+  distance_basis: 'measured' | 'estimated_from_map_scale' | 'unavailable'
+  estimated_duration_s: number | null
+  duration_assumption: string | null
+  accessibility_confidence: 'verified' | 'unverified' | 'not_applicable'
+  warnings: string[]
+  explanation: string | null
+  reason: string | null
+  along_the_way: { node_id: string; name: string; type: string; on_route: boolean; progress: number; step_free: StepFree }[]
+  provenance: Provenance | null
+}
+
+/** GET /api/trains/rake-position (backend parse_rake_composition) */
+export interface RakeCoach {
+  index: number
+  coach_code: string
+  coach_type: string
+  distance_from_engine_meters: number
+  platform_section: 'Front' | 'Middle' | 'Rear'
+}
+
+export interface RakePosition {
+  total_coaches: number
+  total_rake_length_meters?: number
+  coaches: RakeCoach[]
+  target_coach_info: RakeCoach | null
+}

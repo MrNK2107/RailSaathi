@@ -14,7 +14,7 @@ const TONES = { blue: 'bg-brand-50 text-brand-600', red: 'bg-red-50 text-red-600
 const TILE_ICONS = { toilets: ToiletIcon, water: WaterIcon, food: FoodIcon, lounge: LoungeIcon, charging: PlugIcon, atm: AtmIcon }
 
 export default function HelpAssistance() {
-  const { m } = useApp()
+  const { m, planner } = useApp()
   const [sosModalOpen, setSosModalOpen] = useState(false)
 
   return (
@@ -37,7 +37,7 @@ export default function HelpAssistance() {
                 onClick={() => setSosModalOpen(true)}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-red-300 bg-white px-3 py-2 text-xs font-bold text-red-700 shadow-sm hover:bg-red-50"
               >
-                <ShieldIcon size={16} /> 24×7 Station SOS & Medical
+                <ShieldIcon size={16} /> {m.navigation.openSos}
               </button>
             </div>
           </div>
@@ -97,7 +97,9 @@ export default function HelpAssistance() {
       <EmergencyHelpModal
         isOpen={sosModalOpen}
         onClose={() => setSosModalOpen(false)}
-        stationCode="MAS"
+        client={planner.client}
+        m={m}
+        stationId="chennai_central"
       />
     </Screen>
   )

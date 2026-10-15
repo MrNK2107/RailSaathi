@@ -10,7 +10,13 @@ import type {
   JourneyPatch,
   Language,
   PlannerResponse,
+  RakePosition,
   ReferenceData,
+  RouteRequestBody,
+  RouteResult,
+  StationDetails,
+  StationInfo,
+  StationSummary,
   TicketingRequest,
   TicketingResponse,
 } from './types'
@@ -223,6 +229,18 @@ export function createApiClient(options: ApiClientOptions = {}) {
     predictDelay: (trainNumber: string, stationCode: string, o?: O) =>
       request<DelayPrediction>('GET',
         `/api/predict/delay?train_number=${encodeURIComponent(trainNumber)}&destination=${encodeURIComponent(stationCode)}`,
+        { signal: o?.signal }),
+    // Station navigation (read-only). `route` rejects with ApiError code `routing_unavailable` for untraced stations.
+    stations: (o?: O) => request<StationSummary[]>('GET', '/api/stations', { signal: o?.signal }),
+    station: (id: string, o?: O) =>
+      request<StationDetails>('GET', `/api/stations/${encodeURIComponent(id)}`, { signal: o?.signal }),
+    stationInfo: (id: string, o?: O) =>
+      request<StationInfo>('GET', `/api/stations/${encodeURIComponent(id)}/info`, { signal: o?.signal }),
+    stationRoute: (body: RouteRequestBody, o?: O) =>
+      request<RouteResult>('POST', '/api/navigation/route', { body, idempotent: true, signal: o?.signal }),
+    rakePosition: (composition: string, targetCoach: string, o?: O) =>
+      request<RakePosition>('GET',
+        `/api/trains/rake-position?coach_composition=${encodeURIComponent(composition)}&target_coach=${encodeURIComponent(targetCoach)}`,
         { signal: o?.signal }),
     goalPlan: (planId: string, o?: O) =>
       request<GoalPlanResponse>('GET', `/api/journey/options/${encodeURIComponent(planId)}`, { signal: o?.signal, planner: true }),

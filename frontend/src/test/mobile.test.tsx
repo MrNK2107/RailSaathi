@@ -30,6 +30,7 @@ const liveState: Partial<SessionState> = {
 function fakeClient(overrides: Partial<ApiClient> = {}): ApiClient {
   return {
     baseUrl: 'http://test',
+    stations: vi.fn().mockResolvedValue([]),
     health: vi.fn().mockResolvedValue({ status: 'ok', api_version: '0.1.0', data_mode: 'demo', data_provider: { requested: 'demo', active: 'demo', reason: null }, ai: { active: false } }),
     reference: vi.fn().mockResolvedValue({ places: [], classes: ['SL'], passenger_needs: [], budget_priorities: [], transfer_preferences: [], disruption_events: [], data_notice: 'DEMO' }),
     createSession: vi.fn().mockResolvedValue(response({}, GREETING)),
@@ -216,16 +217,19 @@ describe('Journey Options', () => {
 })
 
 describe('placeholder screens are honest', () => {
-  it('station navigation is a labelled preview with navigation disabled', async () => {
+  it('station navigation has no placeholder map, mock compass or permanently disabled buttons', async () => {
     await open('navigation')
-    expect(screen.getByText(/Preview only — in-station navigation is not connected yet/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Start Navigation/ })).toBeDisabled()
+    expect(await screen.findByLabelText('Station')).toBeInTheDocument()
+    expect(screen.queryByText(/Preview only/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/AR Bearing Compass/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Start Navigation/ })).not.toBeInTheDocument()
+    expect(screen.getByTestId('coach-unknown')).toHaveTextContent('Coach position: unknown')
   })
 
   it('help screen has real tel: links and never claims assistance is booked', async () => {
     await open('help')
     expect(screen.getByRole('link', { name: /Call 139 \(Railway Helpline\)/ })).toHaveAttribute('href', 'tel:139')
-    expect(screen.getByRole('link', { name: /Railway Police/ })).toHaveAttribute('href', 'tel:182')
+    expect(screen.getByRole('link', { name: /Railway Police/ })).toHaveAttribute('href', 'tel:139')
     expect(screen.getByText(/does not mean assistance is booked or guaranteed/)).toBeInTheDocument()
   })
 

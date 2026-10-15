@@ -15,11 +15,11 @@ export const POPULAR_ROUTES = [
 /**
  * Public Indian Railways helplines shown on Help & Assistance.
  * 139 = Rail Madad integrated helpline (enquiry, medical, complaints, assistance requests);
- * 182 = Railway Protection Force security helpline. Verify before production use.
+ * 182 (RPF) was merged into 139 and withdrawn on 1 April 2021, so security also goes to 139.
  * Calling a number does NOT book or guarantee any assistance.
  */
 export const HELPLINES = [
-  { id: 'police', number: '182', tone: 'blue' },
+  { id: 'police', number: '139', tone: 'blue' },
   { id: 'medical', number: '139', tone: 'red' },
   { id: 'enquiry', number: '139', tone: 'navy' },
   { id: 'lostFound', number: '139', tone: 'amber' },
