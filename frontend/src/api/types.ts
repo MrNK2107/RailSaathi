@@ -766,3 +766,50 @@ export interface ClientConfig {
   google_maps_browser_key: string | null
   features: { ar_guidance_stations: string[] }
 }
+
+// ---- AR guidance (backend api/localize.py) ----
+
+/** POST /api/navigation/localize (multipart form): the frame and the priors sent with it. */
+export interface LocalizeRequest {
+  station_id: string
+  /** JPEG or WebP, at most 1.5 MB. Sent once, never stored by the app. */
+  image: Blob
+  previous_node_id?: string | null
+  /** The node ids of the route being followed (`RouteResult.node_ids`); joined with commas on the wire. */
+  route_node_ids?: string[]
+}
+
+export interface LocalizeFix {
+  node_id: string
+  node_name: string
+  level: number
+  /** Normalised plan coordinates of the node. */
+  position: Point
+  /** 0..1, at or above `confidence_threshold`. */
+  confidence: number
+  /** Direction the camera faces in the station frame: degrees clockwise from plan-up; null when unknown. */
+  facing_bearing_deg: number | null
+  /** Cue texts from the station data that the model matched. */
+  matched_cues: string[]
+}
+
+export interface LocalizeCandidate {
+  node_id: string
+  node_name: string
+  confidence: number
+}
+
+export interface LocalizeResponse {
+  /** `fix`: confident; `low_confidence`: pick from `candidates`; `unavailable`: no model answer (reason in `message`). */
+  status: 'fix' | 'low_confidence' | 'unavailable'
+  station_id: string
+  fix: LocalizeFix | null
+  /** At most 3, best first; empty when unavailable. */
+  candidates: LocalizeCandidate[]
+  confidence_threshold: number
+  latency_ms: number
+  message: string | null
+  session_token: string
+  /** `live` / `gemini-vision` with an "Approximate…" note, or `unavailable`. */
+  provenance: Provenance
+}

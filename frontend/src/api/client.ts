@@ -10,6 +10,8 @@ import type {
   HealthResponse,
   JourneyPatch,
   Language,
+  LocalizeRequest,
+  LocalizeResponse,
   PlannerResponse,
   RakePosition,
   ReferenceData,
@@ -34,6 +36,8 @@ export const READ_TIMEOUT_MS = 20_000
  * .github/workflows/deploy.yml). backend/tests/test_timeout_budget.py checks these values stay consistent.
  */
 export const PLANNER_TIMEOUT_MS = 45_000
+/** Camera localisation: the backend deadline (LOCALIZE_DEADLINE_SECONDS, 8 s) plus the frame upload. */
+export const LOCALIZE_TIMEOUT_MS = 15_000
 const MAX_RETRIES = 2
 export const REQUEST_ID_HEADER = 'X-Request-Id'
 export const SESSION_TOKEN_HEADER = 'X-Session-Token'
@@ -46,6 +50,8 @@ export class ApiError extends Error {
     public readonly details: Record<string, unknown> = {},
     /** Correlates with backend logs (`request_id`). */
     public readonly requestId: string | null = null,
+    /** Seconds from a `Retry-After` header (429), when the server sent one. */
+    public readonly retryAfterS: number | null = null,
   ) {
     super(message)
     this.name = 'ApiError'
@@ -61,15 +67,18 @@ export class ApiError extends Error {
 }
 
 /** Turns any response body into an ApiError; understands the backend `{error, request_id}` envelope. */
-export function errorFromResponse(status: number, body: unknown, fallbackRequestId: string | null = null): ApiError {
+export function errorFromResponse(status: number, body: unknown, fallbackRequestId: string | null = null,
+  retryAfter: string | null = null): ApiError {
   const envelope = isEnvelope(body) ? body : null
   const e = envelope?.error
+  const seconds = retryAfter !== null && /^\d+$/.test(retryAfter.trim()) ? Number(retryAfter.trim()) : null
   return new ApiError(
     status,
     typeof e?.code === 'string' && e.code ? e.code : 'http_error',
     typeof e?.message === 'string' && e.message ? e.message : `Request failed (${status})`,
     e?.details && typeof e.details === 'object' ? e.details : {},
     envelope?.request_id ?? fallbackRequestId,
+    seconds,
   )
 }
 
@@ -104,6 +113,12 @@ export interface RequestOptions {
 
 interface Call {
   body?: unknown
+  /** Multipart body (the browser sets the boundary); mutually exclusive with `body`. */
+  form?: FormData
+  /** Overrides the read/planner timeout for this call. */
+  timeoutMs?: number
+  /** Session token for this call when the client holds none (the localize session). */
+  token?: string | null
   /** Only idempotent calls are retried, so a lost response never duplicates a state change. */
   idempotent?: boolean
   signal?: AbortSignal
@@ -122,6 +137,8 @@ export function createApiClient(options: ApiClientOptions = {}) {
   const makeRequestId = options.requestId ?? newRequestId
   // Signed token issued by session creation; sent on every call so session routes and rate limits can verify it.
   let sessionToken: string | null = null
+  // Session issued by /localize when the planner has none; the localize rate limit is per session, so it is resent.
+  let localizeToken: string | null = null
 
   async function request<T>(method: string, path: string, call: Call = {}): Promise<T> {
     const idempotent = call.idempotent ?? method === 'GET'
@@ -147,7 +164,8 @@ export function createApiClient(options: ApiClientOptions = {}) {
   async function once<T>(method: string, path: string, call: Call, requestId: string): Promise<T> {
     const controller = new AbortController()
     let timedOut = false
-    const timeoutMs = options.timeoutMs ?? (call.planner ? PLANNER_TIMEOUT_MS : READ_TIMEOUT_MS)
+    const timeoutMs = options.timeoutMs ?? call.timeoutMs ?? (call.planner ? PLANNER_TIMEOUT_MS : READ_TIMEOUT_MS)
+    const token = sessionToken ?? call.token ?? null
     const timer = setTimeout(() => {
       timedOut = true
       controller.abort()
@@ -163,9 +181,9 @@ export function createApiClient(options: ApiClientOptions = {}) {
           headers: {
             [REQUEST_ID_HEADER]: requestId,
             ...(call.body === undefined ? {} : { 'Content-Type': 'application/json' }),
-            ...(sessionToken ? { [SESSION_TOKEN_HEADER]: sessionToken } : {}),
+            ...(token ? { [SESSION_TOKEN_HEADER]: token } : {}),
           },
-          body: call.body === undefined ? undefined : JSON.stringify(call.body),
+          body: call.form ?? (call.body === undefined ? undefined : JSON.stringify(call.body)),
           signal: controller.signal,
         })
       } catch {
@@ -178,7 +196,9 @@ export function createApiClient(options: ApiClientOptions = {}) {
         if (timedOut) throw new TimedOut()
         throw new NetworkFailure() // caller abort: request() reports it as `aborted`
       }
-      if (!res.ok) throw errorFromResponse(res.status, data, res.headers.get(REQUEST_ID_HEADER) ?? requestId)
+      if (!res.ok) {
+        throw errorFromResponse(res.status, data, res.headers.get(REQUEST_ID_HEADER) ?? requestId, res.headers.get('Retry-After'))
+      }
       return data as T
     } finally {
       clearTimeout(timer)
@@ -243,6 +263,21 @@ export function createApiClient(options: ApiClientOptions = {}) {
       request<StationTour>('GET', `/api/stations/${encodeURIComponent(id)}/tour`, { signal: o?.signal }),
     /** Start-up config: the public Maps browser key (or null) and per-station feature flags. */
     clientConfig: (o?: O) => request<ClientConfig>('GET', '/api/client-config', { signal: o?.signal }),
+    /**
+     * AR guidance: where in the station one camera frame was taken. Multipart; never retried (each call spends the
+     * per-session localisation budget). 429 rejects with ApiError `rate_limited` and `retryAfterS`.
+     */
+    localize: async (req: LocalizeRequest, o?: O) => {
+      const form = new FormData()
+      form.append('station_id', req.station_id)
+      if (req.previous_node_id) form.append('previous_node_id', req.previous_node_id)
+      if (req.route_node_ids?.length) form.append('route_node_ids', req.route_node_ids.join(','))
+      form.append('image', req.image, req.image.type === 'image/webp' ? 'frame.webp' : 'frame.jpg')
+      const res = await request<LocalizeResponse>('POST', '/api/navigation/localize',
+        { form, token: localizeToken, idempotent: false, timeoutMs: LOCALIZE_TIMEOUT_MS, signal: o?.signal })
+      if (!sessionToken && res.session_token) localizeToken = res.session_token
+      return res
+    },
     stationRoute: (body: RouteRequestBody, o?: O) =>
       request<RouteResult>('POST', '/api/navigation/route', { body, idempotent: true, signal: o?.signal }),
     rakePosition: (composition: string, targetCoach: string, o?: O) =>

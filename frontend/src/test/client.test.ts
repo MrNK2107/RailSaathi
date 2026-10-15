@@ -196,3 +196,52 @@ describe('api client', () => {
     expect(JSON.parse(String(init.body))).toEqual({ message: 'to Chennai', language: 'ta' })
   })
 })
+
+describe('localize (multipart camera frame)', () => {
+  const ok = (token = 'loc-token') => json(200, {
+    status: 'fix', station_id: 'chennai_central', fix: null, candidates: [], confidence_threshold: 0.6, latency_ms: 1,
+    message: null, session_token: token, provenance: { mode: 'live', source: 'gemini-vision', as_of: '2026-10-16T00:00:00Z', note: 'Approximate.' },
+  })
+  const image = () => new Blob([new Uint8Array([0xff, 0xd8, 0xff])], { type: 'image/jpeg' })
+  const init = (f: ReturnType<typeof vi.fn>, call = 0) => (f.mock.calls[call] as unknown as [string, RequestInit])[1]
+
+  it('posts form fields (route node ids comma-separated) without a JSON content type', async () => {
+    const fetchImpl = vi.fn(() => ok())
+    const api = createApiClient({ baseUrl: 'http://api', fetchImpl })
+    await api.localize({ station_id: 'chennai_central', image: image(), previous_node_id: 'cj_north', route_node_ids: ['a', 'b', 'c'] })
+    const [url, req] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe('http://api/api/navigation/localize')
+    expect(req.method).toBe('POST')
+    const form = req.body as FormData
+    expect(form).toBeInstanceOf(FormData)
+    expect(form.get('station_id')).toBe('chennai_central')
+    expect(form.get('previous_node_id')).toBe('cj_north')
+    expect(form.get('route_node_ids')).toBe('a,b,c')
+    expect((form.get('image') as File).type).toBe('image/jpeg')
+    expect((req.headers as Record<string, string>)['Content-Type']).toBeUndefined() // the browser sets the boundary
+  })
+
+  it('omits empty priors, resends the issued session token and is never retried', async () => {
+    const fetchImpl = vi.fn(() => ok('issued')).mockImplementationOnce(() => ok('issued'))
+    const api = createApiClient({ baseUrl: 'http://api', fetchImpl })
+    await api.localize({ station_id: 's', image: image() })
+    const form = init(fetchImpl).body as FormData
+    expect(form.has('previous_node_id')).toBe(false)
+    expect(form.has('route_node_ids')).toBe(false)
+    expect((init(fetchImpl).headers as Record<string, string>)['X-Session-Token']).toBeUndefined()
+    await api.localize({ station_id: 's', image: image() })
+    expect((init(fetchImpl, 1).headers as Record<string, string>)['X-Session-Token']).toBe('issued')
+
+    const down = vi.fn(networkDown)
+    const api2 = createApiClient({ baseUrl: 'http://api', fetchImpl: down, retryDelayMs: 0 })
+    await expect(api2.localize({ station_id: 's', image: image() })).rejects.toMatchObject({ code: 'network_error' })
+    expect(down).toHaveBeenCalledTimes(1)
+  })
+
+  it('a 429 carries Retry-After seconds', async () => {
+    const fetchImpl = vi.fn(() => json(429, { error: { code: 'rate_limited', message: 'Too many camera fixes.', details: {} } }, { 'Retry-After': '37' }))
+    const api = createApiClient({ baseUrl: 'http://api', fetchImpl })
+    await expect(api.localize({ station_id: 's', image: image() })).rejects.toMatchObject({ status: 429, code: 'rate_limited', retryAfterS: 37 })
+    expect(errorFromResponse(429, {}, null, 'soon').retryAfterS).toBeNull()
+  })
+})

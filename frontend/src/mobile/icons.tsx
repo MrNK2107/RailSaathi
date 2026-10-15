@@ -73,3 +73,4 @@ export const WalkIcon = make([
 export const TrendingUp = make(['M23 6l-9.5 9.5-5-5L1 18', 'M17 6h6v6'])
 export const TrendingDown = make(['M23 18l-9.5-9.5-5 5L1 6', 'M17 18h6v-6'])
 export const CloseIcon = make(['M6 6l12 12', 'M18 6L6 18'])
+export const CameraIcon = make(['M4 7h3l2-3h6l2 3h3v13H4z', 'M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z'])
