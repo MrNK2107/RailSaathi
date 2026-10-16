@@ -84,7 +84,8 @@ def test_tour_of_unknown_station_is_404():
 
 def test_client_config_without_key_or_localizer():
     body = make().get("/api/client-config").json()
-    assert body == {"google_maps_browser_key": None, "features": {"ar_guidance_stations": []}}
+    assert body == {"google_maps_browser_key": None,
+                    "features": {"ar_guidance_stations": [], "simulate_closures": True}}
 
 
 def test_client_config_returns_only_the_browser_key_and_flags():
@@ -92,7 +93,7 @@ def test_client_config_returns_only_the_browser_key_and_flags():
                   session_signing_key="s" * 32, railradar_api_key="rr-secret", gemini_api_key="gm-secret")
     res = client.get("/api/client-config")
     assert res.json() == {"google_maps_browser_key": "AIza-browser",
-                          "features": {"ar_guidance_stations": ["chennai_central"]}}
+                          "features": {"ar_guidance_stations": ["chennai_central"], "simulate_closures": True}}
     for secret in ("s" * 32, "rr-secret", "gm-secret"):
         assert secret not in res.text
 
@@ -100,6 +101,16 @@ def test_client_config_returns_only_the_browser_key_and_flags():
 def test_client_config_respects_the_per_station_flag():
     client = make(vision=MockVisionLocalizer([]), ar_guidance_enabled="ksr_bengaluru")
     assert client.get("/api/client-config").json()["features"]["ar_guidance_stations"] == []
+
+
+def test_client_config_simulate_closures_follows_the_route_gate():
+    # The same flag that makes POST /api/navigation/route refuse simulate_closures with 403 simulation_disabled.
+    off = make(public_disruption_simulation=False)
+    assert off.get("/api/client-config").json()["features"]["simulate_closures"] is False
+    route = {"station_id": "chennai_central", "source": "ent_wall_tax", "destination": "platform_10",
+             "simulate_closures": ["edge_004"]}
+    assert off.post("/api/navigation/route", json=route).json()["error"]["code"] == "simulation_disabled"
+    assert make().get("/api/client-config").json()["features"]["simulate_closures"] is True
 
 
 # ---- panoramas CLI ---------------------------------------------------------------------------------------------

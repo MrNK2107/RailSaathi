@@ -57,6 +57,12 @@ def _routing_enabled(loaded: LoadedStation) -> bool:
     return loaded.metadata.routing if loaded.metadata else True
 
 
+def _station_code(loaded: LoadedStation) -> str | None:
+    facts = loaded.info.get("facts")
+    code = facts.get("station_code") if isinstance(facts, dict) else None
+    return code.strip().upper() if isinstance(code, str) and code.strip() else None
+
+
 def _provenance(c: Container, loaded: LoadedStation) -> DataProvenance:
     """Station layouts are authored static data, so they are reported as `cached`, dated by the authoring check."""
     try:
@@ -94,6 +100,8 @@ async def list_stations(request: Request) -> list[dict]:
             "version": loaded.entry.version,
             "data_status": loaded.metadata.data_status if loaded.metadata else loaded.entry.data_status,
             "city": loaded.metadata.city if loaded.metadata else loaded.entry.city,
+            # Indian Railways station code from info.json facts (e.g. MAS), so a journey leg can find its floor plan.
+            "station_code": _station_code(loaded),
         })
     return out
 

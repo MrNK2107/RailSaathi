@@ -57,7 +57,7 @@ def test_station_endpoints(tmp_path):
     client, _ = make(tmp_path)
     assert client.get("/api/stations").json() == [{
         "station_id": "test_station", "station_name": "Test Station", "node_count": 7, "edge_count": 8,
-        "version": "local", "data_status": "mock", "city": "Testpur"}]
+        "version": "local", "data_status": "mock", "city": "Testpur", "station_code": None}]
     details = client.get("/api/stations/test_station?draft=true").json()
     assert set(details) == {"station", "metadata", "version", "layout_basis", "routing_enabled", "provenance"}  # no drafts
     assert details["station"]["nodes"][0]["step_free"] == "unknown"
@@ -100,6 +100,13 @@ def test_missing_catalogue_means_not_ready(tmp_path):
     res = client.get("/readyz")
     assert res.status_code == 503 and res.json()["checks"]["navigation_stations"] is False
     assert client.get("/api/stations").json() == []
+
+
+def test_station_list_carries_the_railway_code_from_info_facts():
+    client = TestClient(create_app(Settings(_env_file=None), build_container(
+        Settings(_env_file=None), clock=FixedClock(FIXED_NOW), use_configured_llm=False)))
+    codes = {s["station_id"]: s["station_code"] for s in client.get("/api/stations").json()}
+    assert codes == {"chennai_central": "MAS", "chennai_egmore": "MS", "hyderabad_deccan": "HYB", "ksr_bengaluru": "SBC"}
 
 
 def test_map_size_mismatch_keeps_station_out(tmp_path):

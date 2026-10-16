@@ -18,6 +18,7 @@ import type {
   RouteRequestBody,
   RouteResult,
   StationDetails,
+  StationDisruption,
   StationInfo,
   StationSummary,
   StationTour,
@@ -281,6 +282,9 @@ export function createApiClient(options: ApiClientOptions = {}) {
       if (res.session_token) localizeToken = res.session_token
       return res
     },
+    /** Active closures for a station; rejects with ApiError `disruptions_unavailable` (503) when the store is down. */
+    disruptions: (stationId: string, o?: O) =>
+      request<StationDisruption[]>('GET', `/api/disruptions/${encodeURIComponent(stationId)}`, { signal: o?.signal }),
     stationRoute: (body: RouteRequestBody, o?: O) =>
       request<RouteResult>('POST', '/api/navigation/route', { body, idempotent: true, signal: o?.signal }),
     rakePosition: (composition: string, targetCoach: string, o?: O) =>

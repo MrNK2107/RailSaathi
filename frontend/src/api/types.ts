@@ -537,6 +537,8 @@ export interface StationSummary {
   station_id: string
   station_name: string
   city: string | null
+  /** Indian Railways station code (e.g. MAS) from the station's info facts; matches a journey leg's `from_code`. */
+  station_code?: string | null
 }
 
 export interface Helpline {
@@ -583,6 +585,10 @@ export interface RouteRequestBody {
   destination: string
   preferences: RoutePreferencesBody
   apply_disruptions?: boolean
+  /** Edge ids of the route shown before, so the response can say whether a closure blocks it. */
+  previous_edge_ids?: string[]
+  /** What-if closures (edge or node ids) for this request only; 403 `simulation_disabled` unless the backend allows. */
+  simulate_closures?: string[]
 }
 
 export interface RouteSegment {
@@ -625,8 +631,30 @@ export interface RouteResult {
   warnings: string[]
   explanation: string | null
   reason: string | null
-  along_the_way: { node_id: string; name: string; type: string; on_route: boolean; progress: number; step_free: StepFree }[]
+  along_the_way: {
+    node_id: string; name: string; type: string; on_route: boolean; progress: number; step_free: StepFree
+    /** Plan-scale estimate; null without a map scale. */
+    distance_from_route_m?: number | null
+  }[]
   provenance: Provenance | null
+  /** True when a closure blocks the `previous_edge_ids` sent with the request. */
+  previous_route_blocked?: boolean
+  /** Ids of the request's `simulate_closures` that were applied. */
+  simulated_closures_applied?: string[]
+}
+
+/** GET /api/disruptions/{station_id}: an active closure from the disruption overlay (503 when the store is down). */
+export interface StationDisruption {
+  id: string
+  station_id: string
+  target_type: 'edge' | 'node'
+  target_id: string
+  kind: 'pathway_closure' | 'facility_outage'
+  reason: string
+  source: string
+  simulated: boolean
+  created_at: string
+  expires_at: string
 }
 
 /** GET /api/trains/rake-position (backend parse_rake_composition) */
@@ -764,7 +792,11 @@ export interface StationTour {
 export interface ClientConfig {
   /** The public, referrer-restricted Maps JavaScript key; null when not configured. */
   google_maps_browser_key: string | null
-  features: { ar_guidance_stations: string[] }
+  features: {
+    ar_guidance_stations: string[]
+    /** Whether POST /api/navigation/route accepts `simulate_closures` (the what-if closure tool). */
+    simulate_closures?: boolean
+  }
 }
 
 // ---- AR guidance (backend api/localize.py) ----
