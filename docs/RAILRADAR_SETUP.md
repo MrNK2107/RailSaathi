@@ -2,14 +2,16 @@
 
 The planner can use live train data from [RailRadar](https://railradar.in/docs),
 a **third-party** service. It is not an official Indian Railways or IRCTC
-source, and RailSaathi has no NTES integration. Every result carries its
+source. It is the alternative to the default live source, NTES through the
+unofficial ntes-client ([DATA_PROVIDERS.md](DATA_PROVIDERS.md)). Every result carries its
 provenance (`live`, `cached`, `stale` or `unavailable`, source RailRadar), and
 the passenger is told to verify on official Indian Railways channels before
 travelling.
 
 `RAILWAY_DATA_MODE=demo` (the application default) uses the clearly labelled
 demo data, and only outside production: with `APP_ENV=production`, demo data is
-refused and the deploy workflow defaults to `railradar`.
+refused and the deploy workflow defaults to `ntes` (set the `RAILWAY_DATA_MODE`
+repository variable to `railradar` to use RailRadar).
 `RAILWAY_DATA_MODE=railradar` uses RailRadar only. If the key is missing or
 RailRadar fails, the planner reports that live data is unavailable. It **never**
 falls back to demo or fictional journeys in live mode.

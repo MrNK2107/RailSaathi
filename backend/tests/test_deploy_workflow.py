@@ -12,8 +12,9 @@ import pytest
 from app.config import REPO_ROOT
 
 DEPLOY = REPO_ROOT / ".github" / "workflows" / "deploy.yml"
-BASE_SECRETS = ("RAILRADAR_API_KEY=RAILRADAR_API_KEY:latest,REDIS_URL=REDIS_URL:latest,"
-                "SESSION_SIGNING_KEY=SESSION_SIGNING_KEY:latest")
+BASE_SECRETS = "REDIS_URL=REDIS_URL:latest,SESSION_SIGNING_KEY=SESSION_SIGNING_KEY:latest"
+RAILRADAR_SECRET = "RAILRADAR_API_KEY=RAILRADAR_API_KEY:latest"
+MODE_EXPR = "${{ vars.RAILWAY_DATA_MODE || 'ntes' }}"
 BASH = shutil.which("bash")
 
 
@@ -23,8 +24,9 @@ def _backend_step_script() -> str:
     return textwrap.dedent(step[step.index("run: |") + len("run: |"):].strip("\n"))
 
 
-def _deployed_secrets(tmp_path, maps_secret_var: str) -> str:
+def _deployed_secrets(tmp_path, maps_secret_var: str, mode: str = "ntes") -> str:
     script = _backend_step_script().replace("${{ vars.MAPS_BROWSER_KEY_SECRET || '' }}", maps_secret_var)
+    script = script.replace(MODE_EXPR, mode)
     script = re.sub(r"\$\{\{[^}]*\}\}", "x", script)  # every other workflow expression
     args_file = tmp_path / "gcloud-args"
     stub = textwrap.dedent(f"""\
@@ -47,6 +49,23 @@ def test_deploy_works_without_the_maps_secret(tmp_path):
 def test_deploy_mounts_the_maps_secret_when_the_variable_names_it(tmp_path):
     assert _deployed_secrets(tmp_path, "GOOGLE_MAPS_BROWSER_KEY") == (
         BASE_SECRETS + ",GOOGLE_MAPS_BROWSER_KEY=GOOGLE_MAPS_BROWSER_KEY:latest")
+
+
+@pytest.mark.skipif(BASH is None, reason="needs bash")
+def test_the_railradar_key_is_mounted_only_in_railradar_mode(tmp_path):
+    assert RAILRADAR_SECRET not in _deployed_secrets(tmp_path, "", "ntes")
+    assert _deployed_secrets(tmp_path, "", "railradar") == RAILRADAR_SECRET + "," + BASE_SECRETS
+
+
+@pytest.mark.skipif(BASH is None, reason="needs bash")
+def test_ntes_is_the_default_data_mode_and_the_variable_selects_another(tmp_path):
+    def mode(args):
+        value = args[args.index("--set-env-vars") + 1]
+        return dict(item.split("=", 1) for item in value[3:].split("@"))["RAILWAY_DATA_MODE"]
+
+    assert MODE_EXPR in _backend_step_script()
+    assert mode(_deploy_args(tmp_path, {MODE_EXPR: "ntes"})) == "ntes"
+    assert mode(_deploy_args(tmp_path, {MODE_EXPR: "railradar"})) == "railradar"
 
 
 def test_maps_secret_is_never_mounted_unconditionally():

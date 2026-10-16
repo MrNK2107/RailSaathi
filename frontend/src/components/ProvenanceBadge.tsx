@@ -31,6 +31,8 @@ export interface ProvenanceBadgeProps {
   mode?: string | null
   /** `chip`: compact label (cards); `full`: label + source, retrieval time and note. */
   variant?: 'chip' | 'full'
+  /** Chip only: also print the source name next to the label (e.g. "LIVE · NTES (unofficial client)"). */
+  showSource?: boolean
   /** Reason shown when there is no provenance at all. */
   reason?: string
   /** Localised overrides for the mode labels. */
@@ -41,6 +43,7 @@ export interface ProvenanceBadgeProps {
 
 export function ProvenanceBadge({
   provenance, mode, variant = 'chip', reason, labels: labelProp, unavailableTitle: titleProp, className = '',
+  showSource = false,
 }: ProvenanceBadgeProps) {
   // Inside the mobile app the labels follow the UI language; explicit props still win.
   const m = useOptionalApp()?.m
@@ -77,7 +80,11 @@ export function ProvenanceBadge({
   )
   if (variant === 'chip') {
     return (
-      <span data-testid="provenance-badge" data-mode={provenance.mode} title={title} className={className}>{chip}</span>
+      <span data-testid="provenance-badge" data-mode={provenance.mode} title={title}
+        className={showSource ? `inline-flex flex-wrap items-center justify-end gap-1 ${className}` : className}>
+        {chip}
+        {showSource && <span data-testid="provenance-source" className="text-[10px] font-medium text-ink-600">{provenance.source}</span>}
+      </span>
     )
   }
   return (

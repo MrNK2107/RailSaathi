@@ -316,7 +316,7 @@ def plan(planner, text):
 def test_live_planning_flow_with_missing_fares():
     sid, r = plan(live_planner(ROUTES), "from Coimbatore to Chennai on 2026-10-11, 2 passengers, fastest")
     assert r.state.status is S.PRESENTING_RECOMMENDATIONS and r.state.data_mode is DataMode.LIVE
-    assert "live RailRadar data" in r.assistant_message
+    assert "live data from RailRadar" in r.assistant_message
     recs = r.state.recommendations.recommendations
     kovai = next(x for x in recs if x.option.legs[0].train_no == "12676")
     assert kovai.total_fare is None and kovai.selected_class is None
@@ -423,7 +423,7 @@ def test_api_health_and_messages_label_live_mode():
     api.headers["X-Session-Token"] = created["session_token"]
     body = api.post(f"/api/planner/sessions/{sid}/messages",
                     json={"message": "from Coimbatore to Chennai on 2026-10-11, 1 passenger, fastest"}).json()
-    assert body["data_mode"] == "live" and body["data_notice"].startswith("LIVE DATA from RailRadar")
+    assert body["data_mode"] == "live" and body["data_notice"].startswith("LIVE DATA") and "RailRadar" in body["data_notice"]
     prov = body["state"]["recommendations"]["provenance"]
     assert prov["source"].startswith("RailRadar") and prov["as_of"].startswith("2026-10-10T10:00")
 

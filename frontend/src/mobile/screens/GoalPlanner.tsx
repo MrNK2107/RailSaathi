@@ -47,7 +47,7 @@ function Option({ ev, best }: { ev: GoalEvaluation; best: boolean }) {
         <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold ${ev.is_feasible ? 'bg-match-50 text-match-700' : 'bg-red-50 text-red-700'}`}>
           {ev.is_feasible ? <CheckIcon size={13} /> : <AlertIcon size={13} />} {ev.is_feasible ? m.goal.onTime : m.goal.missesDeadline}
         </span>
-        <span className="ml-auto"><ProvenanceBadge provenance={c.provenance} labels={{ live: m.live }} unavailableTitle={m.dataUnavailable} /></span>
+        <span className="ml-auto"><ProvenanceBadge showSource provenance={c.provenance} labels={{ live: m.live }} unavailableTitle={m.dataUnavailable} /></span>
       </div>
       <p className="mt-2 flex items-center gap-2 text-base font-bold text-brand-900"><TrainIcon size={18} className="text-brand-600" /> {c.train_number}</p>
       <p className="text-sm text-ink-700">{c.train_name}</p>

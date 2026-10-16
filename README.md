@@ -17,7 +17,7 @@ the UI does not label it; see [What you see locally](#what-you-see-locally). The
 | 1 | **Conversational journey planner** | Free text or speech (English, Tamil, common Tanglish) becomes validated journey details, with one question at a time. Options are ranked against hard and soft constraints and explained from computed values. Disruptions trigger a re-plan that the passenger must confirm. The result is a confirmed handoff payload | `backend/app/{intent,harness,ranking,disruption}/` |
 | 2 | **Goal planner** | "Reach my meeting by 11:00": trains that arrive with a buffer, from the same journey data | `backend/app/journey/` |
 | 3 | **Ticketing guidance agent** | Gemini (or a rule-based agent) answers from a small knowledge base of official IRCTC and Indian Railways pages and cites them. Tool output is fenced and links are allowlisted. AI guidance, not official | `backend/app/{agent,knowledge,llm}/` |
-| 4 | **Live station information** | Departure boards, schedules and running status from RailRadar (a third-party service, not official). One shared quota and cache across replicas. Stale or unavailable states are shown as such | `backend/app/providers/` |
+| 4 | **Live station information** | Departure boards, schedules and running status from NTES through `ntes-client`, an **unofficial** client of the NTES app backend (labelled "NTES (unofficial client)"), or from RailRadar (a third-party service). Neither is official. One shared request budget and cache across replicas. Stale or unavailable states are shown as such | `backend/app/providers/` |
 | 5 | **Delay estimate** | A trained gradient-boosting model. Its measured error is shown with every answer: **MAE 40 min** on held-out trains ([model card](docs/DELAY_MODEL.md)) | `backend/app/delay/` |
 | 6 | **Station navigation** | Routes over **schematic** layouts at 4 stations (routing at Chennai Central only), current and what-if closures, a 3D virtual tour, and camera (AR) guidance that stays off in production until its evaluation passes | `backend/app/navigation/`, `frontend/src/{navigation,ar,tour}/` |
 
@@ -31,9 +31,9 @@ lead, **PaulShervin**. It was ported onto this repository's API client, provenan
 browser (PWA, HTTPS) ──► frontend: nginx on Cloud Run ── /api/* ──► backend: FastAPI on Cloud Run
                           static app + security headers               │
                                                                       ├─ Memorystore Redis: sessions, plans, chats, rate limits,
-                                                                      │  RailRadar quota + cache, station closures (all with TTLs)
+                                                                      │  NTES/RailRadar budgets + caches, station closures (all with TTLs)
                                                                       ├─ Vertex AI Gemini: intent extraction, ticketing agent, AR vision
-                                                                      ├─ RailRadar API: live train data (third party)
+                                                                      ├─ NTES via ntes-client (unofficial) or RailRadar: live train data
                                                                       └─ Cloud Storage: station catalogue, delay model, observations
 ```
 
@@ -44,7 +44,8 @@ Requests are same-origin, so the browser needs no CORS. The backend exposes no s
 ## Quick start (Windows, macOS, Linux)
 
 Prerequisites: Python 3.12, [uv](https://docs.astral.sh/uv/) and Node.js 20+. No cloud account or API key is
-needed. Locally the app runs on bundled demo data, the rule-based extractor and the rule-based ticketing agent.
+needed. `python run.py` uses live NTES train data (through an unofficial client, see below), the rule-based
+extractor and the rule-based ticketing agent.
 
 The quickest way is one command from the repository root. It installs dependencies on the first run, then starts
 the backend on port 8010 and the frontend on port 5173 until Ctrl+C:
@@ -75,25 +76,35 @@ motion sensors need a secure context: `localhost` works. For another device on y
 
 ### What you see locally
 
-- **Demo data, unlabelled in the UI.** Trains, timings, fares, boards and disruptions come from the bundled demo
-  dataset (`RAILWAY_DATA_MODE=demo`, the default). The UI does not mark it as demo: there is no DEMO pill or
-  "demo data" line. The API still reports `data_mode: demo`, and production refuses demo data (the backend serves no
-  journeys and `/readyz` fails without a live provider), so this never reaches passengers.
+- **Live NTES data through an unofficial client.** `python run.py` starts the backend with
+  `RAILWAY_DATA_MODE=ntes` (unless you set the variable yourself, in the environment or `backend/.env`). Journeys,
+  departure boards, schedules and running status then come from NTES through
+  [`ntes-client`](https://pypi.org/project/ntes-client/), an unofficial client of the NTES app backend: not an
+  authorised integration, and NTES can block it at any time. Every option and board is labelled LIVE (or CACHED,
+  STALE) with the source "NTES (unofficial client)". NTES gives no fares, so options say "Fare: check on IRCTC".
+  If NTES does not answer, you see "Data unavailable" with the reason, never invented trains. Details:
+  [DATA_PROVIDERS.md](docs/DATA_PROVIDERS.md#ntes-specifics-the-unofficial-client).
+- **Demo data, unlabelled in the UI.** With `RAILWAY_DATA_MODE=demo` (the backend's own default when started
+  without `run.py`, and what the tests and Playwright use), trains, timings, fares, boards and disruptions come from
+  the bundled demo dataset. The UI does not mark it as demo: there is no DEMO pill or "demo data" line. The API
+  still reports `data_mode: demo`, and production refuses demo data (the backend serves no journeys and `/readyz`
+  fails without a live provider), so this never reaches passengers.
 - **Rule-based answers without Gemini.** With no Gemini configured, the planner uses the rule-based extractor and
   the ticketing assistant uses the rule-based agent. Profile says which one is active.
 - **AR is visible but switched off.** Camera (AR) guidance needs the Gemini vision service (Gemini configured as
   below) and `AR_GUIDANCE_ENABLED` (unset means every AR station outside production). Without Gemini, Station
   Navigation shows the Camera (AR) tab disabled at Chennai Central, with the reason. The 3D tour and the station
   blueprint work without it.
-- **Live trains need RailRadar.** Set `RAILWAY_DATA_MODE=railradar` and `RAILRADAR_API_KEY` for live boards, running
-  status and journeys.
+- **RailRadar is the alternative.** Set `RAILWAY_DATA_MODE=railradar` and `RAILRADAR_API_KEY` to use RailRadar
+  instead of NTES.
 
 Optional services, each off by default:
 
 | Service | Setting | Guide |
 |---|---|---|
 | Gemini on Vertex AI | `LLM_PROVIDER=gemini` and `GOOGLE_CLOUD_PROJECT` | [DEPLOYMENT.md](docs/DEPLOYMENT.md) |
-| Live trains | `RAILWAY_DATA_MODE=railradar` and `RAILRADAR_API_KEY` | [RAILRADAR_SETUP.md](docs/RAILRADAR_SETUP.md) |
+| Live trains from NTES (unofficial client) | `RAILWAY_DATA_MODE=ntes` (`run.py` sets it) | [DATA_PROVIDERS.md](docs/DATA_PROVIDERS.md#ntes-specifics-the-unofficial-client) |
+| Live trains from RailRadar | `RAILWAY_DATA_MODE=railradar` and `RAILRADAR_API_KEY` | [RAILRADAR_SETUP.md](docs/RAILRADAR_SETUP.md) |
 | Claude on Bedrock, intent extraction only | `LLM_PROVIDER=bedrock` | [BEDROCK_SETUP.md](docs/BEDROCK_SETUP.md) |
 | Shared state | `REDIS_URL` (Redis 7 or later) | |
 

@@ -299,11 +299,30 @@ describe('Journey Options', () => {
     const tabs = await screen.findByRole('tablist')
     expect(within(tabs).getAllByRole('tab').map((t) => t.textContent)).toEqual(['Best Match', 'Fastest'])
     const card = screen.getByRole('article', { name: /22640/ })
-    expect(within(card).getByText('Fare not available')).toBeInTheDocument()
+    expect(within(card).getByText('Fare: check on IRCTC')).toBeInTheDocument()
     expect(within(card).getByText('Classes not listed')).toBeInTheDocument()
-    expect(within(card).getByText('LIVE · RailRadar')).toBeInTheDocument()
+    expect(within(card).getByText('LIVE')).toBeInTheDocument()
+    expect(within(card).getByTestId('provenance-source')).toHaveTextContent('RailRadar live API (third-party)')
     expect(card.textContent).not.toContain('₹')
     expect(screen.getByTestId('source-line')).toHaveTextContent('RailRadar live API (third-party) · retrieved')
+  })
+
+  it('labels NTES options with the unofficial-client source and shows no fare, in English and Tamil', async () => {
+    const ntes = { mode: 'live' as const, source: 'NTES (unofficial client)', as_of: '2026-10-10T15:21:00+05:30', note: 'Live data from NTES through ntes-client, an unofficial client.' }
+    const ntesRec: Recommendation = { ...liveRec, option: { ...liveRec.option, option_id: 'NTES-22640-MAS-SBC@2026-10-11', provenance: ntes } }
+    const { user } = await withState({ ...liveState, recommendations: { ...liveState.recommendations!, recommendations: [ntesRec], provenance: ntes } })
+    const card = await screen.findByRole('article', { name: /22640/ })
+    expect(within(card).getByTestId('provenance-source')).toHaveTextContent('NTES (unofficial client)')
+    expect(within(card).getByText('Fare: check on IRCTC')).toBeInTheDocument()
+    expect(card.textContent).not.toContain('₹')
+    expect(card.textContent).not.toContain('RailRadar')
+    expect(screen.getByTestId('source-line')).toHaveTextContent('NTES (unofficial client)')
+    act(() => { window.location.hash = '/profile' })
+    await user.click(await screen.findByRole('button', { name: 'தமிழ்' }))
+    act(() => { window.location.hash = '/options' })
+    const taCard = await screen.findByRole('article', { name: /22640/ })
+    expect(within(taCard).getByText('கட்டணம்: IRCTC-யில் பார்க்கவும்')).toBeInTheDocument()
+    expect(within(taCard).getByText('நேரடி')).toBeInTheDocument()
   })
 
   it('shows demo journeys without any demo label, source line or disclaimer on options and details', async () => {

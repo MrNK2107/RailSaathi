@@ -6,8 +6,9 @@ name: Deploy to Cloud Run
 #   GCP_PROJECT_ID, GCP_REGION, GCP_WIF_PROVIDER, GCP_SERVICE_ACCOUNT
 # Optional repository variables:
 #   GAR_REPOSITORY (default: railsaathi), BACKEND_SERVICE (default: railsaathi-backend),
-#   FRONTEND_SERVICE (default: railsaathi-frontend), RAILWAY_DATA_MODE (default: railradar; demo is refused when
-#   APP_ENV=production, so a production deploy needs the RAILRADAR_API_KEY secret to become ready),
+#   FRONTEND_SERVICE (default: railsaathi-frontend), RAILWAY_DATA_MODE (default: ntes = live NTES data through the
+#   unofficial ntes-client, no key; railradar = RailRadar, which needs the RAILRADAR_API_KEY secret; demo is refused
+#   when APP_ENV=production),
 #   LLM_PROVIDER (default: gemini), GOOGLE_CLOUD_LOCATION (Vertex AI region, default: us-central1),
 #   VPC_NETWORK / VPC_SUBNET (Direct VPC egress to Memorystore, default: default / default),
 #   BACKEND_MIN_INSTANCES (default: 2), BACKEND_MAX_INSTANCES (default: 10),
@@ -16,7 +17,8 @@ name: Deploy to Cloud Run
 #   OBSERVATIONS_URI, INTERNAL_OIDC_AUDIENCE, INTERNAL_OIDC_SERVICE_ACCOUNT (the Cloud Scheduler collector and the
 #   internal disruption endpoints; unset = those endpoints answer 404),
 #   AR_GUIDANCE_ENABLED (unset = AR off in production; set only after the docs/AR_GUIDANCE.md gate passes)
-# Secret Manager secrets referenced by the backend: RAILRADAR_API_KEY, REDIS_URL, SESSION_SIGNING_KEY.
+# Secret Manager secrets referenced by the backend: REDIS_URL, SESSION_SIGNING_KEY, and RAILRADAR_API_KEY only when
+# RAILWAY_DATA_MODE=railradar.
 # Optional: the Maps browser key for the virtual tour, mounted only when the MAPS_BROWSER_KEY_SECRET repository
 # variable names its secret (without it the tour links out to Google Maps and the deploy still works).
 
@@ -89,12 +91,17 @@ jobs:
       - name: Deploy backend
         id: backend
         run: |
-          # Sessions, rate limits and the RailRadar quota live in Memorystore Redis (REDIS_URL, reached through
+          # Sessions, rate limits and the NTES/RailRadar request budgets live in Memorystore Redis (REDIS_URL, reached through
           # Direct VPC egress), so the backend runs several instances; every replica shares SESSION_SIGNING_KEY.
           # Gemini runs on Vertex AI as the runtime service account (GOOGLE_CLOUD_PROJECT/LOCATION), no API key.
           # TRUSTED_PROXY_HOPS=2: browser -> GFE -> nginx (overwrites X-Forwarded-For with the real client) -> GFE ->
           # backend; the backend GFE appends the nginx egress IP, so the client is the 2nd entry from the right.
-          SECRETS="RAILRADAR_API_KEY=RAILRADAR_API_KEY:latest,REDIS_URL=REDIS_URL:latest,SESSION_SIGNING_KEY=SESSION_SIGNING_KEY:latest"
+          DATA_MODE="${{ vars.RAILWAY_DATA_MODE || 'ntes' }}"
+          SECRETS="REDIS_URL=REDIS_URL:latest,SESSION_SIGNING_KEY=SESSION_SIGNING_KEY:latest"
+          # The RailRadar key is needed (and its secret must exist) only in RailRadar mode; NTES needs no key.
+          if [ "${DATA_MODE}" = "railradar" ]; then
+            SECRETS="RAILRADAR_API_KEY=RAILRADAR_API_KEY:latest,${SECRETS}"
+          fi
           # Optional secret: mounted only when the repository variable names it, so projects without it still deploy.
           MAPS_SECRET="${{ vars.MAPS_BROWSER_KEY_SECRET || '' }}"
           if [ -n "${MAPS_SECRET}" ]; then
@@ -102,7 +109,7 @@ jobs:
           fi
           # Env vars are joined with "@" and passed with gcloud's "^@^" delimiter prefix, because some values are
           # comma-separated lists (CORS_ORIGINS, AR_GUIDANCE_ENABLED) that the default "," delimiter would split.
-          ENV_VARS="APP_ENV=production@RAILWAY_DATA_MODE=${{ vars.RAILWAY_DATA_MODE || 'railradar' }}@LLM_PROVIDER=${{ vars.LLM_PROVIDER || 'gemini' }}@GOOGLE_CLOUD_PROJECT=${PROJECT_ID}@GOOGLE_CLOUD_LOCATION=${{ vars.GOOGLE_CLOUD_LOCATION || 'us-central1' }}@TRUSTED_PROXY_HOPS=2@CORS_ORIGINS=${{ vars.FRONTEND_ORIGIN || '' }}"
+          ENV_VARS="APP_ENV=production@RAILWAY_DATA_MODE=${DATA_MODE}@LLM_PROVIDER=${{ vars.LLM_PROVIDER || 'gemini' }}@GOOGLE_CLOUD_PROJECT=${PROJECT_ID}@GOOGLE_CLOUD_LOCATION=${{ vars.GOOGLE_CLOUD_LOCATION || 'us-central1' }}@TRUSTED_PROXY_HOPS=2@CORS_ORIGINS=${{ vars.FRONTEND_ORIGIN || '' }}"
           # Optional settings: passed only when the repository variable is set, so an empty value never overrides the
           # application default (an empty STATIONS_URI would point the catalogue at nothing).
           add_env() { if [ -n "$2" ]; then ENV_VARS="${ENV_VARS}@$1=$2"; fi; }

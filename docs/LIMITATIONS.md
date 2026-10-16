@@ -9,15 +9,16 @@ not, that is a bug. Demo data is the one exception in the UI: it is used only fo
 
 | Capability | Status | Main limits |
 |---|---|---|
-| 1. Conversational journey planner (EN, Tamil, common Tanglish; typed or spoken) | Working. The rule-based extractor always works; Gemini on Vertex AI is used when configured, with automatic fallback | Direct trains only with live data; no fares or classes from RailRadar; facility data unknown; ranking weights are heuristics, not evaluated with passengers |
+| 1. Conversational journey planner (EN, Tamil, common Tanglish; typed or spoken) | Working. The rule-based extractor always works; Gemini on Vertex AI is used when configured, with automatic fallback | Direct trains only with live data; no fares from NTES or RailRadar; facility data unknown; ranking weights are heuristics, not evaluated with passengers |
 | 2. Goal planner ("reach my meeting") | Working on the same journey data and provenance | Same data limits; the buffer excludes the unknown walk from the station to the venue |
 | 3. Ticketing guidance agent | Working. Gemini when configured, a rule-based agent otherwise | AI guidance, not official; a small, dated knowledge base (5 official sources, as of 2026-10-14); it must not state fares, charges or time limits the knowledge base does not hold |
-| 4. Live station information | Working with a RailRadar key. Demo boards only outside production | Third-party data, not official Indian Railways; a shared 10 requests/minute quota means boards are often `cached` or `stale`; boards cover trains to nearby catalogue stations only (`complete` says when a query failed) |
+| 4. Live station information | Working with NTES through the unofficial ntes-client (no key; the local and deploy default), or with a RailRadar key. Demo boards only outside production | NTES access is unofficial and can break or be blocked at any time; RailSaathi's own budget (20 requests/minute) means answers are sometimes `cached` or `stale`; boards list only stations in the catalogue |
 | 5. Delay estimate | Working: trained model, MAE 40 min on held-out trains ([DELAY_MODEL.md](DELAY_MODEL.md)) | Large error; no date or time features; the source data's origin and age are undocumented; not live |
 | 6. Station navigation, AR guidance, virtual tour | 4 stations; routing at Chennai Central only; AR off in production; tour working ([STATION_NAVIGATION.md](STATION_NAVIGATION.md)) | Schematic layouts, not surveyed; step-free status unknown everywhere; no Street View panoramas authored |
 
 Not available at all: booking, payment, PNR, seat availability, fares from live data, official IRCTC data, and
-any NTES feed. RailSaathi has no NTES integration. Out of scope too: accounts, push, SMS or WhatsApp alerts, GPS
+an authorised NTES feed. NTES data comes only through `ntes-client`, an unofficial client of the NTES app backend
+(the owner's decision); its PNR and captcha features are never used. Out of scope too: accounts, push, SMS or WhatsApp alerts, GPS
 or beacon positioning, and languages other than English and Tamil.
 
 ## Data and honesty limits
@@ -25,7 +26,19 @@ or beacon positioning, and languages other than English and Tamil.
 - **Demo data** (fictional `D###` trains, simulated facilities and disruptions) exists only outside production.
   In production the service refuses it. Without a RailRadar key, searches and boards answer `unavailable` with a
   reason, and `/readyz` reports not ready.
-- **RailRadar** is a third-party service, not an official Indian Railways source:
+- **NTES through the unofficial client** (`RAILWAY_DATA_MODE=ntes`):
+  - it is not an official or authorised integration. NTES can change its app backend or block the client at any
+    time; then every journey, board and status answers `unavailable` with a reason (never invented data);
+  - it gives no fares, so options say "Fare: check on IRCTC" and a strict budget becomes *unverified*;
+  - no station facility data, so assistance and wheelchair needs are always `unknown`;
+  - direct trains only, between catalogue stations (NTES answers for station groups; trains from other stations of
+    a group are left out);
+  - "days of run" are read as the days the train leaves the boarding station;
+  - NTES identifies a run by the date it left its origin. Running status and live disruptions use the date you
+    ask for (the boarding date for a plan) as that date, so for a train boarded after midnight on its second day
+    the status can belong to the previous day's run;
+  - cancellations are recognised from NTES's position text or alert message (not verified against a cancelled run).
+- **RailRadar** (alternative mode) is a third-party service, not an official Indian Railways source:
   - it returns no fares or classes, so a strict budget or class becomes *unverified* (not passed, and not
     excluded);
   - it has no station facility data, so assistance and wheelchair needs are always `unknown`;
@@ -33,8 +46,9 @@ or beacon positioning, and languages other than English and Tamil.
   - only stations in `providers/data/station_catalogue.json` (about 36) can be named.
 
   Passengers are told to verify on official Indian Railways channels before travel.
-- **The shared quota** is 10 requests per minute for the current key, across every replica. When it is spent,
-  answers are served from the cache as `stale`, or are `unavailable`.
+- **The shared budgets** are 20 NTES requests per minute (RailSaathi's own politeness limit) or 10 RailRadar
+  requests per minute (the key's limit), across every replica. When a budget is spent, answers are served from the
+  cache as `stale`, or are `unavailable`.
 - **Station layouts are schematic.** They are not surveyed and not to scale. Distances and times are estimates
   from the plan scale.
   - Only Chennai Central is traced from a plan image, and that plan shows platforms 7 to 12. Routes and AR cues
@@ -99,4 +113,4 @@ or beacon positioning, and languages other than English and Tamil.
 3. Station-level live observations (or another dated source) so the delay model can learn time effects.
 4. A native Tamil review.
 5. A staging load test and a 24-hour soak, then tag `v1.0.0`.
-6. An authorised source for fares, availability and official disruptions.
+6. An authorised source for fares, availability and official disruptions, replacing the unofficial NTES client.

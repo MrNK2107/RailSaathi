@@ -29,7 +29,12 @@ from app.journey.planner import GoalPlanner
 from app.journey.venues import load_venues
 from app.providers.base import DisruptionSource, JourneyProvider
 from app.providers.demo import DemoDisruptionSource, DemoJourneyProvider
-from app.providers.live_source import DemoLiveSource, LiveSource, RailRadarLiveSource, UnavailableLiveSource
+from app.providers.live_source import (DemoLiveSource, LiveSource, NtesLiveSource, RailRadarLiveSource,
+                                       UnavailableLiveSource)
+from app.providers.ntes import NtesDisruptionSource, NtesJourneyProvider
+from app.providers.ntes_client import NAMESPACE as NTES_NAMESPACE
+from app.providers.ntes_client import QUOTA_IDENTITY as NTES_QUOTA_IDENTITY
+from app.providers.ntes_client import NtesClient, ntes_installed
 from app.providers.railradar import RailRadarDisruptionSource, RailRadarJourneyProvider, UnconfiguredLiveProvider
 from app.providers.railradar_client import RailRadarClient
 from app.providers.railradar_shared import RedisQuotaGate, RedisResponseCache
@@ -162,11 +167,14 @@ def build_vision_localizer(settings: Settings) -> tuple[VisionLocalizer | None, 
 
 
 def build_data_sources(settings: Settings, redis: Redis | None = None) -> tuple[JourneyProvider, DisruptionSource, dict]:
-    """Choose demo or RailRadar (RAILWAY_DATA_MODE). Never contacts RailRadar here.
+    """Choose demo, NTES or RailRadar (RAILWAY_DATA_MODE). Never contacts NTES or RailRadar here, and never imports
+    the ntes package (the NTES client imports it on its first call).
 
-    Live mode without a key does NOT fall back to demo journeys: searches fail with a
-    clear "not configured" message and /api/health reports the reason."""
+    Live mode without a key (RailRadar) or without the ntes-client package does NOT fall back to demo journeys:
+    searches fail with a clear "not configured" message and /api/health reports the reason."""
     requested = settings.data_provider.lower()
+    if requested == "ntes":
+        return build_ntes_sources(settings, redis)
     if requested == "railradar" and settings.railradar_configured:
         api_key = settings.railradar_api_key.get_secret_value().strip()
         shared = {}
@@ -195,11 +203,11 @@ def build_data_sources(settings: Settings, redis: Redis | None = None) -> tuple[
             "requested": requested, "active": "railradar", "configured": False,
             "reason": "railradar_api_key_missing"}
     if requested != "demo":
-        raise ValueError(f"Unknown RAILWAY_DATA_MODE '{settings.data_provider}' (use 'demo' or 'railradar')")
+        raise ValueError(f"Unknown RAILWAY_DATA_MODE '{settings.data_provider}' (use 'demo', 'ntes' or 'railradar')")
     if settings.is_production:
         # Simulated data is never served in production: searches fail honestly and /readyz reports not ready
         # (its data_provider check fails while the active provider is "none", whatever RAILRADAR_API_KEY holds).
-        log.error("RAILWAY_DATA_MODE=demo is refused when APP_ENV=production; configure RailRadar")
+        log.error("RAILWAY_DATA_MODE=demo is refused when APP_ENV=production; use ntes or railradar")
         refused = UnconfiguredLiveProvider("Demo data is disabled in production and live data is not configured",
                                            settings.timezone)
         return refused, refused, {
@@ -208,10 +216,37 @@ def build_data_sources(settings: Settings, redis: Redis | None = None) -> tuple[
         "requested": requested, "active": "demo", "configured": True, "reason": None}
 
 
+def build_ntes_sources(settings: Settings, redis: Redis | None) -> tuple[JourneyProvider, DisruptionSource, dict]:
+    """NTES through the unofficial ntes-client (the owner's choice, see docs/DATA_PROVIDERS.md). One client: the
+    planner, the goal planner, live boards and disruptions share its request budget and cache."""
+    shared = {}
+    if redis is not None:  # one request budget and one cache across every instance
+        shared = {
+            "quota": RedisQuotaGate(redis, NTES_QUOTA_IDENTITY, settings.ntes_requests_per_minute,
+                                    settings.redis_key_prefix, namespace=NTES_NAMESPACE),
+            "cache": RedisResponseCache(redis, NTES_QUOTA_IDENTITY, settings.ntes_stale_seconds,
+                                        settings.redis_key_prefix, namespace=NTES_NAMESPACE),
+        }
+    client = NtesClient(timeout_seconds=settings.ntes_timeout_seconds, cache_seconds=settings.ntes_cache_seconds,
+                        requests_per_minute=settings.ntes_requests_per_minute,
+                        stale_seconds=settings.ntes_stale_seconds, **shared)
+    budget = settings.ntes_call_budget_seconds
+    provider = NtesJourneyProvider(client, settings.timezone, settings.ntes_max_concurrency, budget)
+    installed = ntes_installed()
+    if not installed:
+        log.error("RAILWAY_DATA_MODE=ntes but the ntes-client package is not installed; live data is unavailable")
+    return provider, NtesDisruptionSource(client, settings.timezone, budget), {
+        "requested": "ntes", "active": "ntes", "configured": installed,
+        "reason": None if installed else "ntes_client_not_installed"}
+
+
 def build_live_source(settings: Settings, provider: JourneyProvider, clock: Clock) -> LiveSource:
-    """Live boards follow the journey data source. RailRadar reuses the planner's client (one shared quota and
-    cache). Demo boards exist only outside production; anything else answers `unavailable` with a reason."""
+    """Live boards follow the journey data source. NTES and RailRadar reuse the planner's client (one shared quota
+    and cache). Demo boards exist only outside production; anything else answers `unavailable` with a reason."""
     directory = StationDirectory(provider.stations())
+    if isinstance(provider, NtesJourneyProvider):
+        return NtesLiveSource(provider.client, directory, clock, settings.timezone,
+                              timeout_seconds=settings.ntes_call_budget_seconds)
     if isinstance(provider, RailRadarJourneyProvider):
         return RailRadarLiveSource(provider.client, directory, clock, settings.timezone,
                                    neighbours=settings.live_board_neighbours,
@@ -220,7 +255,7 @@ def build_live_source(settings: Settings, provider: JourneyProvider, clock: Cloc
     if isinstance(provider, DemoJourneyProvider) and not settings.is_production:
         return DemoLiveSource(directory, clock, settings.timezone)
     if settings.is_production and settings.data_provider.lower() == "demo":
-        log.error("Demo live boards are refused when APP_ENV=production; configure RailRadar")
+        log.error("Demo live boards are refused when APP_ENV=production; use ntes or railradar")
         reason = "Demo data is disabled in production and live data is not configured."
     else:
         reason = "Live data is not configured (the RailRadar API key is missing)."

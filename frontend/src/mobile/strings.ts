@@ -9,7 +9,8 @@ const en = {
   tagline: 'Your Railway Companion',
   back: 'Back',
   nav: { main: 'Main', home: 'Home', trips: 'My Trips', alerts: 'Alerts', profile: 'Profile' },
-  live: 'LIVE · RailRadar',
+  // The source is named next to the label (ProvenanceBadge showSource), never baked into it.
+  live: 'LIVE',
   dataUnavailable: 'Data unavailable',
   noDataReason: 'No data could be obtained from the data source.',
   provenance: {
@@ -137,7 +138,7 @@ const en = {
     tabs: { best_overall: 'Best Match', lowest_cost: 'Cheapest', fastest: 'Fastest', also: 'Also eligible' },
     from: '(from)',
     perPassenger: 'per passenger',
-    fareUnknown: 'Fare not available',
+    fareUnknown: 'Fare: check on IRCTC',
     classesUnknown: 'Classes not listed',
     direct: 'Direct',
     changes: 'change(s)',
@@ -460,6 +461,8 @@ const en = {
     language: 'Language',
     dataSource: 'Train data source',
     builtInData: 'Built-in timetable',
+    // How each backend data provider is named (the NTES label is the honest one: an unofficial client).
+    providers: { ntes: 'NTES (unofficial client)', railradar: 'RailRadar (third-party)' } as Record<string, string>,
     ai: 'Request understanding',
     aiActive: 'AI model ({provider})',
     aiInactive: 'Built-in parser',
@@ -556,7 +559,7 @@ const ta: MobileStrings = {
     alerts: 'அறிவிப்புகள்',
     profile: 'சுயவிவரம்',
   },
-  live: 'நேரடி · RailRadar',
+  live: 'நேரடி',
   dataUnavailable: 'தரவு கிடைக்கவில்லை',
   noDataReason: 'தரவு மூலத்திலிருந்து எந்தத் தகவலும் கிடைக்கவில்லை.',
   provenance: {
@@ -707,7 +710,7 @@ const ta: MobileStrings = {
     },
     from: '(இருந்து)',
     perPassenger: 'ஒரு பயணிக்கு',
-    fareUnknown: 'கட்டணம் கிடைக்கவில்லை',
+    fareUnknown: 'கட்டணம்: IRCTC-யில் பார்க்கவும்',
     classesUnknown: 'வகுப்புகள் பட்டியலிடப்படவில்லை',
     direct: 'நேரடி',
     changes: 'மாற்றம்(கள்)',
@@ -1054,6 +1057,7 @@ const ta: MobileStrings = {
     language: 'மொழி',
     dataSource: 'ரயில் தரவு மூலம்',
     builtInData: 'உள்ளமைந்த கால அட்டவணை',
+    providers: { ntes: 'NTES (அதிகாரப்பூர்வமற்ற கிளையன்ட்)', railradar: 'RailRadar (மூன்றாம் தரப்பு)' } as Record<string, string>,
     ai: 'கோரிக்கையைப் புரிந்துகொள்ளுதல்',
     aiActive: 'AI மாதிரி ({provider})',
     aiInactive: 'உள்ளமைந்த பகுப்பி',

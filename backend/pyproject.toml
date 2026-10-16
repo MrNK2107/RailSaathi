@@ -19,6 +19,7 @@ dependencies = [
     "google-cloud-storage>=2.18,<4",
     "google-auth>=2.30,<3",
     "python-multipart>=0.0.20",
+    "ntes-client==0.1.4",
 ]
 
 [dependency-groups]

@@ -103,7 +103,8 @@ class Settings(BaseSettings):
     # HMAC key for session tokens. Required when APP_ENV=production; a random per-process key is used otherwise.
     session_signing_key: SecretStr | None = None
 
-    # Railway data source: "demo" (bundled simulated data) or "railradar" (live third-party API).
+    # Railway data source: "demo" (bundled simulated data), "ntes" (live NTES data through the unofficial
+    # ntes-client package; run.py's local default) or "railradar" (live third-party API, needs a key).
     # Env var RAILWAY_DATA_MODE (preferred) or DATA_PROVIDER.
     data_provider: str = Field(default="demo", validation_alias=AliasChoices("RAILWAY_DATA_MODE", "DATA_PROVIDER",
                                                                            "data_provider"))
@@ -121,6 +122,15 @@ class Settings(BaseSettings):
     railradar_stale_seconds: int = Field(default=21_600, ge=0)
     # Live departure boards: how many nearby catalogue stations are queried (one trains-between call each,
     # cached) and for how many of the listed trains running status is fetched (one call each, cached).
+    # NTES through the unofficial ntes-client (RAILWAY_DATA_MODE=ntes). No key. The request budget is RailSaathi's
+    # own politeness limit (NTES publishes none), shared by every instance through Redis when REDIS_URL is set.
+    ntes_timeout_seconds: float = Field(default=10.0, gt=0)
+    # Bound on one batch of NTES calls, like RAILRADAR_CALL_BUDGET_SECONDS (part of the lock TTL check below).
+    ntes_call_budget_seconds: float = Field(default=15.0, gt=0)
+    ntes_cache_seconds: int = Field(default=300, ge=0)  # timetable answers; live answers at most 60 s
+    ntes_max_concurrency: int = Field(default=4, ge=1, le=10)
+    ntes_requests_per_minute: int = Field(default=20, ge=1)
+    ntes_stale_seconds: int = Field(default=21_600, ge=0)
     live_board_neighbours: int = Field(default=3, ge=1, le=6)
     live_board_status_limit: int = Field(default=3, ge=0, le=6)
 
@@ -154,10 +164,17 @@ class Settings(BaseSettings):
                                                                                 "GCP_LOCATION", "gcp_location"))
 
     @property
+    def call_budget_seconds(self) -> float:
+        """The live data provider's per-batch budget: NTES_CALL_BUDGET_SECONDS in ntes mode, else RailRadar's."""
+        if self.data_provider.lower() == "ntes":
+            return self.ntes_call_budget_seconds
+        return self.railradar_call_budget_seconds
+
+    @property
     def planner_turn_budget_seconds(self) -> float:
-        """Worst-case work under one session lock: a message turn (LLM deadline + one RailRadar search) or a
+        """Worst-case work under one session lock: a message turn (LLM deadline + one live data search) or a
         reassessment (live status + a search, no LLM)."""
-        budget = self.railradar_call_budget_seconds
+        budget = self.call_budget_seconds
         return max(self.llm_overall_deadline_seconds + budget, 2 * budget)
 
     @model_validator(mode="after")
@@ -165,7 +182,8 @@ class Settings(BaseSettings):
         needed = int((self.planner_turn_budget_seconds + LOCK_TTL_MARGIN_SECONDS) * 1000)
         if self.session_lock_ttl_ms < needed:
             raise ValueError(f"SESSION_LOCK_TTL_MS ({self.session_lock_ttl_ms}) must be at least the planner turn "
-                             f"budget (LLM overall deadline and RailRadar call budget) plus "
+                             f"budget (LLM overall deadline and the live data call budget, RAILRADAR_CALL_BUDGET_SECONDS or "
+                             f"NTES_CALL_BUDGET_SECONDS) plus "
                              f"{LOCK_TTL_MARGIN_SECONDS}s margin ({needed} ms)")
         return self
 

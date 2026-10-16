@@ -47,11 +47,14 @@ workflow is skipped until the `GCP_PROJECT_ID` repository variable exists.
   `session_busy`), so it can never overwrite a newer turn's state. The browser's planner timeout (45 s) and the
   Cloud Run request timeout (60 s) sit above that budget; `backend/tests/test_timeout_budget.py` keeps them
   consistent.
-- **Production needs RailRadar.** The workflow deploys with `APP_ENV=production`, and production refuses demo data.
-  `RAILWAY_DATA_MODE` defaults to `railradar`, and the `RAILRADAR_API_KEY` secret must hold a real key. Otherwise
-  live searches and boards answer `unavailable`, `/readyz` is 503 (`railradar_key`, or `data_provider` when demo
-  mode was refused, whatever the key holds) and the candidate's smoke test fails, so it never gets traffic. Demo
-  data is for development and staging (`APP_ENV` other than `production`).
+- **Production needs a live data mode.** The workflow deploys with `APP_ENV=production`, and production refuses
+  demo data. `RAILWAY_DATA_MODE` defaults to `ntes`: NTES through `ntes-client`, an unofficial client of the NTES
+  app backend (the owner's choice; it needs no key, and it can break or be blocked, see SECURITY.md R10). Set the
+  repository variable to `railradar` to use RailRadar instead; then the `RAILRADAR_API_KEY` secret must hold a real
+  key (it is mounted only in that mode). Otherwise live searches and boards answer `unavailable`, `/readyz` is 503
+  (`railradar_key` in RailRadar mode, or `data_provider` when demo mode was refused or the NTES package is
+  missing) and the candidate's smoke test fails, so it never gets traffic. Demo data is for development and
+  staging (`APP_ENV` other than `production`).
 - **Production needs Redis.** `/readyz` is 503 (`redis`) in production when `REDIS_URL` is unset or Memorystore is
   unreachable: sessions, rate limits and the RailRadar quota must be shared by every replica.
 - **Memorystore must run Redis 7 or later.** The station-closure store uses `EXPIRE … NX`/`GT`, which Redis 6
@@ -117,9 +120,10 @@ REDIS_HOST="$(gcloud redis instances describe railsaathi --region="$REGION" --fo
 REDIS_PORT="$(gcloud redis instances describe railsaathi --region="$REGION" --format 'value(port)')"
 REDIS_AUTH="$(gcloud redis instances get-auth-string railsaathi --region="$REGION" --format 'value(authString)')"
 
-# Secrets referenced by the backend service. RAILRADAR_API_KEY is created without a version (Secret Manager rejects
-# an empty payload); add the real key as its first version BEFORE the first production deploy, because the deploy
-# mounts RAILRADAR_API_KEY:latest and fails while the secret has no version.
+# Secrets referenced by the backend service. RAILRADAR_API_KEY is needed only for RAILWAY_DATA_MODE=railradar (the
+# default, ntes, needs no key; skip these four lines then). It is created without a version (Secret Manager rejects
+# an empty payload); add the real key as its first version BEFORE the first RailRadar deploy, because the deploy
+# then mounts RAILRADAR_API_KEY:latest and fails while the secret has no version.
 gcloud secrets create RAILRADAR_API_KEY --replication-policy=automatic
 read -rsp 'RailRadar API key: ' RAILRADAR_KEY; echo   # typed, not echoed or kept in shell history
 printf '%s' "$RAILRADAR_KEY" | gcloud secrets versions add RAILRADAR_API_KEY --data-file=-
@@ -139,7 +143,7 @@ done
 # service account per service with only these roles and pass it as --service-account in deploy.yml (SECURITY.md R8).
 PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format 'value(projectNumber)')"
 RUNTIME_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
-for SECRET in RAILRADAR_API_KEY REDIS_URL SESSION_SIGNING_KEY; do
+for SECRET in REDIS_URL SESSION_SIGNING_KEY; do   # add RAILRADAR_API_KEY in RailRadar mode
   gcloud secrets add-iam-policy-binding "$SECRET" \
     --member "serviceAccount:${RUNTIME_SA}" --role roles/secretmanager.secretAccessor
 done
@@ -177,7 +181,7 @@ Then add these **repository variables** in GitHub (Settings, Secrets and variabl
 | `GCP_REGION` | e.g. `asia-south1` |
 | `GCP_WIF_PROVIDER` | printed by the script above |
 | `GCP_SERVICE_ACCOUNT` | printed by the script above |
-| `RAILWAY_DATA_MODE` | `railradar` (default; production refuses `demo`) |
+| `RAILWAY_DATA_MODE` | `ntes` (default: NTES through the unofficial ntes-client, no key) or `railradar` (needs the `RAILRADAR_API_KEY` secret); production refuses `demo` |
 | `FRONTEND_ORIGIN` | optional; leave empty, the nginx proxy makes API calls same-origin |
 | `LLM_PROVIDER` | `gemini` (default), `bedrock` (intent extraction only) or `none` |
 | `GOOGLE_CLOUD_LOCATION` | Vertex AI region for Gemini, default `us-central1` |

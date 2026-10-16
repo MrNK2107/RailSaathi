@@ -1,6 +1,7 @@
-"""Quota gate and response cache for RailRadar, shared by every instance through Redis.
+"""Quota gate and response cache for the live data providers, shared by every instance through Redis.
 
-RailRadar allows ~10 requests per minute per API key. With several Cloud Run instances a per-process counter would
+Used by RailRadar (namespace "rr") and the NTES client (namespace "ntes"); each provider has its own quota and its
+own cache keys. RailRadar allows ~10 requests per minute per API key. With several Cloud Run instances a per-process counter would
 multiply that, so the Redis implementations count across all instances (keyed by a hash of the API key, never the
 key itself). In-memory implementations serve local development and tests.
 
@@ -125,10 +126,10 @@ class RedisQuotaGate:
     client serves its stale cache or reports the data as unavailable instead."""
 
     def __init__(self, client: Redis, api_key: str, rpm: int = 10, prefix: str = "rs",
-                 clock: Callable[[], float] = time.time) -> None:
+                 clock: Callable[[], float] = time.time, namespace: str = "rr") -> None:
         self._r = client
         self._rpm = rpm
-        self._key = f"{prefix}:rr:quota:{key_fingerprint(api_key)}"
+        self._key = f"{prefix}:{namespace}:quota:{key_fingerprint(api_key)}"
         self._clock = clock
 
     def _hit(self) -> QuotaDecision:
@@ -151,7 +152,7 @@ class RedisQuotaGate:
         try:
             return await asyncio.to_thread(self._hit)
         except RedisError:
-            log.warning("RailRadar quota store unavailable; failing closed", exc_info=True)
+            log.warning("Provider quota store unavailable; failing closed", exc_info=True)
             return QuotaDecision(False, OUTAGE_RETRY_AFTER)
 
     def _count(self) -> int:
@@ -173,9 +174,9 @@ class RedisResponseCache:
     is exhausted; the client decides freshness from `fresh_until`. Redis errors behave as a cache miss."""
 
     def __init__(self, client: Redis, api_key: str, stale_seconds: int = 21_600, prefix: str = "rs",
-                 clock: Callable[[], float] = time.time) -> None:
+                 clock: Callable[[], float] = time.time, namespace: str = "rr") -> None:
         self._r = client
-        self._prefix = f"{prefix}:rr:cache:{key_fingerprint(api_key)}"
+        self._prefix = f"{prefix}:{namespace}:cache:{key_fingerprint(api_key)}"
         self._stale = stale_seconds
         self._clock = clock
 
@@ -201,11 +202,11 @@ class RedisResponseCache:
         try:
             return await asyncio.to_thread(self._get, key)
         except RedisError:
-            log.warning("RailRadar cache unavailable", exc_info=True)
+            log.warning("Provider response cache unavailable", exc_info=True)
             return None
 
     async def set(self, key: str, entry: CacheEntry) -> None:
         try:
             await asyncio.to_thread(self._set, key, entry)
         except RedisError:
-            log.warning("RailRadar cache unavailable", exc_info=True)
+            log.warning("Provider response cache unavailable", exc_info=True)

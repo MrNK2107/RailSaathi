@@ -14,9 +14,9 @@ BACKEND_URL="$(gcloud run services describe $BACKEND --region $REGION --format '
 |---|---|---|
 | Frontend | Cloud Run `railsaathi-frontend` (nginx) | Static PWA plus the `/api/*` proxy and the security headers. The public entry point |
 | Backend | Cloud Run `railsaathi-backend` (FastAPI, one uvicorn worker per instance) | All APIs. Min 2 and max 10 instances, concurrency 40 |
-| Shared state | Memorystore Redis `railsaathi` (**Redis 7.x required**) | Sessions, plans, chats, rate limits, RailRadar quota and cache, station closures. Every key has a TTL |
+| Shared state | Memorystore Redis `railsaathi` (**Redis 7.x required**) | Sessions, plans, chats, rate limits, NTES/RailRadar request budgets and caches, station closures. Every key has a TTL |
 | LLM | Vertex AI Gemini (`GEMINI_MODEL`, `GOOGLE_CLOUD_LOCATION`) | Runtime service account, no API key |
-| Live data | RailRadar (secret `RAILRADAR_API_KEY`) | Third party, 10 requests/minute shared |
+| Live data | NTES through the unofficial `ntes-client` (`RAILWAY_DATA_MODE=ntes`, the default; no key), or RailRadar (secret `RAILRADAR_API_KEY`) | NTES: unofficial, can break or be blocked; 20 requests/minute (our own budget) shared. RailRadar: third party, 10 requests/minute shared |
 | Files | Cloud Storage | Station catalogue (`STATIONS_URI`), delay model (`DELAY_MODEL_URI`), observations (`OBSERVATIONS_URI`) |
 | Scheduled job | Cloud Scheduler `railsaathi-collect-observations` | `POST /internal/collect` with an OIDC token |
 | Alerts | Cloud Monitoring (`infra/monitoring/`) | 5xx rate, p95 latency, Redis memory, RailRadar quota |
@@ -26,9 +26,11 @@ BACKEND_URL="$(gcloud run services describe $BACKEND --region $REGION --format '
 Check each item before calling a deployment production-ready. Each one is set in the deploy workflow's
 repository variables or secrets.
 
-- [ ] **`RAILWAY_DATA_MODE=railradar` and the `RAILRADAR_API_KEY` secret, with a real key version.** Production
-      refuses demo data. Without a key (or with demo mode refused), `/readyz` is 503, the candidate revision fails
-      its smoke test and keeps no traffic.
+- [ ] **A live data mode.** `RAILWAY_DATA_MODE=ntes` (the workflow default) needs no key, only the `ntes-client`
+      package in the image (it is a locked dependency); remember it is an unofficial client that NTES can block.
+      `RAILWAY_DATA_MODE=railradar` needs the `RAILRADAR_API_KEY` secret with a real key version. Production
+      refuses demo data. Without a working mode, `/readyz` is 503, the candidate revision fails its smoke test and
+      keeps no traffic.
 - [ ] **`SESSION_SIGNING_KEY` secret.** The app refuses to start in production without it. Every replica must share
       it.
 - [ ] **`REDIS_URL` pointing at Memorystore Redis 7 or later.** Station closures use `EXPIRE … NX`/`GT`, which Redis
@@ -87,7 +89,7 @@ repository variables or secrets.
 | Probe | Meaning |
 |---|---|
 | `GET /healthz` | Liveness, with no I/O. If it fails, the process is wedged |
-| `GET /readyz` | 503 lists the failing `checks`: `redis` (unreachable, or unset in production), `data_provider` (production refused demo data), `station_catalogue`, `railradar_key`, `delay_model` or `navigation_stations`. `degraded` lists non-blocking problems: `llm`, `knowledge`, `railradar` or `navigation_stations` (some stations failed validation) |
+| `GET /readyz` | 503 lists the failing `checks`: `redis` (unreachable, or unset in production), `data_provider` (production refused demo data, or the `ntes-client` package is missing in NTES mode), `station_catalogue`, `railradar_key` (production in RailRadar mode only), `delay_model` or `navigation_stations`. `degraded` lists non-blocking problems: `llm`, `knowledge`, `railradar`, `ntes` or `navigation_stations` (some stations failed validation) |
 | `GET /api/health` | The full status: data provider (requested, active, reason), LLM and vision status, Redis ping, model mode. No secrets |
 
 ## Logs
@@ -148,6 +150,23 @@ Every key has a TTL, so steady growth means more traffic or a TTL regression.
 1. Sample key prefixes from a VM on the VPC: `redis-cli -h <host> -a <auth> --scan --pattern 'rs:*' | cut -d: -f2 | sort | uniq -c`.
 2. Scale up with `gcloud redis instances update railsaathi --region $REGION --size=<GB>`.
 3. Lower `SESSION_TTL_MINUTES` or `RAILRADAR_STALE_SECONDS` if one prefix dominates.
+
+### NTES stops answering
+
+NTES is reached through an unofficial client, so it can stop working without notice (a changed app backend, a
+block, or an outage). Symptoms: every board, schedule and journey is `unavailable` ("The live data provider could
+not be reached" or "...returned data in a format RailSaathi does not understand"), and log lines
+`NTES call failed (unavailable|bad_response|timeout, ...)`.
+
+1. Run `cd backend && uv run python scripts/ntes_smoke.py` from a workstation. If it fails there too, NTES is down
+   or blocks the client; if the record keys it prints changed, update `providers/ntes_mapper.py`.
+2. Check for a newer `ntes-client` release; pin it with `uv add ntes-client==<version>` after `pip-audit` passes.
+3. To switch source, set the `RAILWAY_DATA_MODE` repository variable to `railradar` (with the `RAILRADAR_API_KEY`
+   secret) and redeploy. Never switch production to `demo`: it is refused.
+
+Refused calls log `jsonPayload.event="ntes_quota_exhausted"`. A sustained count means RailSaathi's own budget
+(`NTES_REQUESTS_PER_MINUTE`, 20) is too small for the traffic; raise it with care (NTES publishes no limit, so stay
+polite) or lengthen `NTES_CACHE_SECONDS`.
 
 ### Alert: RailRadar quota exhausted
 

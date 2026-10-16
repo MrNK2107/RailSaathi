@@ -1,6 +1,8 @@
 """Live station information: departure boards, train schedules and running status.
 
 `LiveSource` is the one interface the live API uses. Implementations:
+  * NtesLiveSource      - NTES through the unofficial ntes-client, on its own quota and response cache (the
+                          planner's client instance): real station boards, schedules and running status.
   * RailRadarLiveSource - RailRadar on the shared quota and response cache (the planner's client instance).
   * DemoLiveSource      - bundled simulated data, labelled `demo`; never built when APP_ENV=production.
   * UnavailableLiveSource - every answer is `unavailable` with a reason (key missing, demo refused in production).
@@ -23,6 +25,11 @@ from app.domain.options import DataProvenance
 from app.infra.async_bridge import run_sync
 from app.providers.demo import DATA_DIR
 from app.providers.errors import ProviderError, ProviderErrorKind
+from app.providers.ntes import NOTE as NTES_NOTE
+from app.providers.ntes import note_for as ntes_note_for
+from app.providers.ntes_client import SOURCE as NTES_SOURCE
+from app.providers.ntes_client import NtesAlert, NtesClient
+from app.providers.ntes_mapper import map_board_entry, map_live, map_schedule, station_label
 from app.providers.railradar import NOTE as RAILRADAR_NOTE
 from app.providers.railradar import SOURCE as RAILRADAR_SOURCE
 from app.providers.railradar_client import RailRadarClient
@@ -71,7 +78,8 @@ class Departure(BaseModel):
     train_no: str
     train_name: str
     scheduled_departure: datetime  # at the board's station
-    towards: list[StationRef]  # catalogue neighbours this train reaches directly (not necessarily its terminus)
+    # RailRadar: catalogue neighbours this train reaches directly (not necessarily its terminus); NTES: its terminus
+    towards: list[StationRef]
     delay_minutes: int | None = None  # None: running status not known
     cancelled: bool | None = None  # None: running status not known
     status_as_of: datetime | None = None  # when the running status was fetched
@@ -307,6 +315,102 @@ class RailRadarLiveSource(_Base):
                                     as_of=fetched.fetched_at.astimezone(self._tz), note=RAILRADAR_NOTE)
         return TrainLiveStatus(train_no=train_no, run_date=run_date, delay_minutes=delay, cancelled=cancelled,
                                provenance=provenance)
+
+
+NTES_BOARD_NOTE = ("Station board as published by NTES for the next hours (trains that end here are left out). "
+                   + NTES_NOTE)
+NTES_NOT_FOUND = "NTES has no data for this request."
+
+
+class NtesLiveSource(_Base):
+    """Boards, schedules and running status from NTES (unofficial client). One NTES call per board, so no
+    neighbour fan-out is needed. Labelled `live` when fetched for this request, `cached` when a recent copy is
+    reused and `stale` when an older copy is served because the request budget is used up or NTES failed."""
+
+    source = NTES_SOURCE
+
+    def __init__(self, client: NtesClient, directory: StationDirectory, clock: Clock, tz: str = "Asia/Kolkata",
+                 timeout_seconds: float = 15.0) -> None:
+        super().__init__(directory, clock, tz)
+        self._client = client
+        self._timeout = timeout_seconds
+
+    def _label(self, code: str, ntes_name) -> str:
+        point = self._dir.get(code)
+        return point.name if point else station_label(code, ntes_name, {})
+
+    @staticmethod
+    def _reason(err: ProviderError) -> str:
+        return NTES_NOT_FOUND if isinstance(err, NtesAlert) else reason_for(err)
+
+    def _provenance(self, fetched, note: str) -> DataProvenance:
+        return DataProvenance(mode=fetched.mode, source=NTES_SOURCE,
+                              as_of=fetched.fetched_at.astimezone(self._tz), note=ntes_note_for(fetched.mode, note))
+
+    def departures(self, station_code: str, hours: int) -> DepartureBoard:
+        origin = self._origin(station_code)
+        start, end = self._window(hours)
+        try:
+            # NTES boards cover the next 2 or 4 hours; the window is cut to the asked hours below.
+            fetched = run_sync(self._client.station_live(origin.code, 2 if hours <= 2 else 4), self._timeout)
+        except ProviderError as err:
+            log.warning("NTES board for %s unavailable (%s)", origin.code, err.kind.value)
+            return self._unavailable_board(origin, hours, self._reason(err))
+        found: dict[str, Departure] = {}
+        as_of = fetched.fetched_at.astimezone(self._tz)
+        for raw in fetched.data.get("TrainsAtStation") or []:
+            entry = map_board_entry(raw, start) if isinstance(raw, dict) else None
+            if entry is None or entry["train_no"] in found:
+                continue
+            scheduled = entry["scheduled_departure"]
+            expected = scheduled + timedelta(minutes=entry["delay_minutes"] or 0)
+            # Scheduled in the window, or scheduled earlier but running late and still to leave in the window.
+            if not (scheduled <= end and (scheduled >= start or (expected >= start and not entry["cancelled"]))):
+                continue
+            dest = entry["destination"]
+            found[entry["train_no"]] = Departure(
+                train_no=entry["train_no"], train_name=entry["train_name"], scheduled_departure=scheduled,
+                towards=[StationRef(code=dest, name=self._label(dest, entry["destination_name"]))] if dest else [],
+                delay_minutes=entry["delay_minutes"], cancelled=entry["cancelled"], status_as_of=as_of)
+        departures = sorted(found.values(), key=lambda d: (d.scheduled_departure, d.train_no))
+        return DepartureBoard(station=_ref(origin), window_start=start, window_end=end, complete=True,
+                              departures=departures, provenance=self._provenance(fetched, NTES_BOARD_NOTE))
+
+    def schedule(self, train_no: str) -> TrainSchedule:
+        try:
+            fetched = run_sync(self._client.schedule(train_no), self._timeout)
+        except ProviderError as err:
+            log.warning("NTES schedule for %s unavailable (%s)", train_no, err.kind.value)
+            return self._unavailable_schedule(train_no, self._reason(err))
+        name, stops = map_schedule(fetched.data, {})
+        if not stops:
+            return self._unavailable_schedule(train_no, NTES_NOT_FOUND)
+        return TrainSchedule(
+            train_no=train_no, train_name=name,
+            stops=[ScheduleStop(**{**stop, "station_name": self._label(stop["station_code"], stop["station_name"])})
+                   for stop in stops],
+            provenance=self._provenance(fetched, NTES_NOTE))
+
+    def live_status(self, train_no: str, run_date: date) -> TrainLiveStatus:
+        """`run_date` is used as the date the run left its origin (how NTES identifies a run)."""
+        try:
+            fetched = run_sync(self._client.live_status(train_no, run_date), self._timeout)
+        except NtesAlert as alert:
+            if alert.cancelled:
+                return TrainLiveStatus(train_no=train_no, run_date=run_date, cancelled=True,
+                                       provenance=DataProvenance(mode=DataMode.LIVE, source=NTES_SOURCE,
+                                                                 as_of=self._now(), note=NTES_NOTE))
+            return self._unavailable_status(train_no, run_date,
+                                            "NTES has no running status for this train and date.")
+        except ProviderError as err:
+            log.warning("NTES live status for %s unavailable (%s)", train_no, err.kind.value)
+            return self._unavailable_status(train_no, run_date, reason_for(err))
+        delay, cancelled = map_live(fetched.data)
+        if delay is None and cancelled is None:
+            return self._unavailable_status(train_no, run_date,
+                                            "NTES returned no running status for this train and date.")
+        return TrainLiveStatus(train_no=train_no, run_date=run_date, delay_minutes=delay, cancelled=cancelled,
+                               provenance=self._provenance(fetched, NTES_NOTE))
 
 
 class DemoLiveSource(_Base):

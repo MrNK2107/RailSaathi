@@ -19,8 +19,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         "recs_ready": "I found {eligible} eligible option(s) out of {considered} in the current data. "
                       "Here are my recommendations — choose one to review it.",
         "no_options": "No option in the current data meets all of your mandatory requirements.",
-        "no_options_live": "No train in the live RailRadar results meets all of your mandatory requirements.",
-        "recs_ready_live": "I found {eligible} eligible option(s) out of {considered} in live RailRadar data. "
+        "no_options_live": "No train in the live results from {source} meets all of your mandatory requirements.",
+        "recs_ready_live": "I found {eligible} eligible option(s) out of {considered} in live data from {source}. "
                            "Here are my recommendations — choose one to review it. Timings can change; "
                            "fares may be missing.",
         "data_unavailable": "Live train data is unavailable right now ({reason}). Your details are saved — "
@@ -60,8 +60,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         "recs_ready": "தற்போதைய தரவில் {considered} விருப்பங்களில் {eligible} தகுதியானவை. "
                       "என் பரிந்துரைகள் இதோ — ஒன்றைத் தேர்ந்தெடுங்கள்.",
         "no_options": "உங்கள் கட்டாயத் தேவைகள் அனைத்தையும் பூர்த்தி செய்யும் விருப்பம் தற்போதைய தரவில் இல்லை.",
-        "no_options_live": "உங்கள் கட்டாயத் தேவைகளைப் பூர்த்தி செய்யும் ரயில் RailRadar நேரடி தரவில் இல்லை.",
-        "recs_ready_live": "RailRadar நேரடி தரவில் {considered} இல் {eligible} தகுதியானவை. என் பரிந்துரைகள் இதோ. "
+        "no_options_live": "உங்கள் கட்டாயத் தேவைகளைப் பூர்த்தி செய்யும் ரயில் {source} நேரடி தரவில் இல்லை.",
+        "recs_ready_live": "{source} நேரடி தரவில் {considered} இல் {eligible} தகுதியானவை. என் பரிந்துரைகள் இதோ. "
                            "நேரங்கள் மாறலாம்; கட்டணம் இல்லாமல் இருக்கலாம்.",
         "data_unavailable": "நேரடி ரயில் தரவு தற்போது கிடைக்கவில்லை ({reason}). உங்கள் விவரங்கள் சேமிக்கப்பட்டுள்ளன — "
                             "மீண்டும் முயற்சிக்க \"show options\" என்று சொல்லுங்கள்.",

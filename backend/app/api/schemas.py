@@ -20,8 +20,9 @@ from app.domain.state import SessionState, ValidationIssue
 
 DATA_NOTICE = ("DEMO DATA: trains, timings, fares and disruptions are simulated for demonstration. "
                "They are not live Indian Railways information. No tickets are booked.")
-LIVE_NOTICE = ("LIVE DATA from RailRadar (third-party, not an official Indian Railways source). Timings can change "
-               "and fares/seat availability may be missing. Verify on IRCTC/NTES. No tickets are booked.")
+LIVE_NOTICE = ("LIVE DATA from a third-party source, not an official Indian Railways service (each result names "
+               "its source: NTES through an unofficial client, or RailRadar). Timings can change and fares/seat "
+               "availability may be missing. Verify on the official NTES or IRCTC. No tickets are booked.")
 
 
 def data_notice(mode: DataMode) -> str:

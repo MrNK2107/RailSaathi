@@ -93,3 +93,23 @@ def test_security_threat_model_r3_lists_every_script_src_source():
     assert "**`https://*.googleusercontent.com`**" in rows[0] and "**`blob:`**" in rows[0]
     for option in ("'strict-dynamic'", "Report-Only"):
         assert option in rows[0]
+
+
+# ---- NTES appears in the docs only in its honest form (Task 17: the owner chose the unofficial ntes-client) ----
+
+DOCS_DIR = API_MD.parent
+README_MD = DOCS_DIR.parent / "README.md"
+
+
+def test_docs_describe_ntes_as_an_unofficial_client_and_drop_the_old_denials():
+    texts = {p.name: p.read_text(encoding="utf-8") for p in [README_MD, *DOCS_DIR.glob("*.md")]}
+    for name in ("README.md", "DATA_PROVIDERS.md", "LIMITATIONS.md", "SECURITY.md", "RUNBOOK.md"):
+        assert "unofficial" in texts[name] and "NTES" in texts[name], name
+    assert "NTES (unofficial client)" in texts["DATA_PROVIDERS.md"]
+    for name, text in texts.items():
+        lowered = text.lower()
+        assert "no ntes integration" not in lowered and "any ntes feed" not in lowered, name
+        for claim in ("official ntes integration", "authorised ntes integration", "official ntes api"):
+            # Only ever negated ("not an official ... integration"), never claimed.
+            for at in [i for i in range(len(lowered)) if lowered.startswith(claim, i)]:
+                assert "not" in lowered[max(0, at - 40):at], (name, claim)

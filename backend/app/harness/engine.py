@@ -113,7 +113,8 @@ class WorkflowEngine:
     def _recs_text(self, state: SessionState) -> list[str]:
         rs = state.recommendations
         lang = state.language
-        parts = [msg(lang, _keyed("recs_ready", state), eligible=rs.eligible_count, considered=rs.considered_count)]
+        parts = [msg(lang, _keyed("recs_ready", state), eligible=rs.eligible_count, considered=rs.considered_count,
+                     source=_source(state))]
         parts += rs.notes
         # Only accessibility needs count here; other unverified items (e.g. missing fares) are not assistance.
         has_unverified = any(ns.status == Verification.UNKNOWN for r in rs.recommendations for ns in r.need_statuses)
@@ -126,12 +127,18 @@ class WorkflowEngine:
     def _no_options_text(self, state: SessionState) -> list[str]:
         rs = state.recommendations
         lang = state.language
-        parts = [msg(lang, _keyed("no_options", state))]
+        parts = [msg(lang, _keyed("no_options", state), source=_source(state))]
         reasons = sorted({r for e in rs.excluded for r in e.reasons})[:3]
         parts += reasons
         if rs.relax_suggestions:
             parts.append(msg(lang, "relax_offer", options="; ".join(s.message for s in rs.relax_suggestions)))
         return parts
+
+
+def _source(state: SessionState) -> str:
+    """The live data source named in the reply (e.g. "NTES (unofficial client)")."""
+    rs = state.recommendations
+    return rs.provenance.source if rs is not None and rs.provenance is not None else "the live data source"
 
 
 def _keyed(key: str, state: SessionState) -> str:

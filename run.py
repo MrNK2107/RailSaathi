@@ -6,7 +6,9 @@
 
 Installs dependencies on first run (uv sync, npm install), then runs both servers until Ctrl+C.
 Prints a QR code for the Wi-Fi address so phones on the same network can open the app.
-Needs Python 3.12, uv and Node.js 20+. No API keys: locally the app uses built-in sample data.
+Needs Python 3.12, uv and Node.js 20+. No API keys: train data comes live from NTES through the unofficial
+ntes-client package (RAILWAY_DATA_MODE=ntes). Set RAILWAY_DATA_MODE yourself (environment or backend/.env) to
+override it, e.g. RAILWAY_DATA_MODE=demo for the built-in sample data.
 """
 
 import argparse
@@ -81,6 +83,24 @@ def lan_ip() -> str | None:
 
 
 QR_FILE = ROOT / "railsaathi-qr.svg"
+DATA_MODE_VARS = ("RAILWAY_DATA_MODE", "DATA_PROVIDER")  # the backend's names for the setting (app/config.py)
+LOCAL_DATA_MODE = "ntes"
+
+
+def default_data_mode(environ: dict[str, str], env_file: Path = BACKEND / ".env") -> str | None:
+    """`ntes` unless the data mode is already chosen in the environment or in backend/.env (then None: the user's
+    choice stands)."""
+    if any(environ.get(name, "").strip() for name in DATA_MODE_VARS):
+        return None
+    try:
+        lines = env_file.read_text(encoding="utf-8").splitlines() if env_file.exists() else []
+    except OSError:
+        lines = []
+    for line in lines:
+        key, sep, value = line.strip().partition("=")
+        if sep and not key.startswith("#") and key.strip().upper() in DATA_MODE_VARS and value.strip():
+            return None
+    return LOCAL_DATA_MODE
 
 
 def print_qr(uv: str, url: str) -> None:
@@ -123,6 +143,9 @@ def main() -> None:
 
     backend_url = f"http://127.0.0.1:{args.backend_port}"
     env = dict(os.environ, BACKEND_URL=backend_url)
+    mode = default_data_mode(env)
+    if mode:
+        env["RAILWAY_DATA_MODE"] = mode
     scheme = "http" if args.no_https else "https"
     if not args.no_https:
         env["VITE_HTTPS"] = "1"  # self-signed certificate via @vitejs/plugin-basic-ssl (see vite.config.ts)
@@ -148,6 +171,11 @@ def main() -> None:
         print()
         print(f"  RailSaathi is running:  {app_url}")
         print(f"  API docs:               {backend_url}/docs")
+        if mode:
+            print("  Train data:             live from NTES through ntes-client, an unofficial client "
+                  "(RAILWAY_DATA_MODE=ntes)")
+        else:
+            print("  Train data:             RAILWAY_DATA_MODE as you set it")
         if ip:
             lan_url = f"{scheme}://{ip}:{args.frontend_port}"
             print(f"  On the same Wi-Fi:      {lan_url}")

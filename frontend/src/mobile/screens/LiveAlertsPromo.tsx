@@ -23,7 +23,7 @@ export function LiveAlertsPromo() {
           <p className="mt-0.5 text-sm text-white/85">{d.alertsBody}</p>
           <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-white/80">
             {health && <ProvenanceBadge provenance={null} mode={health.data_mode} labels={{ live: m.live }} />}
-            {health?.data_mode === 'live' && provider && <span>{d.alertsSource} {provider}</span>}
+            {health?.data_mode === 'live' && provider && <span>{d.alertsSource} {m.profile.providers[provider] ?? provider}</span>}
           </p>
           <p className="mt-1 text-[11px] text-white/80">{d.alertsNotice}</p>
         </div>

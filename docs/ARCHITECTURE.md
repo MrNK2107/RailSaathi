@@ -66,7 +66,7 @@ DisruptionService (on request) ─► re-rank with event applied ─► passenge
 | `intent/` | Interpret text into `IntentUpdate`; LLM adapter interface (`IntentLLM`) | `stations` (rules only) |
 | `validation/` | Parse dates/times/classes; validate a `JourneyDetails` | nothing external |
 | `stations/` | Resolve names, aliases and Tamil script to `Place`s; never auto-substitutes | `JourneyProvider` |
-| `providers/` | `JourneyProvider`, `DisruptionSource` and `LiveSource` protocols; RailRadar (shared quota and cache) and demo implementations | — |
+| `providers/` | `JourneyProvider`, `DisruptionSource` and `LiveSource` protocols; NTES through the unofficial ntes-client, RailRadar (each with a shared request budget and cache) and demo implementations | — |
 | `ranking/` | Hard-constraint evaluation, need verification, scoring, explanations | `JourneyProvider` |
 | `disruption/` | Apply events, reassess, describe changes | `ranking`, `DisruptionSource` |
 | `harness/` | State machine, clarification, merge, confirmation, handoff, i18n templates | all of the above |

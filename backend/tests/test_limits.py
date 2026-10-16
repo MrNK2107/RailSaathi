@@ -53,7 +53,7 @@ def test_lock_ttl_must_also_cover_the_railradar_call_budget():
     """A turn runs the LLM and then a RailRadar search under the lock; a reassessment runs two RailRadar batches."""
     import pytest
     from app.config import Settings
-    with pytest.raises(ValueError, match="RailRadar call budget"):  # 20 s LLM + 30 s search + 10 s margin
+    with pytest.raises(ValueError, match="live data call budget"):  # 20 s LLM + 30 s search + 10 s margin
         Settings(_env_file=None, railradar_call_budget_seconds=30, session_lock_ttl_ms=45_000)
     with pytest.raises(ValueError):  # reassess: 2 x 25 s + 10 s margin > 55 s even though 20 + 25 + 10 fits
         Settings(_env_file=None, railradar_call_budget_seconds=25, session_lock_ttl_ms=55_000)

@@ -17,6 +17,17 @@ describe('ProvenanceBadge', () => {
     expect(badge).toHaveAttribute('title', expect.stringContaining('RailRadar live API'))
   })
 
+  it('chip can name its source next to the label', () => {
+    render(<ProvenanceBadge provenance={{ ...base, source: 'NTES (unofficial client)' }} showSource />)
+    expect(screen.getByTestId('provenance-badge')).toHaveTextContent('LIVE')
+    expect(screen.getByTestId('provenance-source')).toHaveTextContent('NTES (unofficial client)')
+  })
+
+  it('chip hides the source unless asked', () => {
+    render(<ProvenanceBadge provenance={base} />)
+    expect(screen.queryByTestId('provenance-source')).not.toBeInTheDocument()
+  })
+
   it('full variant shows source, retrieval time and note', () => {
     render(<ProvenanceBadge provenance={{ ...base, mode: 'stale', note: 'Quota exhausted; earlier response.' }} variant="full" />)
     const el = screen.getByTestId('provenance-badge')

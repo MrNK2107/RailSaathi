@@ -306,7 +306,7 @@ export function Profile() {
       </section>
       <section className="space-y-2 rounded-2xl bg-white p-4 text-sm shadow-card ring-1 ring-ink-100">
         <p className="flex items-center justify-between"><span className="text-ink-500">{m.profile.dataSource}</span>
-          <span className="flex items-center gap-2">{provider?.active === 'demo' ? m.profile.builtInData : (provider?.active ?? '—')} {h && <ProvenanceBadge provenance={null} mode={h.data_mode} labels={{ live: m.live }} />}</span></p>
+          <span className="flex items-center gap-2">{provider?.active === 'demo' ? m.profile.builtInData : (provider?.active ? (m.profile.providers[provider.active] ?? provider.active) : '—')} {h && <ProvenanceBadge provenance={null} mode={h.data_mode} labels={{ live: m.live }} />}</span></p>
         {provider?.reason && <p className="text-xs text-red-700">{provider.reason}</p>}
         <p className="flex items-center justify-between"><span className="text-ink-500">{m.profile.ai}</span>
           <span>{h?.ai?.active ? fill(m.profile.aiActive, { provider: String(h.ai.provider ?? '') }) : m.profile.aiInactive}</span></p>
