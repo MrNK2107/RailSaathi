@@ -47,13 +47,30 @@ Prerequisites: Python 3.12, [uv](https://docs.astral.sh/uv/) and Node.js 20+. No
 needed. `python run.py` uses live NTES train data (through an unofficial client, see below), the rule-based
 extractor and the rule-based ticketing agent.
 
-The quickest way is one command from the repository root. It installs dependencies on the first run, then starts
-the backend on port 8010 and the frontend on port 5173 until Ctrl+C:
+The quickest way is one command from the repository root. It runs `uv sync` (and `npm install` the first time),
+then starts the backend on port 8010 and the frontend on port 5173 until Ctrl+C:
 
 ```bash
-python run.py                                      # http://localhost:5173
+python run.py                                      # https://localhost:5173, also on your Wi-Fi address
+python run.py --no-https                           # plain http://localhost:5173
+python run.py --skip-install                       # skip uv sync / npm install
 python run.py --backend-port 8000 --frontend-port 5174
 ```
+
+- **HTTPS by default.** The frontend is served over HTTPS with a self-signed local test certificate, because phones
+  allow the camera, microphone and motion sensors (voice input, AR) only in a secure context.
+- **Phones on the same Wi-Fi.** `run.py` prints the Wi-Fi address (for example `https://192.168.1.20:5173`) and a
+  QR code in the terminal; it also saves the code as `railsaathi-qr.svg` in the repository root. Scan it with the
+  phone's camera.
+- **The certificate warning.** The phone (and your desktop browser) warns that the certificate is not trusted, since
+  it is a local test certificate: tap *Advanced*, then *Proceed* (or *Visit this website*). Nothing loads on the
+  phone? Allow Node.js through Windows Firewall on Private networks, set the Wi-Fi to a Private network, and avoid
+  guest networks that isolate devices.
+- **`--no-https`** serves plain HTTP. Everything works on the computer, but phones then block the camera,
+  microphone and motion sensors.
+- **`--skip-install`** skips `uv sync` and `npm install`, for a faster restart when the dependencies have not
+  changed.
+- **Live NTES data.** `run.py` sets `RAILWAY_DATA_MODE=ntes` unless you set it yourself (see below).
 
 Or start the two servers yourself:
 
@@ -72,7 +89,7 @@ npm run dev                   # proxies /api to BACKEND_URL (default http://127.
 
 Open http://localhost:5173 and try *"I need to reach Chennai before 9 AM tomorrow."* Camera, microphone and
 motion sensors need a secure context: `localhost` works. For another device on your network, run
-`VITE_HTTPS=1 npm run dev`.
+`VITE_HTTPS=1 npm run dev` (what `run.py` does; the dev server already listens on every network interface).
 
 ### What you see locally
 
@@ -93,7 +110,8 @@ motion sensors need a secure context: `localhost` works. For another device on y
   the ticketing assistant uses the rule-based agent. Profile says which one is active.
 - **AR is visible but switched off.** Camera (AR) guidance needs the Gemini vision service (Gemini configured as
   below) and `AR_GUIDANCE_ENABLED` (unset means every AR station outside production). Without Gemini, Station
-  Navigation shows the Camera (AR) tab disabled at Chennai Central, with the reason. The 3D tour and the station
+  Navigation shows the AR tab disabled at Chennai Central, with the reason: no Gemini vision service, or (in
+  production) `AR_GUIDANCE_ENABLED` not naming the station. The 3D tour and the station
   blueprint work without it.
 - **RailRadar is the alternative.** Set `RAILWAY_DATA_MODE=railradar` and `RAILRADAR_API_KEY` to use RailRadar
   instead of NTES.

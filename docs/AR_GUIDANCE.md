@@ -6,7 +6,7 @@ Real-time camera guidance inside MGR Chennai Central. This page covers how it wo
 
 ## What it does
 
-In the station wayfinder (Station Navigation → **Camera (AR)** tab), a passenger who has already picked a route points the phone's rear camera ahead. The app estimates where they are and which way they face, then shows:
+In the station wayfinder (Station Navigation → **AR** tab), a passenger who has already picked a route points the phone's rear camera ahead. The app estimates where they are and which way they face, then shows:
 
 - an arrow towards the next waypoint of their route;
 - the next step's text, taken from the route API's `instructions[]`;

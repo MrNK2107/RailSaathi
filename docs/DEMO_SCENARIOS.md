@@ -3,10 +3,12 @@
 Development and staging only. These run on the bundled demo dataset, which the service refuses when
 `APP_ENV=production`.
 
-Start both servers (see the README) and open http://localhost:5173. "Tomorrow"
-is computed in Asia/Kolkata time, and all trains are fictional demo services.
-These scenarios also run automatically in `backend/tests/test_harness.py` and
-`frontend/e2e/planner.spec.ts`.
+Start both servers with demo data (`RAILWAY_DATA_MODE=demo`; `python run.py` uses live NTES data unless you set
+it, see the README) and open the app. "Tomorrow" is computed in Asia/Kolkata time, and all trains are fictional
+demo services. The scenarios run automatically in `backend/tests/test_harness.py`; the mobile flow (plan, options,
+details, confirm) runs in `frontend/e2e/mobile.spec.ts`.
+
+Type each request in the AI planner (*Plan Your Journey* on the home screen).
 
 | # | Type in the chat | Expected |
 |---|---|---|
@@ -14,9 +16,9 @@ These scenarios also run automatically in `backend/tests/test_harness.py` and
 | B | `Find the cheapest option from Coimbatore to Chennai, but I must reach before 9 AM tomorrow. 2 passengers` | Lowest-cost card is D103 (₹590). A note explains that the cheaper D105 (₹540) is excluded because it arrives at 09:40. |
 | C | `I am travelling with my mother, and she needs assistance.` → `from Madurai to Chennai tomorrow before 9 am` | 2 passengers inferred; assistance need kept; cards say "availability at Chennai Egmore has not been verified"; nothing claims assistance is booked. |
 | D | After A, `Change my destination to Bengaluru.` | "Updated: destination." Origin, date, deadline and passengers are kept; options are recalculated for Bengaluru. |
-| E | After B: select D103 → confirm → in *Disruption check* pick "D103 running 2 h 30 min late" → *Reassess* | Labelled SIMULATED. D103 now arrives at 09:15 and no longer qualifies. Alternatives are shown, the original confirmation stays on record, and a new confirmation is required. |
-| F | Switch *Language* to தமிழ், type `நாளை காலை 9 மணிக்குள் கோவையிலிருந்து சென்னைக்கு, அம்மா உடன்` | Tamil replies; options shown. Switching back to English keeps the state. In Chrome/Edge, the mic fills the text box for review and never auto-sends. |
-| G | `from Coimbatore to Chennai tomorrow, must reach before 4 am, 1 passenger` | "No option in the current data…", with the reason and a *Relax* button (or type `remove the deadline`). After relaxing, options appear. |
+| E | After B: open D103 → *Confirm* → on the confirmation screen tap *Check live status* | The simulated "D103 running 2 h 30 min late" event is applied, labelled SIMULATED. D103 now arrives at 09:15 and no longer qualifies. The re-ranked options are shown, the original confirmation stays on record, and a new confirmation is required. |
+| F | Switch the language to தமிழ் on the home screen, then type `நாளை காலை 9 மணிக்குள் கோவையிலிருந்து சென்னைக்கு, அம்மா உடன்` | The greeting and the replies are in Tamil; options shown. Switching back to English keeps the state. In Chrome/Edge, the mic fills the text box for review and never auto-sends. |
+| G | `from Coimbatore to Chennai tomorrow, must reach before 4 am, 1 passenger` | "No option in the current data…", with the reason and a relax suggestion on the options screen (or type `remove the deadline`). After relaxing, options appear. |
 
 More things to try:
 
