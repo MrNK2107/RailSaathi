@@ -24,9 +24,19 @@ describe('nginx site config', () => {
   })
 
   it('repeats the security headers in every location (add_header is not inherited once a location sets its own)', () => {
-    for (const match of ['~ ^/api(/|$)', '/assets/', '= /', '= /index.html', '= /sw.js', '= /manifest.webmanifest', '/']) {
+    for (const match of ['~ ^/api(/|$)', '= /api/navigation/localize', '/assets/', '= /', '= /index.html', '= /sw.js', '= /manifest.webmanifest', '/']) {
       expect(location(match), match).toContain('include /etc/nginx/snippets/security-headers.conf;')
     }
+  })
+
+  it('lets AR camera frames through: the localize upload has its own body limit above the backend frame limit', () => {
+    const api = location('~ ^/api(/|$)')
+    const localize = location('= /api/navigation/localize')
+    expect(api).toContain('client_max_body_size 64k;')
+    expect(localize).toContain('client_max_body_size 2m;') // backend: LOCALIZE_MAX_IMAGE_BYTES 1.5 MB + 16 KiB form allowance
+    // Proxied exactly like every other API path (same headers, so rate limiting sees the same client IP).
+    const directives = (block: string) => block.split(/\r?\n/).slice(1).map((l) => l.trim()).filter((l) => l && !l.startsWith('#') && !l.startsWith('client_max_body_size'))
+    expect(directives(localize)).toEqual(directives(api))
   })
 
   it('compresses at the gzip level the bundle budgets are measured at', () => {
