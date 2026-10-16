@@ -23,7 +23,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "pytest>=8.3,<9",
+    "pytest>=9.0.3,<10",
     "pytest-cov>=5.0",
     "pytest-asyncio>=0.24",
     "fakeredis>=2.26",

@@ -1,0 +1,13 @@
+{
+  "$comment": "High/critical npm advisories accepted by scripts/audit-gate.mjs. Each entry needs a reason it cannot reach users and a review_by date; past that date the gate fails again. Shipped dependencies are never allowlisted: CI runs `npm audit --omit=dev --audit-level=high` with no exceptions. See docs/SECURITY.md.",
+  "advisories": [
+    {
+      "id": "GHSA-vfj7-8cjw-p6xm",
+      "packages": ["braces"],
+      "severity": "high",
+      "path": "tailwindcss@3 -> chokidar@3 / micromatch@4 -> braces@3.0.3",
+      "reason": "Stack-exhaustion DoS when braces expands an attacker-supplied pattern. braces 3.0.3 is the latest release (no fixed version exists) and only Tailwind CSS 3 pulls it in, at build time, to expand the fixed content globs in tailwind.config.js over our own source files. No user input ever reaches it and it is not in the shipped bundle. Removing it means migrating to Tailwind CSS 4 (no chokidar/micromatch), a separate change with visual-regression risk.",
+      "review_by": "2027-01-16"
+    }
+  ]
+}

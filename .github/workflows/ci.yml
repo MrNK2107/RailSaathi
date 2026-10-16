@@ -26,6 +26,12 @@ jobs:
       - run: uv sync --frozen
       - run: uv run ruff check .
       - run: uv run pytest --cov=app --cov-report=term-missing
+      # Dependency audit gate: every locked package (runtime and dev groups) against the PyPI advisory database
+      # (OSV). pip-audit fails on any known vulnerability, high and critical included; there is no ignore list.
+      - name: pip-audit
+        run: |
+          uv export --frozen --all-groups --no-emit-project --format requirements-txt > "${RUNNER_TEMP}/requirements-audit.txt"
+          uvx pip-audit==2.10.1 --requirement "${RUNNER_TEMP}/requirements-audit.txt" --require-hashes --disable-pip --progress-spinner off
 
   frontend:
     name: Frontend (lint + typecheck + vitest coverage + build budgets + nginx image)
@@ -41,6 +47,11 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      # Dependency audit gates. The shipped bundle's dependencies: no high or critical advisory, no exceptions.
+      - run: npm audit --omit=dev --audit-level=high
+      # The whole tree, dev tooling included: fails on any high or critical advisory not accepted, with a reason and a
+      # review date, in audit-allowlist.json (docs/SECURITY.md).
+      - run: node scripts/audit-gate.mjs
       - run: npm run lint
       - run: npm run typecheck
       # vitest with v8 coverage; fails below 70 % of lines (vite.config.ts test.coverage.thresholds).

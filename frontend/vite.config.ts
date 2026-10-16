@@ -56,7 +56,7 @@ export default defineConfig(async () => {
         thresholds: { lines: 70 },
       },
       pool: 'threads',
-      poolOptions: { threads: { minThreads: 1, maxThreads: 2 } },
+      maxWorkers: 2,
     },
   }
 })
