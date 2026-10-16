@@ -6,13 +6,16 @@ import { defineConfig } from '@playwright/test'
 const CI = !!process.env.CI
 const BACKEND_PORT = process.env.E2E_BACKEND_PORT ?? '8000'
 const BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`
+// Set E2E_FRONTEND_PORT when 5173 is taken (e.g. by `python run.py`), so the suite never reuses a dev server that
+// talks to a different backend.
+const FRONTEND_PORT = process.env.E2E_FRONTEND_PORT ?? '5173'
 
 export default defineConfig({
   testDir: './e2e',
   timeout: 60_000,
   retries: CI ? 1 : 0,
   reporter: CI ? [['github'], ['html', { open: 'never' }]] : 'list',
-  use: { baseURL: 'http://127.0.0.1:5173', headless: true, screenshot: 'only-on-failure', trace: 'retain-on-failure' },
+  use: { baseURL: `http://127.0.0.1:${FRONTEND_PORT}`, headless: true, screenshot: 'only-on-failure', trace: 'retain-on-failure' },
   webServer: [
     {
       command: `uv run python -m uvicorn app.main:create_app --factory --port ${BACKEND_PORT}`,
@@ -21,11 +24,13 @@ export default defineConfig({
       reuseExistingServer: !CI,
       // Frozen clock (same instant as backend/tests/conftest.py) so 'tomorrow before 9 AM' is deterministic.
       // The whole suite runs from one client IP, so the per-IP limit (60/min by default) is raised for the test backend.
-      env: { RAILWAY_DATA_MODE: 'demo', LLM_PROVIDER: 'none', FIXED_NOW: '2026-10-10T10:00:00+05:30', RATE_LIMIT_PER_MINUTE: '1000' },
+      env: { RAILWAY_DATA_MODE: 'demo', LLM_PROVIDER: 'none', FIXED_NOW: '2026-10-10T10:00:00+05:30', RATE_LIMIT_PER_MINUTE: '1000',
+        // The browser calls the backend directly (VITE_API_BASE_URL), so the dev server's origin must be allowed.
+        CORS_ORIGINS: `http://127.0.0.1:${FRONTEND_PORT},http://localhost:${FRONTEND_PORT}` },
     },
     {
-      command: 'npx vite --port 5173 --strictPort',
-      url: 'http://127.0.0.1:5173',
+      command: `npx vite --port ${FRONTEND_PORT} --strictPort`,
+      url: `http://127.0.0.1:${FRONTEND_PORT}`,
       reuseExistingServer: !CI,
       env: { VITE_API_BASE_URL: BACKEND_URL, BACKEND_URL },
     },

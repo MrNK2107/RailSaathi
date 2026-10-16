@@ -151,7 +151,7 @@ test.describe('stale lazy chunks after a deploy', () => {
       missing = false
       return route.fulfill({ status: 404, body: 'gone' })
     })
-    await page.getByRole('button', { name: /Station Navigation/ }).first().click()
+    await page.getByRole('button', { name: /Station Guide & AR/ }).first().click()
     await expect(page.getByRole('heading', { level: 1, name: 'Station Navigation' })).toBeVisible()
     expect(documents).toBe(2)
   })

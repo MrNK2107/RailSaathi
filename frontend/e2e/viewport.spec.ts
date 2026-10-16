@@ -26,6 +26,20 @@ for (const lang of ['en', 'ta'] as const) {
       await expect(page.getByTestId('voice-hero')).toBeVisible()
       expect(await noHorizontalScroll(page)).toBe(true)
       if (SHOTS) await page.screenshot({ path: `${SHOTS}/plan-${lang}.png`, fullPage: true })
+      await page.locator('#voice-input').fill(lang === 'ta' ? 'நாளை காலை 9 மணிக்குள் கோவையிலிருந்து சென்னைக்கு, 2 பேர்' : 'Coimbatore to Chennai before 9 AM tomorrow, 2 passengers')
+      await page.getByRole('button', { name: lang === 'ta' ? 'அனுப்பு' : 'Send' }).click()
+      await expect(page.getByTestId('voice-strip')).toBeVisible()
+      expect(await noHorizontalScroll(page)).toBe(true)
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/plan-started-${lang}.png`, fullPage: true })
+    })
+
+    test('profile fits the viewport and has no classic view link', async ({ page }) => {
+      await openPlan(page, lang)
+      await page.goto('/#/profile')
+      await expect(page.getByRole('button', { name: 'English' })).toBeVisible()
+      await expect(page.locator('body')).not.toContainText(/classic|demo/i)
+      expect(await noHorizontalScroll(page)).toBe(true)
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/profile-${lang}.png`, fullPage: true })
     })
 
     test('station navigation fits the viewport: Chennai Central routed, Egmore routing disabled', async ({ page }) => {
@@ -33,6 +47,10 @@ for (const lang of ['en', 'ta'] as const) {
       await page.locator('#nav-to').selectOption({ label: 'Platform 10' })
       await expect(page.getByTestId('route-line')).toBeVisible()
       await expect(page.getByTestId('station-map')).toBeVisible()
+      // The demo backend has no Gemini vision service: Chennai Central's AR tab is shown disabled, with the reason.
+      await expect(page.getByRole('tab', { name: lang === 'ta' ? 'கேமரா (AR)' : 'Camera (AR)' })).toHaveAttribute('aria-disabled', 'true')
+      await expect(page.locator('[data-code="ar_not_switched_on"]')).toContainText('Gemini')
+      await expect(page.getByTestId('station-explore')).toBeVisible()
       expect(await noHorizontalScroll(page)).toBe(true)
       if (SHOTS) await page.screenshot({ path: `${SHOTS}/navigation-chennai-central-${lang}.png`, fullPage: true })
       await page.locator('#nav-station').selectOption('chennai_egmore')
