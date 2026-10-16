@@ -62,3 +62,34 @@ def test_the_check_sees_internal_routes_and_parses_the_tables():
     assert ("POST", "/internal/collect") in have and ("DELETE", "/internal/stations/{station_id}/disruptions") in have
     assert ("POST", "/api/navigation/route") in documented()
     assert len(have) >= 40
+
+
+# ---- docs/SECURITY.md open risk R3 must name every script source the deployed CSP allows -------------------------
+# (in the backend suite because the frontend's Vite test runner may not read files outside frontend/)
+
+SECURITY_MD = API_MD.parent / "SECURITY.md"
+SECURITY_HEADERS = API_MD.parents[1] / "frontend" / "nginx" / "security-headers.conf"
+
+
+def script_src_sources() -> list[str]:
+    match = re.search(r'^add_header Content-Security-Policy "([^"]*)" always;$', SECURITY_HEADERS.read_text(),
+                      re.MULTILINE)
+    assert match, "no Content-Security-Policy header in security-headers.conf"
+    for directive in match.group(1).split(";"):
+        name, *values = directive.split()
+        if name == "script-src":
+            return values
+    raise AssertionError("the CSP has no script-src directive")
+
+
+def test_security_threat_model_r3_lists_every_script_src_source():
+    rows = [line for line in SECURITY_MD.read_text(encoding="utf-8").splitlines() if line.startswith("| R3 |")]
+    assert len(rows) == 1, "SECURITY.md must have exactly one R3 row"
+    sources = script_src_sources()
+    assert "https://*.googleusercontent.com" in sources and "blob:" in sources  # the parse found the real list
+    missing = [source for source in sources if source not in rows[0]]
+    assert not missing, f"R3 in docs/SECURITY.md does not list these script-src sources: {missing}"
+    # The two widest sources are called out by name, with the mitigation options.
+    assert "**`https://*.googleusercontent.com`**" in rows[0] and "**`blob:`**" in rows[0]
+    for option in ("'strict-dynamic'", "Report-Only"):
+        assert option in rows[0]
