@@ -346,7 +346,7 @@ describe('AR tab in the wayfinder', () => {
     } as unknown as ApiClient
   }
 
-  async function open(c: ApiClient, ready: () => Promise<unknown> = () => screen.findByLabelText(m.navigation.to)) {
+  async function open(c: ApiClient, ready: () => Promise<unknown> = () => screen.findByLabelText(m.navigation.pickTo)) {
     window.location.hash = '/navigation'
     const user = userEvent.setup()
     render(<App client={c} />)
@@ -358,7 +358,7 @@ describe('AR tab in the wayfinder', () => {
     const c = client()
     const user = await open(c)
     const tab = await screen.findByRole('tab', { name: a.tab })
-    await user.selectOptions(screen.getByLabelText(m.navigation.to), 'platform_10')
+    await user.selectOptions(screen.getByLabelText(m.navigation.pickTo), 'platform_10')
     await user.click(tab)
     await user.click(await screen.findByRole('button', { name: a.accept }))
     await screen.findByTestId('ar-arrow')
@@ -370,7 +370,7 @@ describe('AR tab in the wayfinder', () => {
   it('a denied camera lands on the steps with the reason shown', async () => {
     dev.openRearCamera.mockResolvedValue({ ok: false, reason: 'camera_denied' })
     const user = await open(client())
-    await user.selectOptions(screen.getByLabelText(m.navigation.to), 'platform_10')
+    await user.selectOptions(screen.getByLabelText(m.navigation.pickTo), 'platform_10')
     await user.click(await screen.findByRole('tab', { name: a.tab }))
     await user.click(await screen.findByRole('button', { name: a.accept }))
     expect(await screen.findByText(a.fallback.camera_denied)).toBeInTheDocument()

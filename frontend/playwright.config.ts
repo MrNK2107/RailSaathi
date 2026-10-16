@@ -20,7 +20,8 @@ export default defineConfig({
       url: `${BACKEND_URL}/api/health`,
       reuseExistingServer: !CI,
       // Frozen clock (same instant as backend/tests/conftest.py) so 'tomorrow before 9 AM' is deterministic.
-      env: { RAILWAY_DATA_MODE: 'demo', LLM_PROVIDER: 'none', FIXED_NOW: '2026-10-10T10:00:00+05:30' },
+      // The whole suite runs from one client IP, so the per-IP limit (60/min by default) is raised for the test backend.
+      env: { RAILWAY_DATA_MODE: 'demo', LLM_PROVIDER: 'none', FIXED_NOW: '2026-10-10T10:00:00+05:30', RATE_LIMIT_PER_MINUTE: '1000' },
     },
     {
       command: 'npx vite --port 5173 --strictPort',

@@ -27,7 +27,28 @@ for (const lang of ['en', 'ta'] as const) {
       expect(await noHorizontalScroll(page)).toBe(true)
       if (SHOTS) await page.screenshot({ path: `${SHOTS}/plan-${lang}.png`, fullPage: true })
     })
+
+    test('station navigation fits the viewport: Chennai Central routed, Egmore routing disabled', async ({ page }) => {
+      await openNavigation(page, lang)
+      await page.locator('#nav-to').selectOption({ label: 'Platform 10' })
+      await expect(page.getByTestId('route-line')).toBeVisible()
+      await expect(page.getByTestId('station-map')).toBeVisible()
+      expect(await noHorizontalScroll(page)).toBe(true)
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/navigation-chennai-central-${lang}.png`, fullPage: true })
+      await page.locator('#nav-station').selectOption('chennai_egmore')
+      await expect(page.locator('[data-code="routing_unavailable"]')).toBeVisible()
+      await expect(page.locator('#nav-to')).toHaveCount(0)
+      expect(await noHorizontalScroll(page)).toBe(true)
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/navigation-egmore-${lang}.png`, fullPage: true })
+    })
   })
+}
+
+async function openNavigation(page: Page, lang: 'en' | 'ta') {
+  await openPlan(page, lang)
+  await page.goto('/#/navigation')
+  await expect(page.getByRole('heading', { level: 1, name: lang === 'ta' ? 'நிலைய வழிகாட்டி' : 'Station Navigation' })).toBeVisible()
+  await expect(page.locator('#nav-to')).toBeVisible()
 }
 
 test.describe('320 px width', () => {
@@ -46,5 +67,20 @@ test.describe('320 px width', () => {
     await expect(page.getByRole('region', { name: 'Journey details' })).toBeVisible()
     expect(await noHorizontalScroll(page)).toBe(true)
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/plan-started-320.png`, fullPage: true })
+  })
+
+  test('station navigation does not scroll horizontally, routed or routing disabled', async ({ page }) => {
+    await openNavigation(page, 'en')
+    await page.locator('#nav-to').selectOption({ label: 'Platform 10' })
+    await expect(page.getByTestId('route-line')).toBeVisible()
+    expect(await noHorizontalScroll(page)).toBe(true)
+    await page.getByRole('tab', { name: 'Step-by-Step' }).click()
+    await expect(page.getByRole('list', { name: 'Step-by-Step' })).toBeVisible()
+    expect(await noHorizontalScroll(page)).toBe(true)
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/navigation-chennai-central-320.png`, fullPage: true })
+    await page.locator('#nav-station').selectOption('chennai_egmore')
+    await expect(page.locator('[data-code="routing_unavailable"]')).toBeVisible()
+    expect(await noHorizontalScroll(page)).toBe(true)
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/navigation-egmore-320.png`, fullPage: true })
   })
 })

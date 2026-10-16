@@ -29,7 +29,7 @@ test('dashboard → AI planner → options → details → confirm → save trip
   await expect(page.getByText(/D103 Demo Nilgiri Night Express/)).toBeVisible()
 })
 
-test('popular route starts a real plan; the journey card waits for every mandatory detail', async ({ page }) => {
+test('popular route starts a real plan; the journey card waits for every detail; station navigation routes to Platform 10', async ({ page }) => {
   await page.goto('/#/home')
   await page.getByRole('button', { name: /Chennai → Madurai/ }).click()
   await expect(page).toHaveURL(/#\/plan/)
@@ -46,5 +46,30 @@ test('popular route starts a real plan; the journey card waits for every mandato
     await expect(thread.getByText(answer, { exact: true })).toBeVisible()
   }
   await expect(page.getByRole('region', { name: 'Journey details' }).getByText('Madurai')).toBeVisible()
-  // Station navigation assertions are rewritten in Task 13c; this test ends before them.
+
+  // Station navigation: real routing on the Chennai Central floor plan (POST /api/navigation/route).
+  await page.goto('/#/navigation')
+  await expect(page.getByRole('heading', { name: 'Station Navigation' })).toBeVisible()
+  await expect(page.locator('#nav-station')).toHaveValue('chennai_central')
+  await page.getByLabel('To', { exact: true }).selectOption({ label: 'Platform 10' })
+  // The route is calculated as soon as the destination is chosen (no separate button).
+  await expect(page.getByTestId('route-line')).toBeVisible()
+  const summary = page.getByLabel('Route summary')
+  await expect(summary).toContainText('Shortest route')
+  await expect(summary).toContainText('→ Platform 10')
+  // Step-by-step shows the same route; turn-by-turn advances in order and can be exited.
+  await page.getByRole('tab', { name: 'Step-by-Step' }).click()
+  const steps = page.getByRole('list', { name: 'Step-by-Step' }).getByRole('listitem')
+  await expect(steps.first()).toContainText('Start at')
+  await expect(steps.last()).toContainText('Platform 10')
+  await page.getByRole('button', { name: /Start Navigation/ }).click()
+  await expect(page.getByTestId('current-step')).toContainText('Step 1 of')
+  await page.getByRole('button', { name: /Next step/ }).click()
+  await expect(page.getByTestId('current-step')).toContainText('Step 2 of')
+  await page.getByRole('button', { name: 'Exit navigation' }).click()
+  await expect(page.getByRole('button', { name: /Start Navigation/ })).toBeVisible()
+  // An untraced station keeps the plan and says routing is unavailable; nothing is requested.
+  await page.locator('#nav-station').selectOption('chennai_egmore')
+  await expect(page.locator('[data-code="routing_unavailable"]')).toBeVisible()
+  await expect(page.getByLabel('To', { exact: true })).toHaveCount(0)
 })

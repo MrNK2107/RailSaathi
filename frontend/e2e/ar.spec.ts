@@ -47,7 +47,7 @@ test('camera guidance: consent, a fix from the fake camera, the arrow, and back 
 
   await page.goto('/#/navigation')
   await page.locator('#nav-station').selectOption('chennai_central')
-  await page.getByLabel('To platform or facility').selectOption('platform_10')
+  await page.getByLabel('To', { exact: true }).selectOption('platform_10')
   await page.getByRole('tab', { name: 'Camera (AR)' }).click()
 
   await expect(page.getByRole('heading', { name: 'Use your camera to find your way?' })).toBeVisible()
@@ -63,8 +63,14 @@ test('camera guidance: consent, a fix from the fake camera, the arrow, and back 
   expect(uploads[0].contentType).toContain('multipart/form-data')
   expect(uploads[0].hasJpeg).toBe(true)
   expect(uploads[0].size).toBeLessThan(1_500_000)
-  // The frame was not kept anywhere in the page's storage.
-  expect(await page.evaluate(() => localStorage.length + sessionStorage.length)).toBe(0)
+  // The frame was not kept anywhere in the page's storage: only the planner's per-tab session entry exists.
+  const stored = await page.evaluate(() => ({
+    local: localStorage.length,
+    session: Object.keys(sessionStorage).map((k) => [k, (sessionStorage.getItem(k) ?? '').length] as const),
+  }))
+  expect(stored.local).toBe(0)
+  expect(stored.session.map(([k]) => k).filter((k) => k !== 'railsaathi.session.v1')).toEqual([])
+  expect(stored.session.every(([, size]) => size < 2_000)).toBe(true)
 
   await page.getByRole('button', { name: 'Exit camera and show steps' }).click()
   await expect(page.getByRole('tab', { name: 'Step-by-Step' })).toHaveAttribute('aria-selected', 'true')
@@ -90,7 +96,7 @@ test('camera guidance against the real /localize: the demo backend has no vision
   page.on('response', (r) => { if (r.url().endsWith('/api/navigation/localize') && r.request().method() === 'POST') statuses.push(r.status()) })
   await page.goto('/#/navigation')
   await page.locator('#nav-station').selectOption('chennai_central')
-  await page.getByLabel('To platform or facility').selectOption('platform_10')
+  await page.getByLabel('To', { exact: true }).selectOption('platform_10')
   await page.getByRole('tab', { name: 'Camera (AR)' }).click()
   await page.getByRole('button', { name: 'Start camera' }).click()
   await expect(page.getByText('Camera positioning is unavailable right now. Follow the steps below.')).toBeVisible()

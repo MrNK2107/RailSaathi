@@ -213,13 +213,14 @@ describe('Wayfinder screen states', () => {
   it('shows step-free labels per step and the schematic notice for a routed station', async () => {
     const c = client()
     const user = await openNavigation(c)
-    await user.selectOptions(await screen.findByLabelText('To platform or facility'), 'platform_10')
+    await user.selectOptions(await screen.findByLabelText(m.navigation.pickTo), 'platform_10')
     await user.click(await screen.findByRole('tab', { name: /Step-by-Step/ }))
     const items = await screen.findAllByRole('listitem')
     expect(items.some((li) => li.textContent?.includes('Step-free: verified'))).toBe(true)
     expect(items.some((li) => li.textContent?.includes('Step-free: reported, not verified'))).toBe(true)
     expect(screen.getAllByText(/Schematic layout\./).length).toBeGreaterThan(0)
-    expect(screen.queryByRole('button', { name: /Start Navigation/ })).not.toBeInTheDocument()
+    // Turn-by-turn is offered only once there is a route, and it steps through the backend's instructions.
+    expect(screen.getByRole('button', { name: /Start Navigation/ })).toBeEnabled()
   })
 
   it('untraced station: shows the unavailable notice up front, no pickers, no route request, map kept', async () => {
@@ -227,8 +228,10 @@ describe('Wayfinder screen states', () => {
     const user = await openNavigation(c)
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(m.navigation.routingUnavailable)
-    expect(screen.queryByLabelText('To platform or facility')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(m.navigation.pickTo)).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Walking preference')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: m.navigation.avoidStairs })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Start Navigation|Choose a destination/ })).not.toBeInTheDocument()
     expect(screen.queryByText(/Choose where you are entering/)).not.toBeInTheDocument()
     expect(screen.getByRole('img', { name: /Station map/ })).toBeInTheDocument()
     await user.click(screen.getByRole('tab', { name: /Step-by-Step/ }))
@@ -250,14 +253,14 @@ describe('Wayfinder screen states', () => {
     const msg = 'Step-by-step directions are not available for this station.'
     const c = client({ stationRoute: vi.fn().mockRejectedValue(new ApiError(503, 'routing_unavailable', msg)) })
     const user = await openNavigation(c)
-    await user.selectOptions(await screen.findByLabelText('To platform or facility'), 'platform_10')
+    await user.selectOptions(await screen.findByLabelText(m.navigation.pickTo), 'platform_10')
     expect(await screen.findByRole('alert')).toHaveTextContent(msg)
   })
 
   it('no_route explains why instead of drawing a route', async () => {
     const c = client({ stationRoute: vi.fn().mockResolvedValue(route({ status: 'no_route', segments: [], instructions: [], geometry: [], explanation: 'No verified step-free route exists.' })) })
     const user = await openNavigation(c)
-    await user.selectOptions(await screen.findByLabelText('To platform or facility'), 'platform_10')
+    await user.selectOptions(await screen.findByLabelText(m.navigation.pickTo), 'platform_10')
     expect(await screen.findByText('No verified step-free route exists.')).toBeInTheDocument()
     expect(screen.getByText('No route found')).toBeInTheDocument()
   })
