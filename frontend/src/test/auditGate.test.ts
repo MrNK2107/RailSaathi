@@ -33,6 +33,14 @@ describe('npm audit gate', () => {
       .toEqual(['GHSA-aaaa allowlist entry expired 2026-10-15', 'GHSA-bbbb not allowlisted for vitest'])
   })
 
+  it('fails closed when npm audit itself failed and printed an error object instead of a report', () => {
+    const failed = evaluate({ error: { code: 'ENOAUDIT', summary: 'Your configured registry does not support audit requests.' } }, [], '2026-10-16')
+    expect(failed.blocking).toHaveLength(1)
+    expect(failed.blocking[0].title).toMatch(/registry does not support audit/)
+    expect(evaluate({}, [], '2026-10-16').blocking).toHaveLength(1)
+    expect(evaluate(null, [], '2026-10-16').blocking).toHaveLength(1)
+  })
+
   it('reports allowlist entries npm no longer finds', () => {
     expect(evaluate(audit({}), [allow('GHSA-gone')], '2026-10-16')).toEqual({ blocking: [], accepted: [], stale: ['GHSA-gone'] })
   })

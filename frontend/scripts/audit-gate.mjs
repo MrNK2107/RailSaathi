@@ -41,7 +41,21 @@ export function advisories(audit) {
   return [...out.values()]
 }
 
+/** npm prints an error object instead of a report when the audit itself fails (registry down, no lockfile, ...). */
+function auditFailure(audit) {
+  if (!audit || typeof audit !== 'object') return 'npm audit returned no JSON report'
+  if (audit.error) return `npm audit failed: ${audit.error.summary ?? audit.error.code ?? 'unknown error'}`
+  if (!audit.vulnerabilities || typeof audit.vulnerabilities !== 'object') return 'npm audit report has no vulnerabilities section'
+  return null
+}
+
 export function evaluate(audit, allowlist, today = new Date().toISOString().slice(0, 10)) {
+  // Fail closed: a report that could not be produced is never read as "no advisories".
+  const failure = auditFailure(audit)
+  if (failure) {
+    return { blocking: [{ id: 'npm-audit', pkg: '(all)', severity: 'critical', title: failure, reason: 'audit did not run' }],
+      accepted: [], stale: [] }
+  }
   const entries = new Map(allowlist.map((e) => [e.id, e]))
   const blocking = []
   const accepted = []
