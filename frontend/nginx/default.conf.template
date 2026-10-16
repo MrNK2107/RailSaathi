@@ -25,7 +25,9 @@ server {
     root /usr/share/nginx/html;
 
     gzip on;
-    gzip_types text/plain text/css application/json application/javascript image/svg+xml;
+    # Level 6 is what the bundle budgets in scripts/check-budget.mjs measure (nginx's default is 1).
+    gzip_comp_level 6;
+    gzip_types text/plain text/css application/json application/javascript application/manifest+json image/svg+xml;
     gzip_min_length 1024;
 
     include /etc/nginx/snippets/security-headers.conf;
@@ -70,6 +72,21 @@ server {
     location = /index.html {
         include /etc/nginx/snippets/security-headers.conf;
         add_header Cache-Control "no-cache" always;
+    }
+
+    # The service worker script and the manifest are always revalidated, so a deploy replaces them at once (the browser
+    # would otherwise cache them by heuristics). Served from 'self', which worker-src and default-src allow.
+    location = /sw.js {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "no-cache" always;
+        try_files $uri =404;
+    }
+
+    location = /manifest.webmanifest {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "no-cache" always;
+        default_type application/manifest+json;
+        try_files $uri =404;
     }
 
     # Everything else (favicon, manifest, future public files) must exist on disk.

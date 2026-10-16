@@ -4,6 +4,8 @@ coverage/
 playwright-report/
 test-results/
 e2e/
+e2e-dist/
+e2e-results/
 .env
 .env.*
 !.env.example

@@ -3,6 +3,10 @@ import { createRoot } from 'react-dom/client'
 import App from './App'
 import { AppBoundary } from './components/AppBoundary'
 import './index.css'
+import { registerServiceWorker } from './pwa'
+import { installStaleChunkReload } from './staleChunks'
+
+installStaleChunkReload()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -11,3 +15,5 @@ createRoot(document.getElementById('root')!).render(
     </AppBoundary>
   </StrictMode>,
 )
+
+registerServiceWorker()

@@ -10,7 +10,8 @@ RUN npm ci --no-audit --no-fund
 COPY . .
 # Same-origin API: the client defaults to relative /api paths, so no base URL is baked in.
 ENV VITE_API_BASE_URL=""
-RUN npm run build
+# Hidden source maps and the Vite manifest are build artefacts, not something to serve to browsers.
+RUN npm run build && rm -rf dist/.vite && find dist -name '*.map' -delete
 
 
 FROM nginx:1.27-alpine AS runtime

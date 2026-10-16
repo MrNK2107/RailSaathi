@@ -55,6 +55,8 @@ async function open(route: string, client = fakeClient()) {
   render(<App client={client} />)
   await waitFor(() => expect(client.createSession).toHaveBeenCalled())
   await waitFor(() => expect(client.health).toHaveBeenCalled())
+  // Every screen is a lazy chunk: wait for it to replace the Suspense fallback.
+  await waitFor(() => expect(screen.queryByText('Loading…')).not.toBeInTheDocument())
   return { client, user }
 }
 

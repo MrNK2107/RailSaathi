@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/check-budget.mjs",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "vitest run --coverage",
     "typecheck": "tsc -b --noEmit",
     "e2e": "playwright test",
     "lint": "eslint ."
@@ -21,6 +21,7 @@
     "three": "0.172.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@eslint/js": "^9.17.0",
     "@playwright/test": "^1.49.1",
     "@testing-library/jest-dom": "^6.6.3",
@@ -32,6 +33,7 @@
     "@types/three": "0.172.0",
     "@vitejs/plugin-basic-ssl": "^1.2.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/coverage-v8": "^2.1.9",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.17.0",
     "eslint-plugin-jsx-a11y": "^6.10.2",
