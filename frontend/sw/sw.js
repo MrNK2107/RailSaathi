@@ -4,12 +4,14 @@
 // in production builds (src/pwa.ts).
 //
 // What it handles (same-origin GET only):
-//   - navigations (the HTML shell; the app uses hash routes, so every navigation is '/'): NETWORK FIRST. A deploy is
-//     picked up on the next load and the cached shell is used only when the network fails, so a stale index.html is
-//     never served while the network works and the hashed chunk names it references exist on the server.
+//   - navigations to the shell, / or /index.html (the app uses hash routes, so every app navigation is '/'): NETWORK
+//     FIRST. A deploy is picked up on the next load and the cached shell is used only when the network fails, so a
+//     stale index.html is never served while the network works. Only a text/html response is stored as the shell.
+//     Any other navigation (/healthz, /sw.js, an asset opened in a tab) goes straight to the network, untouched.
 //   - /assets/*: hashed, immutable build files, cache first. Lazy screen chunks are cached the first time they load.
 //   - the manifest and icons: precached on install.
 // What it never touches: /api/* (journey data, /api/client-config, POST /api/navigation/localize camera frames),
+// matched after percent-decoding and slash merging as nginx does, so /%61pi/... or //api/... is not cached either;
 // every non-GET request, and every cross-origin request (Google Maps / Street View, fonts). For those it does not call
 // respondWith, so the browser goes straight to the network and nothing is stored.
 //
@@ -38,11 +40,28 @@ self.addEventListener('activate', (event) => {
   )
 })
 
+/**
+ * Whether nginx would route this path to the backend. nginx decodes %XX, merges slashes and resolves . and ..
+ * before matching ^/api(/|$); this does the same, and is case-insensitive to stay on the safe side.
+ */
+function isApi(pathname) {
+  let path
+  try {
+    path = decodeURIComponent(pathname)
+  } catch {
+    return true // not decodable: leave it to the network, never cache it
+  }
+  path = new URL(path.replace(/\/{2,}/g, '/'), self.location.origin).pathname.toLowerCase()
+  return path === '/api' || path.startsWith('/api/')
+}
+
+const isHtml = (response) => (response.headers.get('content-type') ?? '').startsWith('text/html')
+
 async function networkFirstShell(request) {
   const cache = await caches.open(CACHE)
   try {
     const response = await fetch(request)
-    if (response.ok) await cache.put(SHELL, response.clone())
+    if (response.ok && isHtml(response)) await cache.put(SHELL, response.clone())
     return response
   } catch (err) {
     const cached = await cache.match(SHELL)
@@ -65,7 +84,8 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return
   const url = new URL(request.url)
   if (url.origin !== self.location.origin) return
-  if (url.pathname === '/api' || url.pathname.startsWith('/api/')) return
-  if (request.mode === 'navigate') event.respondWith(networkFirstShell(request))
-  else if (url.pathname.startsWith('/assets/') || STATIC.includes(url.pathname)) event.respondWith(cacheFirst(request))
+  if (isApi(url.pathname)) return
+  if (request.mode === 'navigate') {
+    if (url.pathname === '/' || url.pathname === '/index.html') event.respondWith(networkFirstShell(request))
+  } else if (url.pathname.startsWith('/assets/') || STATIC.includes(url.pathname)) event.respondWith(cacheFirst(request))
 })

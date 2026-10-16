@@ -81,6 +81,61 @@ test('the installed shell starts offline', async ({ page, context }) => {
   await context.setOffline(false)
 })
 
+/** Every cached entry: its path and, for the shell, the body's first bytes and content type. */
+async function cacheEntries(page: Page) {
+  return page.evaluate(async () => {
+    const out: { path: string; type: string; head: string }[] = []
+    for (const name of await window.caches.keys()) {
+      const cache = await window.caches.open(name)
+      for (const req of await cache.keys()) {
+        const res = await cache.match(req)
+        out.push({ path: new URL(req.url).pathname, type: res?.headers.get('content-type') ?? '', head: (await res?.clone().text() ?? '').slice(0, 200) })
+      }
+    }
+    return out
+  })
+}
+
+test('opening a non-shell URL in the tab never replaces the cached app shell', async ({ page, context }) => {
+  await controlledHome(page)
+  for (const path of ['/healthz', '/manifest.webmanifest', '/sw.js', '/icon-192.png']) {
+    const res = await page.goto(path)
+    expect(res?.status(), path).toBe(200)
+    expect(res?.fromServiceWorker(), `${path} is not answered by the worker`).toBe(false)
+  }
+  const shell = (await cacheEntries(page)).find((e) => e.path === '/index.html')
+  expect(shell?.type).toContain('text/html')
+  expect(shell?.head).toContain('<!doctype html>')
+  // And the installed app still starts offline from that shell.
+  await context.setOffline(true)
+  await page.goto('/#/home')
+  await expect(page.getByText('Popular Routes')).toBeVisible()
+  await context.setOffline(false)
+})
+
+test('percent-encoded or doubled-slash API paths are never cached, by fetch or by navigation', async ({ page }) => {
+  await controlledHome(page)
+  const fetched = await page.evaluate(async () => {
+    const statuses: number[] = []
+    for (const url of ['/%61pi/health', '//api/health', '/assets/%2e%2e/api/health', '/%41PI/health']) {
+      statuses.push((await fetch(location.origin + url)).status) // origin prefix: '//api' alone is protocol-relative
+    }
+    return statuses
+  })
+  // The server routes the encoded form to the backend, as nginx does: this is the case the worker must recognise.
+  expect(fetched[0]).toBe(200)
+  const nav = await page.goto('/%61pi/health')
+  expect(nav?.status()).toBe(200)
+  expect(nav?.fromServiceWorker()).toBe(false)
+  await page.goto('/#/home')
+  await expect(page.getByText('Popular Routes')).toBeVisible()
+
+  const entries = await cacheEntries(page)
+  const apiLike = entries.filter((e) => /api/i.test(decodeURIComponent(e.path)) || e.type.startsWith('application/json'))
+  expect(apiLike, 'cached API responses').toEqual([])
+  expect(entries.find((e) => e.path === '/index.html')?.type).toContain('text/html')
+})
+
 test.describe('stale lazy chunks after a deploy', () => {
   test.use({ serviceWorkers: 'block' })
 
