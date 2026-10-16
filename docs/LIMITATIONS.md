@@ -1,8 +1,9 @@
 # Capability status and limitations
 
 What each capability really does in this release, and what it does not do. Rule of thumb: anything that is
-schematic, estimated, demo or cached says so in its `provenance` and in the UI. If you find a place where it does
-not, that is a bug.
+schematic, estimated or cached says so in its `provenance` and in the UI. If you find a place where it does
+not, that is a bug. Demo data is the one exception in the UI: it is used only for local and development runs
+(production refuses it), so the UI does not label it, while the API still reports `data_mode: demo`.
 
 ## Capability status
 
@@ -72,9 +73,8 @@ or beacon positioning, and languages other than English and Tamil.
   - Tamil (`ta-IN`) and mixed Tamil-English accuracy is not verified.
   - The transcript is never sent automatically.
   - Read-aloud depends on the voices installed on the device.
-- **Axe:** every mobile screen passes axe with zero violations in the Playwright suite. The legacy classic view at
-  `#/classic` is **not** part of that check and still has known violations (colour contrast and an invalid `<dl>`).
-  Some states are also not axe-checked: goal results, ticketing answers and the Street View dialog.
+- **Axe:** every screen passes axe with zero violations in the Playwright suite (the legacy `#/classic` desktop
+  view has been removed; an old link opens home). Some states are also not axe-checked: goal results, ticketing answers and the Street View dialog.
 - Street View under the production Content-Security-Policy has not been tested, because no Maps key or panoramas exist
   yet.
 
@@ -97,6 +97,6 @@ or beacon positioning, and languages other than English and Tamil.
 1. On-site AR evaluation (at least 30 photos), then enable AR per station.
 2. Trace or survey the Egmore, Bengaluru and Hyderabad layouts. Verify step-free pathways on site.
 3. Station-level live observations (or another dated source) so the delay model can learn time effects.
-4. A native Tamil review. Fix the classic view's accessibility, or remove the view.
+4. A native Tamil review.
 5. A staging load test and a 24-hour soak, then tag `v1.0.0`.
 6. An authorised source for fares, availability and official disruptions.

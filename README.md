@@ -4,9 +4,10 @@ An Indian Railways passenger assistant: a mobile-first progressive web app in En
 backend on Google Cloud Run. It plans journeys from what a passenger says, answers ticketing questions with
 citations, shows departure boards and delay estimates, and guides passengers through a station.
 
-**It never books a ticket.** Every railway, station, model or AI answer is labelled with its provenance: `live`,
+**It never books a ticket.** Every railway, station, model or AI answer carries its provenance: `live`,
 `cached`, `stale`, `unavailable`, `demo` or `fallback`. Schematic, estimated, demo or cached data is never
-presented as verified or live. The capability-by-capability limits are in
+presented as verified or live. Demo data exists only for local and development runs (production refuses it), so
+the UI does not label it; see [What you see locally](#what-you-see-locally). The capability-by-capability limits are in
 [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 
 ## The six capabilities
@@ -43,7 +44,17 @@ Requests are same-origin, so the browser needs no CORS. The backend exposes no s
 ## Quick start (Windows, macOS, Linux)
 
 Prerequisites: Python 3.12, [uv](https://docs.astral.sh/uv/) and Node.js 20+. No cloud account or API key is
-needed. Locally the app runs on labelled demo data, the rule-based extractor and the rule-based ticketing agent.
+needed. Locally the app runs on bundled demo data, the rule-based extractor and the rule-based ticketing agent.
+
+The quickest way is one command from the repository root. It installs dependencies on the first run, then starts
+the backend on port 8010 and the frontend on port 5173 until Ctrl+C:
+
+```bash
+python run.py                                      # http://localhost:5173
+python run.py --backend-port 8000 --frontend-port 5174
+```
+
+Or start the two servers yourself:
 
 ```bash
 # 1. Backend: http://localhost:8000, OpenAPI docs at /docs
@@ -61,6 +72,21 @@ npm run dev                   # proxies /api to BACKEND_URL (default http://127.
 Open http://localhost:5173 and try *"I need to reach Chennai before 9 AM tomorrow."* Camera, microphone and
 motion sensors need a secure context: `localhost` works. For another device on your network, run
 `VITE_HTTPS=1 npm run dev`.
+
+### What you see locally
+
+- **Demo data, unlabelled in the UI.** Trains, timings, fares, boards and disruptions come from the bundled demo
+  dataset (`RAILWAY_DATA_MODE=demo`, the default). The UI does not mark it as demo: there is no DEMO pill or
+  "demo data" line. The API still reports `data_mode: demo`, and production refuses demo data (the backend serves no
+  journeys and `/readyz` fails without a live provider), so this never reaches passengers.
+- **Rule-based answers without Gemini.** With no Gemini configured, the planner uses the rule-based extractor and
+  the ticketing assistant uses the rule-based agent. Profile says which one is active.
+- **AR is visible but switched off.** Camera (AR) guidance needs the Gemini vision service (Gemini configured as
+  below) and `AR_GUIDANCE_ENABLED` (unset means every AR station outside production). Without Gemini, Station
+  Navigation shows the Camera (AR) tab disabled at Chennai Central, with the reason. The 3D tour and the station
+  blueprint work without it.
+- **Live trains need RailRadar.** Set `RAILWAY_DATA_MODE=railradar` and `RAILRADAR_API_KEY` for live boards, running
+  status and journeys.
 
 Optional services, each off by default:
 

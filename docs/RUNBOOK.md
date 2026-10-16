@@ -281,7 +281,7 @@ The current settings are in `.github/workflows/deploy.yml`. The rationale sits n
 - [ ] Trace or survey the Egmore, Bengaluru and Hyderabad layouts. Verify step-free pathways on site.
 - [ ] Verify the Cloud Scheduler OIDC collector end to end.
 - [ ] Staging load test, 24-hour soak with no alerts, then tag `v1.0.0`.
-- [ ] Decide on the legacy `#/classic` view (fix its accessibility violations, or remove it).
+- [x] Legacy `#/classic` view removed (an old link opens home).
 - [ ] Consider licensed or real photos instead of the decorative AI-generated route images.
 - [ ] Restrict direct access to the backend URL ([SECURITY.md](SECURITY.md), open risk R1).
 - [ ] Give each service a dedicated, least-privilege runtime service account (SECURITY.md, open risk R8).
