@@ -20,9 +20,9 @@ both directions. An undocumented route, or a documented route that does not exis
 
 | Mode | Meaning |
 |---|---|
-| `live` | Fetched now from the named source (RailRadar or Gemini). |
+| `live` | Fetched now from the named source ("NTES (unofficial client)", RailRadar or Gemini). |
 | `cached` | Served from a cache, or authored static data such as the station layouts. |
-| `stale` | An old cached copy, served because the RailRadar quota was spent. |
+| `stale` | An old cached copy, served because the NTES or RailRadar request budget was spent (or NTES failed). |
 | `unavailable` | Could not be served. The response carries a `reason` and **no placeholder data**. |
 | `demo` | Bundled simulated data. Never served when `APP_ENV=production`. |
 | `fallback` | A statistical estimate or rule-based answer rather than live data: the delay model, or the rule-based ticketing agent. |
@@ -79,7 +79,7 @@ issued by `POST /api/planner/sessions`.
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/planner/reference` | Places, classes, needs, budget priorities and disruption events for the edit forms |
-| GET | `/api/planner/disruption-events` | Disruption events from the active source: labelled simulated events in demo mode, or live delays and cancellations seen for planned trains in RailRadar mode |
+| GET | `/api/planner/disruption-events` | Disruption events from the active source: labelled simulated events in demo mode, or live delays and cancellations seen for planned trains in NTES or RailRadar mode |
 | POST | `/api/planner/sessions` | Start a session `{"language": "en" \| "ta"}`. Returns 201 with `session_id` and `session_token` |
 | GET | `/api/planner/sessions/{session_id}` | Current state |
 | POST | `/api/planner/sessions/{session_id}/messages` | Process a passenger message `{"message", "language"?}` |
@@ -115,6 +115,10 @@ Every planner response has the same envelope:
 Every option in `state.recommendations` carries its own `provenance`.
 
 - **Demo mode:** options are fictional `D###` trains labelled `demo`.
+- **NTES mode** (`RAILWAY_DATA_MODE=ntes`, through the unofficial ntes-client): options are real trains labelled
+  `live`, `cached` or `stale` with `source: "NTES (unofficial client)"`.
+  - NTES supplies classes but no fares (`fares: {}`), so a strict budget is reported as *unverified*.
+  - It has no facility data, so passenger-need statuses are `unknown`.
 - **RailRadar mode:** options are real trains labelled `live`, `cached` or `stale`.
   - RailRadar supplies no fares or classes, so a strict budget or class is reported as *unverified*.
   - It has no facility data, so passenger-need statuses are `unknown`.
@@ -185,9 +189,10 @@ indianrailways.gov.in survive.
 
 ## 4. Live station information
 
-Station search, departure boards, schedules and running status come from RailRadar, a third-party service and
-not an official Indian Railways feed. They share one per-minute quota across every replica, with a Redis cache
-in front. Demo boards are served only outside production.
+Station search, departure boards, schedules and running status come from NTES through ntes-client, an
+unofficial client of the NTES app backend (`RAILWAY_DATA_MODE=ntes`), or from RailRadar, a third-party service.
+Neither is an official Indian Railways feed. Each shares one per-minute request budget across every replica, with
+a Redis cache in front. Demo boards are served only outside production.
 
 A board that cannot be served returns `provenance.mode: "unavailable"` with a `reason`. It never returns
 placeholder trains. When the quota is spent, a cached board is returned as `stale`.
@@ -196,9 +201,9 @@ placeholder trains. When the quota is spent, a cached board is returned as `stal
 |---|---|---|
 | GET | `/api/live/stations/search` | `?q=` name, city or code. Searches the bundled station catalogue |
 | GET | `/api/live/stations/nearest` | `?lat=&lon=`. The nearest catalogue station |
-| GET | `/api/live/stations/{station_code}/departures` | `?hours=1..4`. A board built from cached trains-between calls to nearby catalogue stations, plus running status for the first few trains. `complete: false` means some queries failed |
+| GET | `/api/live/stations/{station_code}/departures` | `?hours=1..4`. NTES: the station's own NTES board (departures only, with delay and cancellation). RailRadar: a board built from cached trains-between calls to nearby catalogue stations, plus running status for the first few trains. `complete: false` means some queries failed |
 | GET | `/api/live/trains/{train_no}/schedule` | The train's stops |
-| GET | `/api/live/trains/{train_no}/status` | `?date=YYYY-MM-DD`, from two days ago to tomorrow. Delay and cancellation; `null` when unknown |
+| GET | `/api/live/trains/{train_no}/status` | `?date=YYYY-MM-DD`, from two days ago to tomorrow. Delay and cancellation; `null` when unknown. NTES identifies a run by the date it left its origin, and the date given is used as that date |
 | GET | `/api/trains/rake-position` | `?coach_composition=ENG-A1-B1-...&target_coach=B4`. Where a coach sits in a composition **you supply**. RailSaathi has no live rake data |
 
 ## 5. Delay estimate
@@ -276,7 +281,7 @@ simulator only when that flag is true.
 | GET | `/api/client-config` | What the browser needs at start-up: `google_maps_browser_key` (the public, referrer-restricted key, or `null` so the tour links out to Google Maps), `features.ar_guidance_stations` (station ids where camera guidance works now), `features.ar_capable_stations` (station ids whose data opts in to AR, whatever the flags; the app shows a disabled AR tab with the reason) and `features.simulate_closures` (boolean) |
 | GET | `/api/health` | Service status, version, `data_mode`, `data_provider` (requested, active, configured, reason), AI status and the Redis, model and LLM status. No secrets |
 | GET | `/healthz` | Liveness. No I/O |
-| GET | `/readyz` | Readiness. Returns 503 `not_ready` unless all of the following hold: Redis (reachable when configured; in production it must also be configured), an active railway data provider (`data_provider`: production refuses demo data, which leaves none), the station catalogue, the RailRadar key (in production), the delay model (or `DELAY_HISTORY_ONLY=true`) and at least one navigation station. LLM and knowledge-base problems are listed under `degraded` and never fail readiness |
+| GET | `/readyz` | Readiness. Returns 503 `not_ready` unless all of the following hold: Redis (reachable when configured; in production it must also be configured), an active railway data provider (`data_provider`: production refuses demo data, which leaves none; `ntes` counts when the ntes-client package is installed), the station catalogue, the RailRadar key (in production with `RAILWAY_DATA_MODE=railradar` only; NTES needs no key), the delay model (or `DELAY_HISTORY_ONLY=true`) and at least one navigation station. LLM and knowledge-base problems are listed under `degraded` and never fail readiness |
 | GET | `/` | Service name, version and a capability summary |
 
 ## Internal endpoints (not public)
