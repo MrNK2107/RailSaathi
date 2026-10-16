@@ -52,7 +52,7 @@ def _layout_basis(loaded: LoadedStation) -> str:
 
 
 def _routing_enabled(loaded: LoadedStation) -> bool:
-    return loaded.metadata.routing if loaded.metadata else True
+    return loaded.metadata.routing if loaded.metadata else False
 
 
 def _station_code(loaded: LoadedStation) -> str | None:
@@ -224,8 +224,11 @@ def _calculate_route(c: Container, req: RouteRequest) -> RouteResponse:
     if resp.status == "ok":
         problems = _verify(loaded.station, resp)
         if problems:
-            raise HTTPException(500, {"code": "route_integrity_failed", "message": "Route integrity check failed",
-                                      "problems": problems})
+            # Internal node/edge ids stay in the server log; the passenger gets a generic, actionable message.
+            log.error("Route integrity check failed for %s: %s", loaded.station.station_id, "; ".join(problems))
+            raise HTTPException(500, {"code": "route_integrity_failed",
+                                      "message": "This route failed a safety check, so it is not shown. Please try "
+                                                 "again or ask station staff for directions."})
     return resp
 
 

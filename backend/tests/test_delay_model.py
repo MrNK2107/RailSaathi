@@ -217,3 +217,11 @@ def test_prediction_note_says_modelled():
     note = client().get("/api/predict/delay", params={"train_number": "12658", "destination": "MAS"}
                         ).json()["provenance"]["note"]
     assert "Modelled" in note and "not live" in note
+
+
+def test_history_only_unknown_station_says_global_median():
+    body = client(delay_history_only=True).get("/api/predict/delay",
+                                               params={"train_number": "12658", "destination": "ZZZZ"}).json()
+    assert body["historical_scope"] == "none" and body["predicted_delay_minutes"] is not None
+    note = body["provenance"]["note"].lower()
+    assert "global median" in note and "across all stations" in note and "zzzz" in note

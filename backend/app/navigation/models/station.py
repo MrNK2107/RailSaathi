@@ -203,7 +203,9 @@ class StationMetadata(BaseModel):
     map_source: Optional[str] = None
     map_scale: Optional[MapScale] = None
     data_status: str = "mock"
-    routing: bool = True  # False: the graph is illustrative, so only the map and information are served
+    # Routing is opt-in: only a station whose graph is traced from a source says "routing": true. Anything else
+    # (illustrative graphs, or metadata that forgets the field) serves the map and information only.
+    routing: bool = False
     notes: list[str] = []
 
 

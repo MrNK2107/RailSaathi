@@ -302,7 +302,7 @@ class RailRadarLiveSource(_Base):
                                             "The live data provider returned no running status for this train "
                                             "and date.")
         delay, cancelled = map_live_status(fetched.data)
-        mode = DataMode.STALE if fetched.mode is DataMode.STALE else DataMode.LIVE
+        mode = fetched.mode  # LIVE when fetched now, CACHED/STALE when a cached response was served
         provenance = DataProvenance(mode=mode, source=RAILRADAR_SOURCE,
                                     as_of=fetched.fetched_at.astimezone(self._tz), note=RAILRADAR_NOTE)
         return TrainLiveStatus(train_no=train_no, run_date=run_date, delay_minutes=delay, cancelled=cancelled,

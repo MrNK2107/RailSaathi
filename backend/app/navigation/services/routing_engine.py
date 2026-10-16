@@ -238,6 +238,20 @@ def find_route(graph: StationGraph, request: RouteRequest, walking_speed_mps: fl
     return _build_response(base, graph, search, path, prefs, walking_speed_mps)
 
 
+def _blocked_only_by_simulation(graph: StationGraph, blocked_edge_ids: list[str]) -> bool:
+    simulated = graph.simulated_targets
+    if not simulated:
+        return False
+    for eid in blocked_edge_ids:
+        e = graph.edges.get(eid)
+        if e is None:
+            return False  # an edge that no longer exists is not a simulated closure
+        causes = ([eid] if e.status == "closed" else []) + [n for n in (e.from_, e.to) if n in graph.closed_nodes]
+        if not causes or any(x not in simulated for x in causes):
+            return False
+    return True
+
+
 def _blocked_previous(graph: StationGraph, previous: list[str]) -> list[str]:
     blocked = []
     for eid in previous:
@@ -394,13 +408,23 @@ def _build_response(base, graph, search, path, prefs, walking_speed_mps) -> Rout
         warnings.append(
             f"{len(unverified)} of {len(segments)} pathway(s) are not verified on site (pending or simulated data)."
         )
+    simulated = [s.edge_id for s in segments if s.verification == "simulated"]
+    if simulated:
+        warnings.append(
+            f"SIMULATED pathway(s) on this route: {', '.join(simulated)}. They were suggested by proximity, not traced "
+            "from the station plan, and may not exist; follow station signs there."
+        )
     if base.start_snap is not None:
         origin = {"gps": "a GPS fix", "mock_gps": "a MOCK GPS fix (simulated)", "manual": "a point you chose on the map"}
         warnings.insert(0, f"Start position comes from {origin[base.source_position_origin or 'manual']}. {base.start_snap.message}")
     if base.previous_route_blocked:
+        # "SIMULATED" only when every blocking closure is a what-if one from this request; a stored (real)
+        # disruption is reported as such.
+        label = "SIMULATED DISRUPTION" if _blocked_only_by_simulation(graph, base.previous_route_blocked_edge_ids) \
+            else "DISRUPTION"
         warnings.insert(
             0,
-            "SIMULATED DISRUPTION: your previous route is blocked at "
+            f"{label}: your previous route is blocked at "
             + ", ".join(base.previous_route_blocked_edge_ids)
             + ". Showing an alternative route.",
         )
@@ -467,10 +491,12 @@ def _instructions(graph: StationGraph, path: list[DirectedEdge], segments: list[
         dist = seg.distance_m if seg.distance_m is not None else seg.estimated_distance_m
         is_est = seg.distance_m is None and dist is not None
         dist_txt = f" for about {dist:.0f} m{' (estimate)' if is_est else ''}" if dist is not None else ""
+        caveat = (" SIMULATED pathway: suggested by proximity, not traced from the station plan; it may not exist."
+                  if seg.verification == "simulated" else "")
         out.append(
             RouteInstruction(
                 step=i + 1,
-                text=f"{lead}{dist_txt} to {target.name}.",
+                text=f"{lead}{dist_txt} to {target.name}.{caveat}",
                 node_id=de.from_node,
                 edge_id=seg.edge_id,
                 distance_m=round(dist, 1) if dist is not None else None,

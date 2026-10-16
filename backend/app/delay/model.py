@@ -123,8 +123,13 @@ class DelayModel:
             basis = "history_only" if predicted is not None else "none"
             insights.append("No trained model is loaded: this is the recorded historical average, with no "
                             "accuracy measurement and no probability.")
-            note = ("Historical average only (no trained model loaded), not live data."
-                    if predicted is not None else "No historical data is available for this estimate.")
+            if predicted is None:
+                note = "No historical data is available for this estimate."
+            elif hist_mean is None:
+                note = (f"Global median delay across all stations in the historical data: {station} has no "
+                        "records of its own (no trained model loaded), not live data.")
+            else:
+                note = "Historical average only (no trained model loaded), not live data."
             source = f"RailSaathi historical delay averages ({self._history_source})"
         mode = DataMode.FALLBACK if predicted is not None else DataMode.UNAVAILABLE
         provenance = DataProvenance(mode=mode, source=source, as_of=self._as_of, note=note)

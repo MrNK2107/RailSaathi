@@ -112,7 +112,7 @@ def test_fresh_entry_is_shared_between_instances():
         return await a.trains_between("CBE", "MAS", DAY), await b.trains_between("CBE", "MAS", DAY)
 
     first, second = asyncio.run(go())
-    assert len(calls) == 1 and second.data == first.data and second.mode is DataMode.LIVE
+    assert len(calls) == 1 and second.data == first.data and second.mode is DataMode.CACHED
 
 
 def test_redis_outage_fails_closed_and_never_calls_railradar():

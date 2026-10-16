@@ -2,6 +2,8 @@
 template-driven, not LLM-generated, so it stays consistent and truthful."""
 
 from app.domain.enums import Language
+from app.providers.errors import ProviderError, ProviderErrorKind
+from app.providers.live_source import reason_for
 
 MESSAGES: dict[str, dict[str, str]] = {
     "en": {
@@ -109,6 +111,29 @@ FIELD_LABELS = {
 
 def msg(lang: Language, key: str, **kw: object) -> str:
     return MESSAGES[lang.value][key].format(**kw)
+
+
+# Passenger-safe Tamil reasons per provider failure, mirroring live_source.REASONS (English). A provider error's
+# message can carry upstream text, so it is never shown to passengers.
+_TA_PROVIDER_REASONS = {
+    ProviderErrorKind.RATE_LIMITED: ("நேரடி தரவு வழங்குநரின் கோரிக்கை வரம்பு தீர்ந்துவிட்டது, சமீபத்திய நகலும் "
+                                     "இல்லை. ஒரு நிமிடம் கழித்து மீண்டும் முயலவும்"),
+    ProviderErrorKind.TIMEOUT: "நேரடி தரவு வழங்குநர் உரிய நேரத்தில் பதிலளிக்கவில்லை",
+    ProviderErrorKind.UNAVAILABLE: "நேரடி தரவு வழங்குநரை அணுக முடியவில்லை",
+    ProviderErrorKind.AUTH_FAILED: "நேரடி தரவு சரியாக அமைக்கப்படவில்லை",
+    ProviderErrorKind.NOT_CONFIGURED: "நேரடி தரவு அமைக்கப்படவில்லை",
+    ProviderErrorKind.NOT_FOUND: "இந்தக் கோரிக்கைக்கான தரவு நேரடி தரவு வழங்குநரிடம் இல்லை",
+    ProviderErrorKind.BAD_REQUEST: "நேரடி தரவு வழங்குநர் இந்தக் கோரிக்கையை ஏற்கவில்லை",
+    ProviderErrorKind.BAD_RESPONSE: "நேரடி தரவு வழங்குநர் RailSaathi புரிந்துகொள்ள முடியாத வடிவில் தரவை அனுப்பியது",
+}
+
+
+def provider_reason(lang: Language, err: ProviderError) -> str:
+    """Fixed reason text for a provider failure, keyed on its kind (never err.message), without a final full stop
+    so it reads inside the "({reason})" templates."""
+    if lang is Language.TA:
+        return _TA_PROVIDER_REASONS.get(err.kind, "நேரடி தரவு கிடைக்கவில்லை")
+    return reason_for(err).rstrip(".")
 
 
 def field_label(lang: Language, field: str) -> str:

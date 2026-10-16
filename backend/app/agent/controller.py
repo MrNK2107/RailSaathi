@@ -18,7 +18,7 @@ import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
 from app.agent.fencing import (
@@ -32,6 +32,7 @@ from app.agent.fencing import (
 )
 from app.domain.enums import DataMode
 from app.domain.options import DataProvenance
+from app.knowledge.seed_data import AS_OF as KNOWLEDGE_AS_OF
 from app.llm.base import ChatLLM, ChatMessage, Deadline, LLMError, LLMErrorKind, ToolResult, tool_specs
 from app.tools.registry import (
     ALL_TOOL_SCHEMAS,
@@ -49,6 +50,16 @@ EMPTY_ANSWER = "I wasn't able to generate a response. Please try rephrasing your
 LLM_FAILED_NOTE = "The AI guidance service could not answer; use the official links."
 INCOMPLETE_NOTE = "Ticketing guidance could not be completed; use the official links."
 GUIDANCE_NOTE = "AI guidance, not official. Verify current rules on the cited official pages before acting."
+
+
+def _oldest_as_of(sources: list[dict]) -> date | None:
+    dates = []
+    for source in sources:
+        try:
+            dates.append(date.fromisoformat(str(source.get("as_of") or "")[:10]))
+        except ValueError:
+            continue
+    return min(dates) if dates else None
 
 _IR_STATIC = "https://www.indianrail.gov.in/enquiry/StaticPages/StaticEnquiry.jsp?StaticPage="
 OFFICIAL_LINKS: list[dict[str, str]] = [
@@ -241,17 +252,27 @@ class AgentController:
         fenced = fence_tool_output(safe_name, sanitize_tool_result(result))
         return ToolResult(name=safe_name, response={"untrusted_tool_output": fenced}, call_id=call_id, data=result)
 
-    def _provenance(self, mode: DataMode, note: str) -> dict[str, Any]:
-        source = ("RailSaathi rule-based guidance over the curated knowledge base" if self._rule_based
-                  else f"{getattr(self.llm, 'name', 'LLM')} grounded on the RailSaathi knowledge base")
+    def _provenance(self, mode: DataMode, note: str, sources: list[dict] | None = None) -> dict[str, Any]:
         if mode is DataMode.UNAVAILABLE:
-            source = "RailSaathi ticketing guidance"
-        return DataProvenance(mode=mode, source=source, as_of=self._now(), note=note).model_dump(mode="json")
+            return DataProvenance(mode=mode, source="RailSaathi ticketing guidance", as_of=self._now(),
+                                  note=note).model_dump(mode="json")
+        # The guidance comes from a static, curated knowledge base, never a live feed: as_of is the oldest cited
+        # source's date (or the knowledge base's curation date when nothing was cited).
+        as_of = _oldest_as_of(sources or []) or date.fromisoformat(KNOWLEDGE_AS_OF)
+        curated = f"curated {KNOWLEDGE_AS_OF}"
+        source = (f"RailSaathi rule-based guidance over the RailSaathi knowledge base ({curated})" if self._rule_based
+                  else f"{getattr(self.llm, 'name', 'LLM')} over the RailSaathi knowledge base ({curated})")
+        return DataProvenance(mode=mode, source=source, as_of=datetime(as_of.year, as_of.month, as_of.day,
+                                                                       tzinfo=timezone.utc),
+                              note=note).model_dump(mode="json")
 
     def _final(self, text: str, status: str, trace_id: str, state: dict, rounds: int) -> AgentResponse:
-        mode = DataMode.FALLBACK if self._rule_based else DataMode.LIVE
-        note = GUIDANCE_NOTE if not self._rule_based else (
-            "Rule-based guidance (the AI model is not configured). " + GUIDANCE_NOTE)
+        # `cached`: answers are generated over a curated snapshot of official pages, so they are as old as that
+        # snapshot; `fallback` when the rule-based agent answered instead of the LLM.
+        mode = DataMode.FALLBACK if self._rule_based else DataMode.CACHED
+        kb_note = f"From RailSaathi's curated knowledge base (sources as of {KNOWLEDGE_AS_OF}), not a live feed. "
+        note = kb_note + GUIDANCE_NOTE if not self._rule_based else (
+            "Rule-based guidance (the AI model is not configured). " + kb_note + GUIDANCE_NOTE)
         return AgentResponse(
             answer=sanitize_output(truncate_answer(text)),
             status=status,
@@ -261,7 +282,7 @@ class AgentController:
             tool_calls_made=state["tool_calls"],
             rounds_used=rounds,
             evidence_sufficient=state["evidence_sufficient"],
-            provenance=self._provenance(mode, note),
+            provenance=self._provenance(mode, note, list(state["sources"].values())),
         )
 
     def _unavailable(self, trace_id: str, state: dict, note: str | None = None) -> AgentResponse:

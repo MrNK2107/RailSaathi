@@ -6,9 +6,9 @@ composition that the caller provides, with nominal coach lengths."""
 
 def parse_rake_composition(coach_str: str, target_coach: str = None):
     """
-    Parses live coach composition string (e.g. ENG-LPR-A3-A2-A1-H1-PC-B11-...-B1-LPR)
-    Computes exact meter offsets and relative positions along a 600m platform.
-    Standard LHB/ICF coach length = 24.0 meters. Engine = 22.0 meters.
+    Parses a passenger-supplied coach composition string (e.g. ENG-LPR-A3-A2-A1-H1-PC-B11-...-B1-LPR).
+    Estimates each coach's distance from the engine with nominal lengths (coach 24.0 m, engine 22.0 m; real LHB/ICF
+    rakes differ) and its rough section (front/middle/rear third) of the train. Not live data, not exact positions.
     """
     if not coach_str:
         return {"total_coaches": 0, "coaches": [], "target_coach_info": None}
@@ -27,15 +27,16 @@ def parse_rake_composition(coach_str: str, target_coach: str = None):
         relative_section = "Front" if idx < len(raw_tokens) / 3 else "Middle" if idx < (2 * len(raw_tokens)) / 3 else "Rear"
 
         # Class identification
+        # Fixed codes first: SLR/LPR/EOG (luggage/guard vans) would otherwise match the S (Sleeper) prefix.
         coach_type = "Locomotive" if code in ["ENG", "LOCO"] else \
+                     "Luggage / Guard" if code in ["LPR", "SLR", "EOG"] else \
+                     "Pantry Car" if code == "PC" else \
+                     "General / Unreserved" if code in ["GS", "GEN"] else \
                      "First AC (1A)" if code.startswith("H") else \
                      "AC 2-Tier (2A)" if code.startswith("A") else \
                      "AC 3-Tier (3A)" if code.startswith("B") else \
                      "AC 3-Economy (3E)" if code.startswith("M") else \
-                     "Sleeper (SL)" if code.startswith("S") else \
-                     "Pantry Car" if code == "PC" else \
-                     "General / Unreserved" if code in ["GS", "GEN"] else \
-                     "Luggage / Guard" if code in ["LPR", "SLR", "EOG"] else "Passenger Coach"
+                     "Sleeper (SL)" if code.startswith("S") else "Passenger Coach"
 
         coach_data = {
             "index": idx + 1,

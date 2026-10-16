@@ -60,6 +60,7 @@ METADATA = {
     "city": "Testpur",
     "map_scale": {"metres_per_pixel": 0.1, "source": "test", "verification": "pending"},
     "data_status": "mock",
+    "routing": True,
 }
 
 

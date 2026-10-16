@@ -10,8 +10,8 @@ Sessions and history: the caller may send the signed `X-Session-Token` it was is
 so a conversation id is only meaningful together with the token that created it; a missing or expired one simply
 starts an empty conversation.
 
-Responses always carry `provenance` (`live` = Gemini, `fallback` = rule-based agent, `unavailable` = the LLM
-failed). An LLM failure is a 200 with `status: "unavailable"`, `message: "guidance unavailable"` and official
+Responses always carry `provenance` (`cached` = Gemini over the curated knowledge base, with `as_of` the oldest
+cited source's date; `fallback` = rule-based agent; `unavailable` = the LLM failed). Nothing here is live data. An LLM failure is a 200 with `status: "unavailable"`, `message: "guidance unavailable"` and official
 `links`, never a 500.
 """
 

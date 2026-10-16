@@ -41,8 +41,11 @@ def test_grounded_answer_with_citations_and_live_provenance(db):
     assert res.sources, "answers must cite their sources"
     for source in res.sources:
         assert is_allowed_url(source["url"]) and source["as_of"] == "2026-10-14"
-    assert res.provenance["mode"] == "live"
-    assert "not official" in res.provenance["note"]
+    # A static curated knowledge base is never badged live: cached, as old as the oldest cited source.
+    assert res.provenance["mode"] == "cached"
+    assert res.provenance["as_of"].startswith("2026-10-14")
+    assert "knowledge base (curated 2026-10-14)" in res.provenance["source"]
+    assert "not official" in res.provenance["note"] and "not a live feed" in res.provenance["note"]
 
 
 def test_rule_based_agent_reports_fallback_provenance(db):

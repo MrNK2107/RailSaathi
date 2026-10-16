@@ -33,6 +33,9 @@ class StationGraph:
     applied_disruptions: list[str] = field(default_factory=list)
     applied_simulated: list[str] = field(default_factory=list)
     closure_reasons: dict[str, str] = field(default_factory=dict)  # edge/node id -> reason
+    # Edge/node ids closed only by something simulated (a per-request what-if, or a stored disruption flagged
+    # simulated); a target that any real disruption also closes is not in here.
+    simulated_targets: set[str] = field(default_factory=set)
 
 
 class UnknownClosureTarget(Exception):
@@ -84,9 +87,12 @@ def apply_closures(
         return graph
     closed_edges: dict[str, str] = {}
     closed_nodes: dict[str, str] = {}
+    really_closed: set[str] = set()
     for d in disruptions:
         target = closed_edges if d.target_type == "edge" else closed_nodes
         target[d.target_id] = d.reason
+        if not d.simulated:
+            really_closed.add(d.target_id)
     for target_id in simulated:
         if target_id in graph.edges:
             closed_edges[target_id] = "simulated closure"
@@ -115,6 +121,7 @@ def apply_closures(
         applied_disruptions=graph.applied_disruptions + [d.id for d in disruptions],
         applied_simulated=graph.applied_simulated + simulated,
         closure_reasons={**graph.closure_reasons, **closed_edges, **closed_nodes},
+        simulated_targets=(graph.simulated_targets | (set(closed_edges) | set(closed_nodes))) - really_closed,
     )
 
 
@@ -203,5 +210,5 @@ def with_virtual_source(graph: StationGraph, snap: Snap) -> StationGraph:
         station=st, nodes=nodes, edges=graph.edges, adjacency=adjacency,
         closed_nodes=graph.closed_nodes, metres_per_px=graph.metres_per_px,
         applied_disruptions=graph.applied_disruptions, applied_simulated=graph.applied_simulated,
-        closure_reasons=graph.closure_reasons,
+        closure_reasons=graph.closure_reasons, simulated_targets=graph.simulated_targets,
     )

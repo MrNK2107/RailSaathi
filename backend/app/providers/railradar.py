@@ -41,8 +41,14 @@ def _partial_note(missed: list[tuple[str, str, date]]) -> str:
             f"from these searches may be missing: {listed}. ")
 
 
+CACHED_NOTE = ("CACHED: a recent RailRadar response reused from cache (fetched at the time shown), not fetched "
+               "for this request. ")
+
+
 def _note(mode: DataMode) -> str:
-    return STALE_NOTE + NOTE if mode is DataMode.STALE else NOTE
+    if mode is DataMode.STALE:
+        return STALE_NOTE + NOTE
+    return CACHED_NOTE + NOTE if mode is DataMode.CACHED else NOTE
 
 
 def load_catalogue() -> tuple[list[CityRecord], dict[str, StationRecord]]:

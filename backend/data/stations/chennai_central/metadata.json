@@ -9,6 +9,7 @@
     "verification": "pending"
   },
   "data_status": "schematic",
+  "routing": true,
   "notes": [
     "Schematic layout, not surveyed and not to scale. Node and pathway positions were traced by hand from the team-supplied plan image (map.png); every node and pathway is pending on-site verification.",
     "Accessibility of every pathway is unknown. Nothing here is a verified accessibility claim.",

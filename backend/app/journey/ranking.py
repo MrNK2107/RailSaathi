@@ -101,7 +101,9 @@ class JourneyRankingEngine:
                      f"{requirements.required_arrival_buffer_minutes}-min buffer."),
             infeasible_options=infeasible,
             tradeoff_explanation=(f"Closest option: {closest.candidate.train_number} "
-                                  f"({' '.join(closest.hard_constraint_violations)}) Consider a smaller buffer, an "
-                                  f"earlier departure the previous day or a different arrival station."),
+                                  f"({' '.join(closest.hard_constraint_violations)}) Consider a smaller buffer or a "
+                                  f"different arrival station. RailSaathi searched only trains departing on the "
+                                  f"meeting day and (unless already past) the day before; earlier trains are not "
+                                  f"searched."),
             **common,
         )

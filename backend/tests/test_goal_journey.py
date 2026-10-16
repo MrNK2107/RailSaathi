@@ -206,3 +206,11 @@ def test_prompt_has_a_schema_length_cap(client):
     assert MAX_PROMPT_CHARS == 1000
     res = client.post(PLAN, json={"prompt": "x" * (MAX_PROMPT_CHARS + 1)})
     assert res.status_code == 422
+
+
+def test_no_feasible_advice_matches_the_dates_actually_searched(client):
+    body = client.post(PLAN, json={**BASE, "meeting_time": "00:05", "required_arrival_buffer_minutes": 720}).json()
+    assert body["status"] == "no_feasible_journey", body["status"]
+    advice = body["tradeoff_explanation"]
+    assert "earlier departure the previous day" not in advice
+    assert "meeting day and (unless already past) the day before" in advice

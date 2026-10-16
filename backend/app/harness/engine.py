@@ -9,7 +9,7 @@ from app.domain.enums import CheckStatus, DataMode, Language, Verification, Work
 from app.domain.journey import REQUIRED_FIELDS
 from app.domain.state import SessionState, ValidationIssue
 from app.domain.transitions import ensure_transition
-from app.harness.i18n import msg
+from app.harness.i18n import msg, provider_reason
 from app.providers.errors import ProviderError
 from app.ranking.recommender import Recommender
 from app.stations.resolver import StationResolver
@@ -99,7 +99,7 @@ class WorkflowEngine:
             # Never present an outage as "no trains found", and never substitute other data.
             state = self.move(state, S.ERROR, "data_unavailable", provider_error=err.kind.value)
             return Reply(state.model_copy(update={"recommendations": None, "pending_question": None}),
-                         [msg(state.language, "data_unavailable", reason=err.message)])
+                         [msg(state.language, "data_unavailable", reason=provider_reason(state.language, err))])
         base = {"recommendations": result, "pending_question": None, "selected_option_id": None,
                 "awaiting_confirmation": False, "validation_errors": [], "missing_fields": []}
         if not result.recommendations:

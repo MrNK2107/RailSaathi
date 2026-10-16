@@ -340,3 +340,13 @@ def test_api_reports_unavailable_board_in_production_demo():
 
 
 _ = (subprocess, date)  # keep imports explicit for readers of the fixtures above
+
+
+def test_rake_composition_classifies_luggage_vans_before_the_sleeper_prefix():
+    from app.navigation.rake_composition import parse_rake_composition
+
+    types = {c["coach_code"]: c["coach_type"] for c in parse_rake_composition("ENG-SLR-S1-PC-GS-LPR-EOG")["coaches"]}
+    assert types == {"ENG": "Locomotive", "SLR": "Luggage / Guard", "S1": "Sleeper (SL)", "PC": "Pantry Car",
+                     "GS": "General / Unreserved", "LPR": "Luggage / Guard", "EOG": "Luggage / Guard"}
+    doc = parse_rake_composition.__doc__.lower()
+    assert "not live" in doc and "parses live" not in doc and "exact meter" not in doc

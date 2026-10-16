@@ -41,7 +41,8 @@ _STATUS_KINDS = {
 @dataclass(frozen=True)
 class Fetched:
     """Response payload plus when RailRadar was actually called (not when the cache was read).
-    `mode` is STALE when an expired cached response was served because the quota was exhausted."""
+    `mode` is LIVE for a response fetched by this call, CACHED for a fresh cache hit (fetched earlier, still within
+    RAILRADAR_CACHE_SECONDS) and STALE when an expired cached response was served because the quota was exhausted."""
     data: Any
     fetched_at: datetime
     mode: DataMode = field(default=DataMode.LIVE)
@@ -108,7 +109,7 @@ class RailRadarClient:
         key = self._key(path, params)
         entry = await self._cache.get(key) if use_cache else None
         if entry is not None and entry.fresh_until > self._clock():
-            return Fetched(entry.data, entry.fetched_at)
+            return Fetched(entry.data, entry.fetched_at, DataMode.CACHED)
         try:
             data = await self._request_with_retry(path, params)
         except ProviderError as err:

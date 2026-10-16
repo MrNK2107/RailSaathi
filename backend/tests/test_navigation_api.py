@@ -242,3 +242,31 @@ def test_authoring_settings_are_gone():
     settings = Settings(_env_file=None)
     for name in ("admin_token", "max_backups", "data_dir"):
         assert not hasattr(settings, name)
+
+
+def test_route_integrity_failure_returns_a_generic_message_and_logs_the_ids(tmp_path, caplog):
+    client, _ = make(tmp_path)
+    with patch("app.api.navigation._verify", return_value=["edge e_secret_42 does not join n_hidden_7"]):
+        res = client.post("/api/navigation/route", json=ROUTE)
+    assert res.status_code == 500 and res.json()["error"]["code"] == "route_integrity_failed"
+    assert "e_secret_42" not in res.text and "n_hidden_7" not in res.text and "problems" not in res.text
+    assert any("e_secret_42" in r.getMessage() for r in caplog.records)
+
+
+def test_routing_is_opt_in_per_station(tmp_path):
+    from tests.station_fixture import METADATA
+
+    root = tmp_path / "stations"
+    write_station(root, metadata={k: v for k, v in METADATA.items() if k != "routing"})
+    write_catalogue(root, [entry()])
+    client, _ = make(tmp_path, root=root)
+    res = client.post("/api/navigation/route", json=ROUTE)
+    assert res.status_code == 503 and res.json()["error"]["code"] == "routing_unavailable"
+
+
+def test_chennai_central_stays_routable_with_the_bundled_data():
+    settings = Settings(_env_file=None)
+    container = build_container(settings, clock=FixedClock(FIXED_NOW), use_configured_llm=False)
+    assert container.stations.get("chennai_central").metadata.routing is True
+    assert all(container.stations.get(s).metadata.routing is False
+               for s in ("chennai_egmore", "hyderabad_deccan", "ksr_bengaluru"))

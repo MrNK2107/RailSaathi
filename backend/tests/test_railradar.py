@@ -592,3 +592,53 @@ def test_no_free_quota_and_nothing_cached_is_rate_limited_not_no_trains():
     with pytest.raises(ProviderError) as err:
         provider.search(["CBE"], ["MS"], [date(2026, 10, 11)])
     assert err.value.kind is ProviderErrorKind.RATE_LIMITED
+
+
+def test_fresh_cache_hit_is_labelled_cached_not_live():
+    calls: list[httpx.Request] = []
+    provider = RailRadarJourneyProvider(client_for({"/v1/trains/between/CBE/MAS": CBE_MAS}, calls))
+    first = provider.search(["CBE"], ["MAS"], [date(2026, 10, 11)])
+    again = provider.search(["CBE"], ["MAS"], [date(2026, 10, 11)])
+    assert len(calls) == 1
+    assert all(o.provenance.mode is DataMode.LIVE for o in first)
+    assert again and all(o.provenance.mode is DataMode.CACHED for o in again)
+    assert all(o.provenance.note.startswith("CACHED:") for o in again)
+    assert all(o.provenance.as_of == FETCHED_AT.astimezone(IST) for o in again)  # the original fetch time
+
+
+UPSTREAM_TEXT = "RailRadar returned HTTP 400: internal upstream detail xyz"
+
+
+def _failing_planner(kind=ProviderErrorKind.BAD_REQUEST):
+    planner = live_planner(ROUTES)
+
+    def boom(*_a, **_k):
+        raise ProviderError(kind, UPSTREAM_TEXT)
+
+    planner.engine.recommender._provider.search = boom
+    return planner
+
+
+@pytest.mark.parametrize("language", [Language.EN, Language.TA])
+def test_upstream_error_text_never_reaches_the_passenger(language):
+    planner = _failing_planner()
+    sid = planner.create_session(language).state.session_id
+    r = planner.handle_message(sid, "from Coimbatore to Chennai on 2026-10-11, 1 passenger, fastest", None)
+    assert r.state.status is S.ERROR
+    assert "xyz" not in r.assistant_message and "HTTP 400" not in r.assistant_message
+    if language is Language.TA:
+        assert "நேரடி தரவு வழங்குநர் இந்தக் கோரிக்கையை ஏற்கவில்லை" in r.assistant_message
+        assert "rejected" not in r.assistant_message
+    else:
+        assert "The live data provider rejected this request" in r.assistant_message
+
+
+def test_reassess_error_uses_fixed_reason_text():
+    routes = {**ROUTES, "/v1/trains/12676/live": httpx.Response(400, json={"success": False, "error": {
+        "code": "BAD", "message": "upstream secret detail xyz"}}), "/v1/trains/12672/live": {"delayMinutes": 0}}
+    planner = live_planner(routes)
+    sid, _ = plan(planner, "from Coimbatore to Chennai on 2026-10-11, 1 passenger, fastest")
+    with pytest.raises(PlannerError) as err:
+        planner.reassess(sid, None)
+    assert err.value.code == "data_unavailable" and "xyz" not in err.value.message
+    assert err.value.details == {"reason_kind": "bad_request"}

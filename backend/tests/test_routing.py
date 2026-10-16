@@ -136,3 +136,43 @@ def test_chennai_step_free_route_from_the_main_entrance_is_unverified():
     assert r.status == "ok"
     assert all(s.path_type not in ("stairs", "escalator") for s in r.segments)
     assert r.accessibility_confidence == "unverified"
+
+
+def _disruption(target_id: str, simulated: bool):
+    from datetime import datetime, timedelta, timezone
+
+    from app.navigation.models.station import Disruption
+
+    now = datetime(2026, 10, 10, tzinfo=timezone.utc)
+    return Disruption(id=f"d_{target_id}_{simulated}", station_id="test_station", target_type="edge",
+                      target_id=target_id, kind="pathway_closure", reason="works", source="ops",
+                      simulated=simulated, created_at=now, expires_at=now + timedelta(hours=1))
+
+
+def _reroute(graph, previous):
+    req = RouteRequest(station_id=graph.station.station_id, source="ent", destination="p1",
+                       previous_edge_ids=previous)
+    return find_route(graph, req)
+
+
+def test_previous_route_blocked_label_says_simulated_only_for_simulated_closures():
+    base = graph_of()
+    what_if = _reroute(apply_closures(base, simulated=["e_stairs"]), ["e_ent_hall", "e_stairs"])
+    assert what_if.previous_route_blocked and what_if.warnings[0].startswith("SIMULATED DISRUPTION:")
+    stored_sim = _reroute(apply_closures(base, [_disruption("e_stairs", True)]), ["e_ent_hall", "e_stairs"])
+    assert stored_sim.warnings[0].startswith("SIMULATED DISRUPTION:")
+    real = _reroute(apply_closures(base, [_disruption("e_stairs", False)]), ["e_ent_hall", "e_stairs"])
+    assert real.previous_route_blocked and real.warnings[0].startswith("DISRUPTION:")
+    assert not any("SIMULATED DISRUPTION" in w for w in real.warnings)
+    both = _reroute(apply_closures(base, [_disruption("e_stairs", False)], simulated=["e_stairs"]),
+                    ["e_ent_hall", "e_stairs"])
+    assert both.warnings[0].startswith("DISRUPTION:")  # a real closure is never relabelled as simulated
+
+
+def test_simulated_pathways_are_named_in_warnings_and_steps():
+    raw = station_raw()
+    next(e for e in raw["edges"] if e["id"] == "e_stairs")["verification"] = "simulated"
+    r = route(graph_of(raw), "ent", "p1")
+    assert r.edge_ids == ["e_ent_hall", "e_stairs"]
+    assert any(w.startswith("SIMULATED pathway(s) on this route: e_stairs.") for w in r.warnings)
+    assert "SIMULATED pathway" in r.instructions[1].text and "SIMULATED" not in r.instructions[0].text

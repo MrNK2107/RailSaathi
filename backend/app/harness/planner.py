@@ -21,6 +21,7 @@ from app.intent.llm import Deadline, ExtractionContext
 from app.intent.patterns import RE_RESTART
 from app.intent.schema import IntentUpdate
 from app.providers.errors import ProviderError
+from app.providers.live_source import reason_for
 from app.sessions.store import SessionExpiredError, SessionNotFoundError, SessionStore
 from app.validation.validator import validate_journey
 
@@ -278,7 +279,9 @@ class PlannerService:
             except DisruptionError as exc:
                 raise PlannerError(exc.code, str(exc)) from exc
             except ProviderError as exc:
-                raise PlannerError("data_unavailable", f"Live train data is unavailable: {exc.message}") from exc
+                # Fixed reason by kind: the provider's own message can carry upstream (RailRadar) text.
+                raise PlannerError("data_unavailable", f"Live train data is unavailable: {reason_for(exc)}",
+                                   {"reason_kind": exc.kind.value}) from exc
             state = state.model_copy(update={"recommendations": new_set, "reassessment": info,
                                              "selected_option_id": None, "awaiting_confirmation": False})
             state = self.engine.move(state, S.PRESENTING_RECOMMENDATIONS, "reassessed", event_id=info.event_id,
