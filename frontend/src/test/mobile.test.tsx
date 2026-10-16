@@ -87,6 +87,9 @@ describe('Dashboard', () => {
     expect(screen.getByText('வணக்கம்,')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /சென்னை → மதுரை/ })).toBeInTheDocument()
     expect(screen.getByText('நேரடி ரயில் அறிவிப்புகள்')).toBeInTheDocument()
+    const card = screen.getByRole('button', { name: /சென்னை → மதுரை/ })
+    expect(within(card).getByText('மதுரை சந்திப்பு')).toBeInTheDocument()
+    expect(within(card).queryByText('Madurai Junction')).not.toBeInTheDocument()
   })
 
   it('shows the four popular routes as cards with station codes, no fares or timings, and no mislabelled photo', async () => {

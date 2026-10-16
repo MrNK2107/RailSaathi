@@ -124,7 +124,7 @@ export default function Dashboard() {
         <ul className="grid grid-cols-2 gap-3">
           {routes.map((r) => (
             <li key={`${r.from}-${r.to}`} className="min-w-0">
-              <RouteCard title={lang === 'ta' ? r.ta : `${r.from} → ${r.to}`} codes={r.codes} station={r.station}
+              <RouteCard title={lang === 'ta' ? r.ta : `${r.from} → ${r.to}`} codes={r.codes} station={lang === 'ta' ? r.stationTa : r.station}
                 image={r.image} cta={m.dashboard.routeCta} disabled={planner.loading} onClick={() => startRoute(r.from, r.to)} />
             </li>
           ))}

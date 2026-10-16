@@ -1,5 +1,6 @@
 // Every English string has a real, non-empty Tamil counterpart with the same placeholders.
 import { STRINGS } from '../i18n/strings'
+import { POPULAR_ROUTES } from '../mobile/config'
 import { MOBILE_STRINGS, SPEECH_OPTIONS, fill } from '../mobile/strings'
 
 function leaves(o: unknown, path = '', out: Record<string, string> = {}): Record<string, string> {
@@ -47,6 +48,15 @@ describe('mobile strings', () => {
     for (const lang of ['en', 'ta'] as const) {
       const all = Object.values(leaves(MOBILE_STRINGS[lang])).join('\n')
       expect(all).not.toMatch(/not connected|Preview —|AWS Bedrock/i)
+    }
+  })
+})
+
+describe('popular routes', () => {
+  it('have Tamil-script titles and station names', () => {
+    for (const r of POPULAR_ROUTES) {
+      expect(r.ta, r.from + r.to).toMatch(TAMIL)
+      expect(r.stationTa, r.station).toMatch(TAMIL)
     }
   })
 })
