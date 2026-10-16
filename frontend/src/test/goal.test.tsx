@@ -11,7 +11,7 @@ const call = (fetchImpl: ReturnType<typeof vi.fn>, n: number) => {
   return { url, init, headers: init.headers as Record<string, string>, body: init.body ? JSON.parse(String(init.body)) : undefined }
 }
 
-const provenance = { mode: 'demo' as const, source: 'RailSaathi demo dataset (simulated)', as_of: '2026-10-01T00:00:00+05:30', note: 'Illustrative.' }
+const provenance = { mode: 'demo' as const, source: 'RailSaathi sample timetable', as_of: '2026-10-01T00:00:00+05:30', note: 'Illustrative.' }
 
 const plan: GoalPlanResponse = {
   status: 'answered', summary: 'Found 2 train options.', plan_id: 'plan_abcdefghijkl', provenance,

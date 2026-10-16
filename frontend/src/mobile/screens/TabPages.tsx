@@ -13,7 +13,6 @@ import {
   TrainIcon,
 } from '../icons'
 import { useApp } from '../PlannerContext'
-import { showClassicLink } from '../config'
 import { loadTrips, removeTrip, type SavedTrip } from '../trips'
 import { ProvenanceBadge } from '../../components/ProvenanceBadge'
 import { Logo, Screen } from '../ui'
@@ -289,7 +288,7 @@ export function Alerts() {
 }
 
 export function Profile() {
-  const { planner, go, m } = useApp()
+  const { planner, m } = useApp()
   const h = planner.health
   const provider = h?.data_provider
   return (
@@ -307,16 +306,12 @@ export function Profile() {
       </section>
       <section className="space-y-2 rounded-2xl bg-white p-4 text-sm shadow-card ring-1 ring-ink-100">
         <p className="flex items-center justify-between"><span className="text-ink-500">{m.profile.dataSource}</span>
-          <span className="flex items-center gap-2">{provider?.active ?? '—'} {h && <ProvenanceBadge provenance={null} mode={h.data_mode} labels={{ live: m.live }} />}</span></p>
+          <span className="flex items-center gap-2">{provider?.active === 'demo' ? m.profile.builtInData : (provider?.active ?? '—')} {h && <ProvenanceBadge provenance={null} mode={h.data_mode} labels={{ live: m.live }} />}</span></p>
         {provider?.reason && <p className="text-xs text-red-700">{provider.reason}</p>}
         <p className="flex items-center justify-between"><span className="text-ink-500">{m.profile.ai}</span>
           <span>{h?.ai?.active ? fill(m.profile.aiActive, { provider: String(h.ai.provider ?? '') }) : m.profile.aiInactive}</span></p>
       </section>
       <p className="flex items-start gap-2 text-xs text-ink-500"><InfoIcon size={16} className="shrink-0" /> {m.profile.noAccount}</p>
-      {/* The legacy classic view is a development aid with known accessibility gaps: no link to it in production. */}
-      {showClassicLink() && (
-        <button type="button" onClick={() => go('classic')} className="text-sm font-semibold text-brand-600 underline">{m.profile.classic}</button>
-      )}
     </Page>
   )
 }

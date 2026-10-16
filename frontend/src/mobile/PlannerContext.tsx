@@ -18,7 +18,7 @@ export function AppProvider({ value, children }: { value: Omit<AppContextValue, 
   return <AppContext.Provider value={{ ...value, m }}>{children}</AppContext.Provider>
 }
 
-/** For shared components that also render outside the mobile app (classic view): null there. */
+/** For shared components that can render outside the mobile app (e.g. in isolated tests): null there. */
 export function useOptionalApp(): AppContextValue | null {
   return useContext(AppContext)
 }

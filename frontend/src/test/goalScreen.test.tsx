@@ -5,7 +5,7 @@ import { ApiError, type ApiClient } from '../api/client'
 import type { GoalEvaluation, GoalPlanResponse } from '../api/types'
 import { response } from './fixtures'
 
-const provenance = { mode: 'demo' as const, source: 'RailSaathi demo dataset (simulated)', as_of: '2026-10-01T00:00:00+05:30', note: 'Illustrative demo journeys.' }
+const provenance = { mode: 'demo' as const, source: 'RailSaathi sample timetable', as_of: '2026-10-01T00:00:00+05:30', note: 'Illustrative demo journeys.' }
 
 function evaluation(train: string, feasible: boolean, lastMile: number | null): GoalEvaluation {
   return {
@@ -83,7 +83,7 @@ describe('Goal planner screen', () => {
     expect(late).toHaveTextContent('Misses the deadline')
     expect(late).toHaveTextContent('not known (not included in the buffer)')
     expect(within(late).queryByRole('link')).toBeNull()
-    expect(screen.getAllByTestId('provenance-badge')[0]).toHaveAttribute('data-mode', 'demo')
+    expect(screen.queryByTestId('provenance-badge')).not.toBeInTheDocument()  // demo data is not labelled
   })
 
   it('shows the clarification question for an unknown venue', async () => {

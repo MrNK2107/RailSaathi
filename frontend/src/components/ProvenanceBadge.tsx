@@ -1,24 +1,25 @@
 // The one provenance badge used on every screen that shows railway data (Honesty requirements).
 // `unavailable` (or missing provenance) renders an explicit empty state with the reason, never placeholder data.
+// `demo` renders nothing: demo data is local/dev only (production refuses it) and is not labelled in the UI.
 import type { DataMode, Provenance } from '../api/types'
 import { useOptionalApp } from '../mobile/PlannerContext'
 import { formatDay, formatTime } from '../utils/format'
 
-export const DEFAULT_PROVENANCE_LABELS: Record<DataMode, string> = {
+type LabelledMode = Exclude<DataMode, 'demo'>
+
+export const DEFAULT_PROVENANCE_LABELS: Record<LabelledMode, string> = {
   live: 'LIVE',
   cached: 'CACHED',
   stale: 'STALE',
-  demo: 'DEMO',
   fallback: 'FALLBACK',
   unknown: 'UNVERIFIED',
   unavailable: 'UNAVAILABLE',
 }
 
-const STYLE: Record<DataMode, string> = {
+const STYLE: Record<LabelledMode, string> = {
   live: 'bg-match-50 text-match-700',
   cached: 'bg-sky-50 text-sky-800',
   stale: 'bg-amber-50 text-amber-800',
-  demo: 'bg-violet-50 text-violet-800',
   fallback: 'bg-amber-50 text-amber-800',
   unknown: 'bg-ink-100 text-ink-700',
   unavailable: 'bg-red-50 text-red-800',
@@ -33,7 +34,7 @@ export interface ProvenanceBadgeProps {
   /** Reason shown when there is no provenance at all. */
   reason?: string
   /** Localised overrides for the mode labels. */
-  labels?: Partial<Record<DataMode, string>>
+  labels?: Partial<Record<LabelledMode, string>>
   unavailableTitle?: string
   className?: string
 }
@@ -46,8 +47,9 @@ export function ProvenanceBadge({
   const labels = m ? { live: m.live, ...m.provenance, ...labelProp } : labelProp
   const unavailableTitle = titleProp ?? m?.dataUnavailable ?? 'Data unavailable'
   const defaultReason = m?.noDataReason ?? 'No data could be obtained from the data source.'
+  if (provenance?.mode === 'demo' || (!provenance && mode === 'demo')) return null
   if (!provenance && mode && mode !== 'unavailable') {
-    const known: DataMode = mode in DEFAULT_PROVENANCE_LABELS ? (mode as DataMode) : 'unknown'
+    const known: LabelledMode = mode in DEFAULT_PROVENANCE_LABELS ? (mode as LabelledMode) : 'unknown'
     return (
       <span data-testid="provenance-badge" data-mode={known} className={className}>
         <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${STYLE[known]}`}>

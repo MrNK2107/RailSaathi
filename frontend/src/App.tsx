@@ -17,12 +17,11 @@ const JourneyOptions = lazy(() => import('./mobile/screens/JourneyOptions'))
 const StationNavigation = lazy(() => import('./mobile/screens/StationNavigation'))
 const VoiceAgent = lazy(() => import('./mobile/screens/VoiceAgent'))
 const StationTour = lazy(() => import('./mobile/screens/StationTour'))
-const ClassicView = lazy(() => import('./ClassicApp').then((m) => ({ default: m.ClassicView })))
 const Alerts = lazy(() => import('./mobile/screens/TabPages').then((m) => ({ default: m.Alerts })))
 const MyTrips = lazy(() => import('./mobile/screens/TabPages').then((m) => ({ default: m.MyTrips })))
 const Profile = lazy(() => import('./mobile/screens/TabPages').then((m) => ({ default: m.Profile })))
 
-const SCREENS: Record<Exclude<Route, 'classic'>, ComponentType> = {
+const SCREENS: Record<Route, ComponentType> = {
   home: Dashboard,
   plan: VoiceAgent,
   options: JourneyOptions,
@@ -47,14 +46,14 @@ export default function App({ client }: { client?: ApiClient }) {
     document.documentElement.lang = planner.language
   }, [planner.language])
 
-  const Screen = route === 'classic' ? null : SCREENS[route]
+  const Screen = SCREENS[route]
   const errors = MOBILE_STRINGS[planner.language].errors
   return (
     <AppProvider value={{ planner, route, go, back }}>
       {/* Keyed by route so leaving a failed screen recovers. */}
       <ScreenBoundary key={route} message={errors.screenFailed} reloadLabel={errors.reload}>
         <Suspense fallback={<p role="status" className="p-6 text-center text-sm text-ink-500">{errors.loadingScreen}</p>}>
-          {Screen ? <Screen /> : <ClassicView planner={planner} />}
+          <Screen />
         </Suspense>
       </ScreenBoundary>
     </AppProvider>

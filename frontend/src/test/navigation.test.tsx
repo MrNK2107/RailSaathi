@@ -374,7 +374,7 @@ describe('Station Navigation screen', () => {
     await waitFor(() => expect(c.station).toHaveBeenCalledWith('chennai_central', expect.anything()))
     expect(screen.getByLabelText(n.station)).toHaveValue('chennai_central')
     expect(screen.getByRole('img', { name: n.bannerAlt })).toBeInTheDocument()
-    expect(await screen.findByText('D103 Demo Nilgiri Night Express')).toBeInTheDocument()
+    expect(await screen.findByText('D103 Nilgiri Night Express')).toBeInTheDocument()
   })
 
   it('preselects no station when the journey has no floor plan, and shows no Chennai photo elsewhere', async () => {

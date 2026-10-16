@@ -17,7 +17,9 @@ test('dashboard → AI planner → options → details → confirm → save trip
 
   await page.getByRole('button', { name: 'View journey options' }).click()
   await expect(page.getByRole('tab', { name: 'Best Match' })).toBeVisible()
-  await expect(page.getByTestId('source-line')).toContainText('Source:')
+  // Demo data (local/dev only) is not labelled: no source line, DEMO pill or "Demo data" disclaimer.
+  await expect(page.getByTestId('source-line')).toHaveCount(0)
+  await expect(page.locator('body')).not.toContainText(/demo/i)
   await page.getByRole('button', { name: /View details: D103/ }).click()
 
   await expect(page.getByRole('heading', { name: 'Journey Details' })).toBeVisible()
@@ -26,7 +28,19 @@ test('dashboard → AI planner → options → details → confirm → save trip
   await expect(page.getByText('This is a journey plan only. No ticket has been booked.')).toBeVisible()
   await page.getByRole('button', { name: /Save to My Trips/ }).click()
   await page.getByRole('button', { name: 'My Trips' }).click()
-  await expect(page.getByText(/D103 Demo Nilgiri Night Express/)).toBeVisible()
+  await expect(page.getByText(/D103 Nilgiri Night Express/)).toBeVisible()
+})
+
+test('the home screen carries no demo wording, and an old #/classic link opens home', async ({ page }) => {
+  await page.goto('/#/home')
+  await expect(page.getByText('Popular Routes')).toBeVisible()
+  await expect(page.getByTestId('provenance-badge')).toHaveCount(0)
+  await expect(page.locator('body')).not.toContainText(/demo/i)
+  await page.goto('/#/classic')
+  await expect(page.getByText('Popular Routes')).toBeVisible()
+  await page.getByRole('button', { name: 'Profile' }).click()
+  await expect(page.getByRole('heading', { name: 'Profile' })).toBeVisible()
+  await expect(page.locator('body')).not.toContainText(/classic|demo/i)
 })
 
 test('popular route starts a real plan; the journey card waits for every detail; station navigation routes to Platform 10', async ({ page }) => {

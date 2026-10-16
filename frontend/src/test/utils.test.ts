@@ -43,12 +43,6 @@ describe('relax suggestions', () => {
 })
 
 describe('release-only switches', () => {
-  it('hides the legacy classic link in production builds', async () => {
-    const { showClassicLink } = await import('../mobile/config')
-    expect(showClassicLink({ DEV: false })).toBe(false)
-    expect(showClassicLink({ DEV: true })).toBe(true)
-  })
-
   it('maps a wheelchair the same way in every station view (step-free, not verified-only)', async () => {
     const { accessibilityPrefs } = await import('../navigation/useStationNav')
     const { mobilityPrefs } = await import('../hooks/useStationWayfinding')
@@ -63,5 +57,13 @@ describe('release-only switches', () => {
     const description = /<meta name="description" content="([^"]+)"/.exec(html)?.[1] ?? ''
     expect(description).toMatch(/RailSaathi/)
     expect(description).not.toMatch(/prototype|demo data/i)
+  })
+})
+
+describe('patch helpers', () => {
+  it('maps editor values to API patches', async () => {
+    const { toPatch } = await import('../components/FieldEditor')
+    expect(toPatch('budget', { limit: '1500', strict: true, priority: '' })).toEqual({ budget_limit: 1500, budget_strict: true, budget_priority: null })
+    expect(toPatch('origin', { place: '' })).toEqual({ origin: null })
   })
 })

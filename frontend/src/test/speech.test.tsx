@@ -1,8 +1,5 @@
-import { act, render, renderHook, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { ChatPanel } from '../components/ChatPanel'
+import { act, renderHook } from '@testing-library/react'
 import { MAX_EMPTY_RESTARTS, useSpeechRecognition } from '../hooks/useSpeech'
-import { STRINGS } from '../i18n/strings'
 
 type Result = { transcript: string; isFinal: boolean }
 
@@ -159,27 +156,5 @@ describe('useSpeechRecognition errors and limits', () => {
     const { result } = renderHook(() => useSpeechRecognition('ta-IN', vi.fn()))
     act(() => result.current.start())
     expect(latest().lang).toBe('ta-IN')
-  })
-})
-
-describe('ChatPanel voice controls', () => {
-  it('shows a Stop button while recording, fills the box live, and never auto-sends', async () => {
-    const onSend = vi.fn()
-    const user = userEvent.setup()
-    render(
-      <ChatPanel t={STRINGS.en} language="en" messages={[]} loading={false} error={null} canRetry={false}
-        onSend={onSend} onRetry={vi.fn()} onRestart={vi.fn()} onCancel={vi.fn()} />,
-    )
-    await user.click(screen.getByRole('button', { name: 'Start voice input' }))
-    const stop = screen.getByRole('button', { name: /press Stop/ })
-    expect(stop).toHaveTextContent('Stop')
-    expect(screen.getByText(/speak as long as you need/)).toBeInTheDocument()
-    act(() => latest().emit([{ transcript: 'to Madurai tomorrow', isFinal: true }]))
-    expect(screen.getByLabelText('Type your travel request')).toHaveValue('to Madurai tomorrow')
-    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
-    await user.click(stop)
-    expect(screen.getByRole('button', { name: 'Start voice input' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled()
-    expect(onSend).not.toHaveBeenCalled()
   })
 })

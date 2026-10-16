@@ -71,6 +71,11 @@ describe('router', () => {
     expect(parseRoute('#/nope')).toBe('home')
     expect(parseRoute('')).toBe('home')
   })
+
+  it('sends an old or bookmarked #/classic URL to home (the legacy desktop view is gone)', () => {
+    expect(parseRoute('#/classic')).toBe('home')
+    expect(parseRoute('#/classic?x=1')).toBe('home')
+  })
 })
 
 describe('Dashboard', () => {
@@ -118,7 +123,9 @@ describe('Dashboard', () => {
     const { user } = await open('home')
     const promo = screen.getByRole('region', { name: 'Live train alerts' })
     expect(within(promo).getByText('RailSaathi does not send push alerts.')).toBeInTheDocument()
-    expect(within(promo).getByTestId('provenance-badge')).toHaveAttribute('data-mode', 'demo')
+    // Demo data is local/dev only and unlabelled: no DEMO pill and no "Demo data" line.
+    expect(within(promo).queryByTestId('provenance-badge')).not.toBeInTheDocument()
+    expect(promo.textContent).not.toMatch(/demo/i)
     await user.click(within(promo).getByRole('button', { name: 'Open alerts' }))
     await waitFor(() => expect(window.location.hash).toBe('#/alerts'))
   })
@@ -291,15 +298,16 @@ describe('Journey Options', () => {
     expect(screen.getByTestId('source-line')).toHaveTextContent('RailRadar live API (third-party) · retrieved')
   })
 
-  it('labels demo journeys with the shared provenance badge on options and details', async () => {
+  it('shows demo journeys without any demo label, source line or disclaimer on options and details', async () => {
     const { user } = await withState(withRecs)
     const card = await screen.findByRole('article', { name: /D103/ })
-    const badge = within(card).getByTestId('provenance-badge')
-    expect(badge).toHaveAttribute('data-mode', 'demo')
-    expect(badge).toHaveTextContent('DEMO')
+    expect(within(card).queryByTestId('provenance-badge')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('source-line')).not.toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/demo/i)
     await user.click(screen.getByRole('button', { name: /^View details: D103 / }))
     await screen.findByText('Journey Details')
-    expect(screen.getByTestId('provenance-badge')).toHaveAttribute('data-mode', 'demo')
+    expect(screen.queryByTestId('provenance-badge')).not.toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/demo/i)
   })
 
   it('selecting a card calls the backend, then confirm produces the handoff (no booking) and can be saved', async () => {

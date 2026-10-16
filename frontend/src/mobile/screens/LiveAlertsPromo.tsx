@@ -24,7 +24,6 @@ export function LiveAlertsPromo() {
           <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-white/80">
             {health && <ProvenanceBadge provenance={null} mode={health.data_mode} labels={{ live: m.live }} />}
             {health?.data_mode === 'live' && provider && <span>{d.alertsSource} {provider}</span>}
-            {health?.data_mode === 'demo' && <span>{d.alertsDemo}</span>}
           </p>
           <p className="mt-1 text-[11px] text-white/80">{d.alertsNotice}</p>
         </div>

@@ -212,6 +212,13 @@ describe('Profile', () => {
     expect(screen.queryByText(/Bedrock/)).not.toBeInTheDocument()
   })
 
+  it('names demo data neutrally and offers no classic view link', async () => {
+    open('profile', fakeClient({ health: vi.fn().mockResolvedValue({ status: 'ok', api_version: '1', data_mode: 'demo', data_provider: { requested: 'demo', active: 'demo', reason: null }, ai: { active: false } }) }))
+    expect(await screen.findByText(en.profile.builtInData)).toBeInTheDocument()
+    expect(screen.queryByTestId('provenance-badge')).not.toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/demo|classic/i)
+  })
+
   it('shows the data-source health and a reason when the provider is degraded', async () => {
     open('profile', fakeClient({ health: vi.fn().mockResolvedValue({ status: 'ok', api_version: '1', data_mode: 'fallback', data_provider: { requested: 'railradar', active: 'demo', reason: 'No RailRadar key.' }, ai: {} }) }))
     expect(await screen.findByText('No RailRadar key.')).toBeInTheDocument()

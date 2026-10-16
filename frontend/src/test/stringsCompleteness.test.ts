@@ -17,7 +17,6 @@ const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1
 const SAME_AS_ENGLISH = new Set([
   'brand', 'dashboard.sos', 'ticketing.assistant', 'tour.streetView', 'tour.streetViewTitle', 'alerts.delay.trainPlaceholder',
 ])
-const SAME_AS_ENGLISH_CLASSIC = new Set(['appName'])
 
 describe('mobile strings', () => {
   const en = leaves(MOBILE_STRINGS.en)
@@ -68,7 +67,7 @@ describe('fill', () => {
   })
 })
 
-describe('classic strings', () => {
+describe('shared field strings (i18n/strings.ts)', () => {
   const en = leaves(STRINGS.en)
   const ta = leaves(STRINGS.ta)
 
@@ -77,16 +76,8 @@ describe('classic strings', () => {
     for (const [p, v] of Object.entries(ta)) expect(v.trim(), p).not.toBe('')
   })
 
-  it('translates the voice-input errors and the missing-voice note', () => {
-    for (const code of ['insecure', 'not_allowed', 'no_microphone', 'network', 'language_unsupported', 'service_unavailable', 'start_failed', 'restart_limit']) {
-      expect(ta[`mic.errors.${code}`]).toMatch(TAMIL)
-      expect(ta[`mic.errors.${code}`]).not.toBe(en[`mic.errors.${code}`])
-    }
-    expect(ta.noVoice).toMatch(TAMIL)
-  })
-
-  it('writes Tamil text, not English copies, apart from the app name', () => {
-    const copies = Object.keys(en).filter((p) => !SAME_AS_ENGLISH_CLASSIC.has(p) && ta[p] === en[p])
+  it('writes Tamil text, not English copies', () => {
+    const copies = Object.keys(en).filter((p) => ta[p] === en[p])
     expect(copies).toEqual([])
   })
 })

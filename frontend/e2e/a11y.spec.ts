@@ -38,7 +38,7 @@ test('planner flow: home, voice hero, chat, options, details, confirmation and t
 
   await page.getByRole('button', { name: /Save to My Trips/ }).click()
   await page.getByRole('button', { name: 'My Trips' }).click()
-  await expect(page.getByText(/D103 Demo Nilgiri Night Express/)).toBeVisible()
+  await expect(page.getByText(/D103 Nilgiri Night Express/)).toBeVisible()
   await expectNoAxeViolations(page, 'trips (one saved trip)')
 
   await page.getByRole('button', { name: 'Alerts' }).click()

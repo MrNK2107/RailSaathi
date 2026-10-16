@@ -82,9 +82,10 @@ export function Screen({ children, header, nav = false, footer }: { children: Re
   )
 }
 
-/** "Source: … · retrieved 10 Oct 15:21 IST" — from the backend's provenance fields. */
+/** "Source: … · retrieved 10 Oct 15:21 IST" — from the backend's provenance fields. Demo data (local/dev only) is not labelled. */
 export function SourceLine({ provenance }: { provenance: DataProvenance }) {
   const { m } = useApp()
+  if (provenance.mode === 'demo') return null
   const when = provenance.mode === 'live' ? m.options.retrieved : m.options.datasetAsOf
   return (
     <p className="text-[11px] text-ink-500" data-testid="source-line">

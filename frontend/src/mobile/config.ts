@@ -38,6 +38,3 @@ export const HELPLINES = [
 ] as const
 export const EMERGENCY_NUMBER = '139'
 export const RAIL_MADAD_URL = 'https://railmadad.indianrailways.gov.in/'
-
-/** The Profile link to the legacy classic view: development builds only (it has known accessibility gaps). */
-export const showClassicLink = (env: { DEV: boolean } = import.meta.env): boolean => env.DEV

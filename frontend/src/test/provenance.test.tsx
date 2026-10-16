@@ -8,7 +8,7 @@ const base: Provenance = {
 
 describe('ProvenanceBadge', () => {
   it.each([
-    ['live', 'LIVE'], ['cached', 'CACHED'], ['stale', 'STALE'], ['demo', 'DEMO'], ['fallback', 'FALLBACK'], ['unknown', 'UNVERIFIED'],
+    ['live', 'LIVE'], ['cached', 'CACHED'], ['stale', 'STALE'], ['fallback', 'FALLBACK'], ['unknown', 'UNVERIFIED'],
   ] as const)('labels %s data', (mode, label) => {
     render(<ProvenanceBadge provenance={{ ...base, mode }} />)
     const badge = screen.getByTestId('provenance-badge')
@@ -44,10 +44,19 @@ describe('ProvenanceBadge', () => {
     expect(screen.getByText('LIVE · RailRadar')).toBeInTheDocument()
   })
 
+  it('renders nothing for demo data (local/dev only, unlabelled in the UI), in every variant', () => {
+    const { container, rerender } = render(<ProvenanceBadge provenance={{ ...base, mode: 'demo' }} />)
+    expect(container).toBeEmptyDOMElement()
+    rerender(<ProvenanceBadge provenance={{ ...base, mode: 'demo' }} variant="full" />)
+    expect(container).toBeEmptyDOMElement()
+    rerender(<ProvenanceBadge provenance={null} mode="demo" />)
+    expect(container).toBeEmptyDOMElement()
+  })
+
   it('renders a mode-only chip (health, saved trips) and treats an unrecognised mode as unverified', () => {
-    const { rerender } = render(<ProvenanceBadge provenance={null} mode="demo" />)
-    expect(screen.getByTestId('provenance-badge')).toHaveAttribute('data-mode', 'demo')
-    expect(screen.getByText('DEMO')).toBeInTheDocument()
+    const { rerender } = render(<ProvenanceBadge provenance={null} mode="cached" />)
+    expect(screen.getByTestId('provenance-badge')).toHaveAttribute('data-mode', 'cached')
+    expect(screen.getByText('CACHED')).toBeInTheDocument()
     rerender(<ProvenanceBadge provenance={null} mode="something-old" />)
     expect(screen.getByTestId('provenance-badge')).toHaveAttribute('data-mode', 'unknown')
   })

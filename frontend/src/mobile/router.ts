@@ -3,10 +3,11 @@ import { useCallback, useEffect, useState } from 'react'
 
 export const ROUTES = [
   'home', 'plan', 'options', 'navigation', 'details', 'help', 'confirmation',
-  'trips', 'alerts', 'profile', 'goal', 'ticketing', 'tour', 'classic',
+  'trips', 'alerts', 'profile', 'goal', 'ticketing', 'tour',
 ] as const
 export type Route = (typeof ROUTES)[number]
 
+/** Unknown or retired routes (e.g. the removed  #/classic  desktop view) fall back to home. */
 export function parseRoute(hash: string): Route {
   const name = hash.replace(/^#\/?/, '').split('?')[0]
   return (ROUTES as readonly string[]).includes(name) ? (name as Route) : 'home'

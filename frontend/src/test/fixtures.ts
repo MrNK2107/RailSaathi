@@ -1,12 +1,12 @@
 import type { PlannerResponse, Recommendation, SessionState } from '../api/types'
 
-const provenance = { mode: 'demo' as const, source: 'RailSaathi demo dataset (simulated)', as_of: '2026-10-01T00:00:00+05:30', note: 'Illustrative.' }
+const provenance = { mode: 'demo' as const, source: 'RailSaathi sample timetable', as_of: '2026-10-01T00:00:00+05:30', note: 'Illustrative.' }
 
 export const rec: Recommendation = {
   option: {
     option_id: 'CBE-MAS-D103@2026-10-10',
     legs: [{
-      train_no: 'D103', train_name: 'Demo Nilgiri Night Express', from_code: 'CBE', from_name: 'Coimbatore Junction',
+      train_no: 'D103', train_name: 'Nilgiri Night Express', from_code: 'CBE', from_name: 'Coimbatore Junction',
       to_code: 'MAS', to_name: 'Chennai Central', departure: '2026-10-10T22:30:00+05:30', arrival: '2026-10-11T06:45:00+05:30',
     }],
     departure: '2026-10-10T22:30:00+05:30', arrival: '2026-10-11T06:45:00+05:30', duration_minutes: 495, transfers: 0,
@@ -17,7 +17,7 @@ export const rec: Recommendation = {
   hard_constraints: [{ name: 'arrival_deadline', status: 'met', detail: 'Arrives 06:45 on 11 Oct, before the 09:00 deadline.' }],
   need_statuses: [], preference_matches: ['Lower fare prioritised as requested.'], tradeoffs: [],
   unverified: ['Assistance has been requested, but availability at Chennai Egmore has not been verified.'],
-  explanation: 'Recommended because it has the lowest listed demo fare among eligible options (₹590 for 2).',
+  explanation: 'Recommended because it has the lowest listed fare among eligible options (₹590 for 2).',
 }
 
 export const baseState: SessionState = {
@@ -55,7 +55,7 @@ export const withRecs: Partial<SessionState> = {
   },
   recommendations: {
     constraints_hash: 'abc', computed_at: '2026-10-10T10:00:00+05:30', considered_count: 6, eligible_count: 3,
-    recommendations: [rec], excluded: [{ option_id: 'x', summary: 'D105 Demo Cheran Late Passenger', reasons: ['Arrives after the 09:00 deadline.'] }],
-    relax_suggestions: [], notes: [], limitations: ['Demo data: trains, timings and fares are illustrative.'], provenance,
+    recommendations: [rec], excluded: [{ option_id: 'x', summary: 'D105 Cheran Late Passenger', reasons: ['Arrives after the 09:00 deadline.'] }],
+    relax_suggestions: [], notes: [], limitations: ['No ticket is booked.'], provenance,
   },
 }
