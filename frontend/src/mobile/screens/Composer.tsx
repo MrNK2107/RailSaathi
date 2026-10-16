@@ -1,4 +1,4 @@
-import type { FormEvent, RefObject } from 'react'
+import { useEffect, type FormEvent, type RefObject } from 'react'
 import type { MicState } from '../../hooks/useSpeech'
 import { ArrowRight, StopIcon } from '../icons'
 import { useApp } from '../PlannerContext'
@@ -33,6 +33,12 @@ export function Composer({ draft, onDraft, onSubmit, sending, inputRef, listenin
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, MAX_ROWS_PX)}px`
   }
+  const empty = draft.length === 0
+
+  // Back to one line once the box is cleared (after Send, or a new plan), so the placeholder never sits in a tall box.
+  useEffect(() => {
+    if (empty && inputRef.current) inputRef.current.style.height = ''
+  }, [empty, inputRef])
 
   return (
     <form onSubmit={submit} aria-label={m.plan.composer} className="flex items-end gap-2">
@@ -48,12 +54,15 @@ export function Composer({ draft, onDraft, onSubmit, sending, inputRef, listenin
         </button>
       )}
       <div className="flex min-w-0 flex-1 items-end gap-1 rounded-3xl border border-ink-300 bg-white px-3 py-0.5 shadow-card focus-within:border-brand-500">
+        {/* While empty the box is exactly one line: the placeholder is cut with an ellipsis, never wrapped or scrolled. */}
         <label htmlFor="voice-input" className="sr-only">{m.plan.inputLabel}</label>
         <textarea id="voice-input" ref={inputRef} rows={1} maxLength={1000} value={draft}
           onChange={(e) => { onDraft(e.target.value); grow(e.target) }}
           placeholder={m.plan.inputPlaceholder}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (canSend) onSubmit() } }}
-          className="max-h-32 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-sm text-ink-900 outline-none placeholder:text-ink-500" />
+          data-empty={empty || undefined}
+          className={`max-h-32 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-sm text-ink-900 outline-none placeholder:text-ink-500 ${
+            empty ? 'overflow-hidden text-ellipsis whitespace-nowrap placeholder:text-ellipsis placeholder:whitespace-nowrap' : ''}`} />
         <button type="submit" disabled={!canSend} aria-label={m.plan.send}
           className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-600 text-white transition hover:bg-brand-700 disabled:opacity-40">
           <ArrowRight size={18} className="-rotate-90" />

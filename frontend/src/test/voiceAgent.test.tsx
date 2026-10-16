@@ -101,4 +101,23 @@ describe('Voice agent screen', () => {
     render(<App client={fakeClient('rules')} />)
     expect(await screen.findByText(MOBILE_STRINGS.en.plan.understoodBy.rules)).toBeInTheDocument()
   })
+
+  it('uses a short one-line placeholder that never wraps or scrolls while empty, in both languages', async () => {
+    const user = userEvent.setup()
+    const { unmount } = render(<App client={fakeClient()} />)
+    const box = await screen.findByLabelText(MOBILE_STRINGS.en.plan.inputLabel)
+    expect(box).toHaveAttribute('placeholder', 'Where do you want to go?')
+    expect(box).toHaveAttribute('rows', '1')
+    expect(box).toHaveAttribute('data-empty', 'true')
+    const classes = () => box.className.split(/\s+/)
+    expect(classes()).toEqual(expect.arrayContaining(['overflow-hidden', 'whitespace-nowrap', 'text-ellipsis']))
+    await user.type(box, 'Chennai to Madurai')
+    expect(box).not.toHaveAttribute('data-empty')
+    expect(classes()).not.toContain('whitespace-nowrap')  // typed text wraps and the box grows as before
+    unmount()
+
+    saveState({ language: 'ta' })
+    render(<App client={fakeClient()} />)
+    expect(await screen.findByLabelText(MOBILE_STRINGS.ta.plan.inputLabel)).toHaveAttribute('placeholder', 'எங்கே செல்ல வேண்டும்?')
+  })
 })

@@ -69,6 +69,21 @@ test.describe('320 px width', () => {
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/plan-started-320.png`, fullPage: true })
   })
 
+  for (const lang of ['en', 'ta'] as const) {
+    test(`the empty composer placeholder stays on one line, with no scrollbar (${lang})`, async ({ page }) => {
+      await openPlan(page, lang)
+      await page.goto('/#/plan')
+      const box = page.locator('#voice-input')
+      await expect(box).toHaveAttribute('placeholder', lang === 'ta' ? 'எங்கே செல்ல வேண்டும்?' : 'Where do you want to go?')
+      const fit = await box.evaluate((el) => {
+        const s = getComputedStyle(el)
+        const line = parseFloat(s.lineHeight) || parseFloat(s.fontSize) * 1.5
+        return { oneLine: el.clientHeight < line * 2, noScroll: el.scrollHeight <= el.clientHeight + 1, overflow: s.overflowY, wrap: s.whiteSpace }
+      })
+      expect(fit).toEqual({ oneLine: true, noScroll: true, overflow: 'hidden', wrap: 'nowrap' })
+    })
+  }
+
   test('station navigation does not scroll horizontally, routed or routing disabled', async ({ page }) => {
     await openNavigation(page, 'en')
     await page.locator('#nav-to').selectOption({ label: 'Platform 10' })
