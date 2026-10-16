@@ -55,7 +55,7 @@ test('popular route starts a real plan; the journey card waits for every detail;
   // The route is calculated as soon as the destination is chosen (no separate button).
   await expect(page.getByTestId('route-line')).toBeVisible()
   const summary = page.getByLabel('Route summary')
-  await expect(summary).toContainText('Shortest route')
+  await expect(summary).toContainText('Recommended route')
   await expect(summary).toContainText('→ Platform 10')
   // Step-by-step shows the same route; turn-by-turn advances in order and can be exited.
   await page.getByRole('tab', { name: 'Step-by-Step' }).click()
