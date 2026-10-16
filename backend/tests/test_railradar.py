@@ -536,3 +536,59 @@ def test_search_is_bounded_by_the_call_budget_not_the_bridge_default():
         provider.search(["CBE"], ["MAS"], [date(2026, 10, 11)])
     assert err.value.kind is ProviderErrorKind.TIMEOUT
     assert _time.monotonic() - started < 2
+
+
+# ---- quota-aware fan-out ---------------------------------------------------------
+
+def _between(o, d, no):
+    return {"trains": [{"train": {"number": no, "name": f"T{no}"}, "from": {"code": o, "departure": "06:00"},
+                        "to": {"code": d, "arrival": "12:00"}, "duration": 360}]}
+
+
+def test_fan_out_is_capped_to_the_free_quota_primary_stations_first_with_a_partial_note():
+    """2 origins x 3 destinations x 2 dates = 12 searches, but the shared quota only has 4 free this minute."""
+    calls: list[httpx.Request] = []
+    routes = {f"/v1/trains/between/{o}/{d}": _between(o, d, f"1{i}{j}")
+              for i, o in enumerate(["CBE", "PTJ"]) for j, d in enumerate(["MAS", "MS", "PER"])}
+    client = RailRadarClient("https://x", KEY, 5, 300, transport=make_transport(routes, calls),
+                             wall_clock=lambda: FETCHED_AT, requests_per_minute=4)
+    days = [date(2026, 10, 10), date(2026, 10, 11)]
+    options = RailRadarJourneyProvider(client).search(["CBE", "PTJ"], ["MAS", "MS", "PER"], days)
+    assert len(calls) == 4  # never more than the quota allowed
+    searched = {(c.url.path.split("/")[-2], c.url.path.split("/")[-1], c.url.params["date"]) for c in calls}
+    # Primary pair (CBE->MAS) on both dates first, then the next-ranked pairs.
+    assert ("CBE", "MAS", "2026-10-10") in searched and ("CBE", "MAS", "2026-10-11") in searched
+    assert {o.legs[0].train_no for o in options} <= {"100", "101", "110"}
+    assert options and all(o.provenance.note.startswith("PARTIAL:") for o in options)
+    assert "PTJ to PER on 11 Oct" in options[0].provenance.note  # names a search that did not run
+
+
+def test_fresh_cache_hits_do_not_count_against_the_cap():
+    calls: list[httpx.Request] = []
+    routes = {"/v1/trains/between/CBE/MAS": _between("CBE", "MAS", "100"),
+              "/v1/trains/between/CBE/MS": _between("CBE", "MS", "101")}
+    client = RailRadarClient("https://x", KEY, 5, 300, transport=make_transport(routes, calls),
+                             wall_clock=lambda: FETCHED_AT, requests_per_minute=2)
+    provider = RailRadarJourneyProvider(client)
+    provider.search(["CBE"], ["MAS", "MS"], [date(2026, 10, 11)])  # spends the 2 free requests, fills the cache
+    again = provider.search(["CBE"], ["MAS", "MS"], [date(2026, 10, 11)])
+    assert len(calls) == 2 and {o.legs[0].train_no for o in again} == {"100", "101"}
+    assert not any(o.provenance.note.startswith("PARTIAL") for o in again)
+
+
+def test_one_failed_search_keeps_the_others_and_says_so():
+    routes = {"/v1/trains/between/CBE/MAS": _between("CBE", "MAS", "100"),
+              "/v1/trains/between/CBE/MS": httpx.Response(500, json={"success": False})}
+    options = RailRadarJourneyProvider(client_for(routes)).search(["CBE"], ["MAS", "MS"], [date(2026, 10, 11)])
+    assert [o.legs[0].train_no for o in options] == ["100"]
+    assert "CBE to MS on 11 Oct" in options[0].provenance.note
+
+
+def test_no_free_quota_and_nothing_cached_is_rate_limited_not_no_trains():
+    client = RailRadarClient("https://x", KEY, 5, 300, transport=make_transport({"*": EMPTY}),
+                             wall_clock=lambda: FETCHED_AT, requests_per_minute=1)
+    provider = RailRadarJourneyProvider(client)
+    provider.search(["CBE"], ["MAS"], [date(2026, 10, 11)])  # uses the only request
+    with pytest.raises(ProviderError) as err:
+        provider.search(["CBE"], ["MS"], [date(2026, 10, 11)])
+    assert err.value.kind is ProviderErrorKind.RATE_LIMITED

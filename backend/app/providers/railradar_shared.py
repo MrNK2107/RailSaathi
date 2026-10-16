@@ -51,6 +51,10 @@ class CacheEntry:
 class QuotaGate(Protocol):
     async def acquire(self) -> QuotaDecision: ...
 
+    async def remaining(self) -> int:
+        """Requests still free in the current window (a peek: consumes nothing)."""
+        ...
+
 
 class ResponseCache(Protocol):
     async def get(self, key: str) -> CacheEntry | None: ...
@@ -66,11 +70,19 @@ class InMemoryQuotaGate:
         self._sent: deque[float] = deque()
         self._lock = threading.Lock()
 
+    def _expire(self, now: float) -> None:
+        while self._sent and now - self._sent[0] >= WINDOW_SECONDS:
+            self._sent.popleft()
+
+    async def remaining(self) -> int:
+        with self._lock:
+            self._expire(self._clock())
+            return max(0, self._rpm - len(self._sent))
+
     async def acquire(self) -> QuotaDecision:
         with self._lock:
             now = self._clock()
-            while self._sent and now - self._sent[0] >= WINDOW_SECONDS:
-                self._sent.popleft()
+            self._expire(now)
             if len(self._sent) >= self._rpm:
                 return QuotaDecision(False, max(1, math.ceil(WINDOW_SECONDS - (now - self._sent[0]))))
             self._sent.append(now)
@@ -141,6 +153,19 @@ class RedisQuotaGate:
         except RedisError:
             log.warning("RailRadar quota store unavailable; failing closed", exc_info=True)
             return QuotaDecision(False, OUTAGE_RETRY_AFTER)
+
+    def _count(self) -> int:
+        now_ms = int(self._clock() * 1000)
+        pipe = self._r.pipeline(transaction=True)
+        pipe.zremrangebyscore(self._key, 0, now_ms - WINDOW_SECONDS * 1000)
+        pipe.zcard(self._key)
+        return int(pipe.execute()[1])
+
+    async def remaining(self) -> int:
+        try:
+            return max(0, self._rpm - await asyncio.to_thread(self._count))
+        except RedisError:
+            return 0  # fail closed, like acquire()
 
 
 class RedisResponseCache:

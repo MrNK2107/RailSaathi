@@ -40,6 +40,9 @@ class SwitchableQuota:
     async def acquire(self) -> QuotaDecision:
         return QuotaDecision(True) if self.allowed else QuotaDecision(False, 30)
 
+    async def remaining(self) -> int:
+        return 10 if self.allowed else 0
+
 
 def train(no: str, name: str, frm: str, dep: str, to: str, duration: int = 300) -> dict:
     return {"train": {"number": no, "name": name}, "from": {"code": frm, "departure": dep},

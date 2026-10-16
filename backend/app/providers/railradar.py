@@ -29,6 +29,16 @@ NOTE = ("Live third-party data from RailRadar, not an official Indian Railways s
         "are searched. Verify on IRCTC/NTES before travel.")
 STALE_NOTE = ("STALE: RailRadar's request quota is exhausted, so this is an earlier response shown instead of "
               "fresh data and may be out of date. ")
+# When several neighbour/date searches fail differently and none succeeds, the most actionable reason wins.
+_ERROR_PRIORITY = [ProviderErrorKind.RATE_LIMITED, ProviderErrorKind.NOT_CONFIGURED, ProviderErrorKind.AUTH_FAILED,
+                   ProviderErrorKind.TIMEOUT, ProviderErrorKind.UNAVAILABLE, ProviderErrorKind.BAD_RESPONSE,
+                   ProviderErrorKind.BAD_REQUEST, ProviderErrorKind.NOT_FOUND]
+
+
+def _partial_note(missed: list[tuple[str, str, date]]) -> str:
+    listed = ", ".join(f"{o} to {d} on {day:%d %b}" for o, d, day in missed)
+    return (f"PARTIAL: not every station search ran (RailRadar's shared request quota or an error), so trains "
+            f"from these searches may be missing: {listed}. ")
 
 
 def _note(mode: DataMode) -> str:
@@ -83,20 +93,66 @@ class RailRadarJourneyProvider:
                departure_dates: list[date]) -> list[JourneyOption]:
         return run_sync(self._search(origin_codes, destination_codes, departure_dates), self._budget)
 
+    async def _plan_jobs(self, origin_codes: list[str], destination_codes: list[str],
+                         departure_dates: list[date]) -> tuple[list[tuple[str, str, date]], list[tuple[str, str, date]]]:
+        """Primary stations first (the resolver lists a place's main station first), and no more uncached searches
+        than the shared quota has free right now, so one plan cannot burn the minute's quota for every user.
+        Returns (to run, skipped)."""
+        ranked = sorted(
+            ((oi + di, oi, ti, (o, d, day)) for ti, day in enumerate(departure_dates)
+             for oi, o in enumerate(origin_codes) for di, d in enumerate(destination_codes) if o != d),
+            key=lambda item: item[:3])
+        free = await self._client.quota_remaining()
+        run, skipped = [], []
+        for *_, job in ranked:
+            cached = await self._client.trains_between_cached(*job)
+            if cached == "fresh":
+                run.append(job)  # answered from cache, costs no quota
+            elif free > 0:
+                run.append(job)
+                free -= 1
+            elif cached == "stale":
+                run.append(job)  # the quota will refuse it and the client serves the stale copy, labelled STALE
+            else:
+                skipped.append(job)
+        return run, skipped
+
     async def _search(self, origin_codes: list[str], destination_codes: list[str],
                       departure_dates: list[date]) -> list[JourneyOption]:
-        jobs = [(o, d, day) for day in departure_dates for o in origin_codes for d in destination_codes if o != d]
+        jobs, skipped = await self._plan_jobs(origin_codes, destination_codes, departure_dates)
         gate = asyncio.Semaphore(self._workers)
 
         async def bounded(job: tuple[str, str, date]) -> list[JourneyOption]:
             async with gate:
                 return await self._search_one(*job)
 
-        batches = await asyncio.gather(*(bounded(job) for job in jobs))
+        results = await asyncio.gather(*(bounded(job) for job in jobs), return_exceptions=True)
+        errors: list[ProviderError] = []
+        missed = list(skipped)
         seen: dict[str, JourneyOption] = {}
-        for option in (o for batch in batches for o in batch):
-            seen.setdefault(option.option_id, option)  # same train listed for several station pairs
-        return list(seen.values())
+        for job, result in zip(jobs, results):
+            if isinstance(result, ProviderError):
+                errors.append(result)
+                missed.append(job)
+                continue
+            if isinstance(result, BaseException):
+                raise result
+            for option in result:
+                seen.setdefault(option.option_id, option)  # same train listed for several station pairs
+        if skipped:
+            log.warning("RailRadar quota allowed %d of %d searches; skipped %d", len(jobs), len(jobs) + len(skipped),
+                        len(skipped))
+        if not missed:
+            return list(seen.values())
+        if not seen:
+            # Nothing usable came back: never report "no trains" when searches did not run or failed.
+            if errors:
+                raise min(errors, key=lambda e: _ERROR_PRIORITY.index(e.kind))
+            raise ProviderError(ProviderErrorKind.RATE_LIMITED,
+                                "RailRadar's shared request quota is used up for this minute")
+        prefix = _partial_note(sorted(missed, key=lambda j: (j[2], j[0], j[1])))
+        return [o.model_copy(update={"provenance": o.provenance.model_copy(
+            update={"note": prefix + o.provenance.note})}) for o in seen.values()]
 
     async def _search_one(self, origin: str, dest: str, day: date) -> list[JourneyOption]:
         fetched = await self._client.trains_between(origin, dest, day)

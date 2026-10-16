@@ -75,6 +75,23 @@ class RailRadarClient:
         self._quota = quota or InMemoryQuotaGate(requests_per_minute, clock)
         self._cache = cache or InMemoryResponseCache(stale_seconds, clock=clock)
 
+    async def quota_remaining(self) -> int:
+        """Requests the shared quota still allows this minute (a peek; other instances may spend them first)."""
+        return await self._quota.remaining()
+
+    async def trains_between_cached(self, from_code: str, to_code: str, day: date) -> str | None:
+        """"fresh" when a trains_between call would be answered from cache (no quota spent), "stale" when only an
+        expired copy exists (served if the quota refuses), None when nothing is cached."""
+        entry = await self._cache.get(self._key(f"/v1/trains/between/{from_code}/{to_code}",
+                                                 {"date": day.isoformat()}))
+        if entry is None:
+            return None
+        return "fresh" if entry.fresh_until > self._clock() else "stale"
+
+    @staticmethod
+    def _key(path: str, params: dict[str, str]) -> str:
+        return f"{path}?{sorted(params.items())}"
+
     async def trains_between(self, from_code: str, to_code: str, day: date) -> Fetched:
         """GET /v1/trains/between/{from}/{to}. Documented shape: data.trains[] (plus from/to/count).
         A 404 is NOT treated as "no trains": RailRadar also uses 404 for unknown routes."""
@@ -88,7 +105,7 @@ class RailRadarClient:
         return Fetched(fetched.data if isinstance(fetched.data, dict) else {}, fetched.fetched_at, fetched.mode)
 
     async def get(self, path: str, params: dict[str, str], use_cache: bool = True) -> Fetched:
-        key = f"{path}?{sorted(params.items())}"
+        key = self._key(path, params)
         entry = await self._cache.get(key) if use_cache else None
         if entry is not None and entry.fresh_until > self._clock():
             return Fetched(entry.data, entry.fetched_at)

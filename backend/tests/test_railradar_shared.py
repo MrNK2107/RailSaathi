@@ -204,3 +204,33 @@ def test_every_refused_call_logs_one_quota_exhausted_event_for_the_log_based_met
     line = json.loads(JsonLogFormatter().format(events[0]))
     assert line["event"] == "railradar_quota_exhausted" and line["severity"] == "WARNING"
     assert KEY not in line["message"]
+
+
+def test_quota_remaining_is_a_peek_shared_across_instances_and_fails_closed():
+    server, t = fakeredis.FakeServer(), {"now": 1000.0}
+    a = RedisQuotaGate(redis_client(server), KEY, 3, "t", lambda: t["now"])
+    b = RedisQuotaGate(redis_client(server), KEY, 3, "t", lambda: t["now"])
+
+    async def go():
+        before = await b.remaining()
+        await a.acquire()
+        after = [await b.remaining(), await b.remaining()]  # peeking spends nothing
+        t["now"] += 61
+        return before, after, await b.remaining()
+
+    assert asyncio.run(go()) == (3, [2, 2], 3)
+    server.connected = False
+    assert asyncio.run(b.remaining()) == 0
+
+
+def test_in_memory_quota_remaining():
+    t = {"now": 0.0}
+    gate = InMemoryQuotaGate(2, lambda: t["now"])
+
+    async def go():
+        await gate.acquire()
+        mid = await gate.remaining()
+        await gate.acquire()
+        return mid, await gate.remaining()
+
+    assert asyncio.run(go()) == (1, 0)
