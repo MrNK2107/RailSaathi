@@ -103,8 +103,8 @@ validation is skipped and reported under `/readyz` `degraded`.
 
 ## Making a station routable
 
-Routing is enabled only for layouts traced from a real plan or a survey (`metadata.routing`). To enable another
-station:
+Routing is enabled only for layouts traced from a real plan or a survey (`"routing": true` in `metadata.json`; a
+missing field means no routing). To enable another station:
 
 1. Trace its graph from a source.
 2. Record `layout_basis` and the source in `info.json` and `metadata.json`.

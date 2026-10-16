@@ -7,9 +7,18 @@ Two containers, both on Cloud Run:
 | `railsaathi-backend` | `backend/Dockerfile` | FastAPI app, one uvicorn worker, port from `PORT` |
 | `railsaathi-frontend` | `frontend/Dockerfile` | nginx serving the Vite build and reverse-proxying `/api/*` to the backend, so the browser talks to one origin |
 
-`.github/workflows/deploy.yml` builds, pushes and deploys both on every push to `main`, then runs
-`backend/scripts/smoke.sh` and a frontend proxy check. The workflow is skipped until the
-`GCP_PROJECT_ID` repository variable exists.
+`.github/workflows/deploy.yml` runs only after the CI workflow has **passed** for a push to `main` (`workflow_run`,
+conclusion `success`), or when started by hand (`workflow_dispatch`); it never runs in parallel with CI. It builds
+and pushes both images, then for each service:
+
+1. deploys a new revision with `--no-traffic --tag candidate`, so users keep the previous revision;
+2. smoke-tests the candidate's tag URL (`backend/scripts/smoke.sh`: `/readyz` must say `ready`, one planner turn,
+   no `/data` exposure; for the frontend, the proxy check);
+3. only then moves all traffic to it (`gcloud run services update-traffic --to-latest`).
+
+A failed smoke test therefore leaves traffic on the old revision. The very first deploy of a service cannot use
+`--no-traffic` (Cloud Run rejects it on create), so it goes live directly; there is nothing to protect yet. The
+workflow is skipped until the `GCP_PROJECT_ID` repository variable exists.
 
 ## Runtime topology
 
@@ -26,17 +35,25 @@ Two containers, both on Cloud Run:
   - the ticketing agent uses the rule-based agent only when Gemini is **not configured**; if a configured Gemini
     fails or times out mid-turn (or the turn deadline passes), `/api/chat` returns 200 with
     `status: "unavailable"`, `message: "guidance unavailable"`, official IRCTC / Indian Railways `links` and
-    `provenance.mode: "unavailable"`. Rule-based answers carry `provenance.mode: "fallback"`, Gemini answers `live`.
+    `provenance.mode: "unavailable"`. Rule-based answers carry `provenance.mode: "fallback"`; Gemini answers carry
+    `cached` (they are generated over the curated knowledge base, so `as_of` is the oldest cited source's date).
   - agent conversations live in Redis (`rs:conv:<session>:<conversation_id>`, TTL `SESSION_TTL_MINUTES`, at most
     `MAX_HISTORY_MESSAGES` messages) and are bound to the caller's signed `X-Session-Token`.
   `LLM_OVERALL_DEADLINE_SECONDS` (default 20) bounds the LLM work of a planner or agent turn (calls, retries and
-  backoff); the session lock TTL (`SESSION_LOCK_TTL_MS`, default 45 s) is validated to outlive it. Other work in a
-  turn (RailRadar searches) has its own timeouts. The browser's planner timeout (45 s) and the Cloud Run request
-  timeout (60 s) sit above that budget; `backend/tests/test_timeout_budget.py` keeps them consistent.
+  backoff), and `RAILRADAR_CALL_BUDGET_SECONDS` (default 15) bounds each batch of RailRadar calls a turn makes (a
+  search, or the live-status lookup on reassessment). The session lock TTL (`SESSION_LOCK_TTL_MS`, default 45 s)
+  is validated at startup to cover the worst turn (LLM deadline plus one search, or two RailRadar batches) plus a
+  10 s margin. If a turn still outlives its lock, its save is refused (fenced on the lock token, 503
+  `session_busy`), so it can never overwrite a newer turn's state. The browser's planner timeout (45 s) and the
+  Cloud Run request timeout (60 s) sit above that budget; `backend/tests/test_timeout_budget.py` keeps them
+  consistent.
 - **Production needs RailRadar.** The workflow deploys with `APP_ENV=production`, and production refuses demo data.
   `RAILWAY_DATA_MODE` defaults to `railradar`, and the `RAILRADAR_API_KEY` secret must hold a real key. Otherwise
-  live searches and boards answer `unavailable`, `/readyz` is 503 and the post-deploy smoke test fails. Demo data
-  is for development and staging (`APP_ENV` other than `production`).
+  live searches and boards answer `unavailable`, `/readyz` is 503 (`railradar_key`, or `data_provider` when demo
+  mode was refused, whatever the key holds) and the candidate's smoke test fails, so it never gets traffic. Demo
+  data is for development and staging (`APP_ENV` other than `production`).
+- **Production needs Redis.** `/readyz` is 503 (`redis`) in production when `REDIS_URL` is unset or Memorystore is
+  unreachable: sessions, rate limits and the RailRadar quota must be shared by every replica.
 - **Memorystore must run Redis 7 or later.** The station-closure store uses `EXPIRE … NX`/`GT`, which Redis 6
   rejects. The setup below creates `redis_7_2`.
 - The ticketing knowledge base (`data/knowledge/railsaathi.db`) is not committed: the Dockerfile builds it from
@@ -54,15 +71,15 @@ Two containers, both on Cloud Run:
 ## Delay model and observation collection
 
 - The delay estimate (`GET /api/predict/delay`) is served by a scikit-learn `HistGradientBoostingRegressor`
-  artifact. `backend/data/ml/model/model.joblib` (about 0.6 MB) and its `metrics.json` are committed and baked into
+  artifact. `backend/data/ml/model/model.joblib` (about 0.4 MB) and its `metrics.json` are committed and baked into
   the image; `DELAY_MODEL_URI` can instead point at `gs://bucket/path/model.joblib` (read once at startup with the
   runtime service account, needs `roles/storage.objectViewer`). Artifacts are pickles: only load files your own
   pipeline wrote. Produce a new one manually with `cd backend && uv run python scripts/train_delay_model.py`
   (optionally `--observations <dir of collected JSONL>`), review `metrics.json`, then commit it or upload it and set
   `DELAY_MODEL_URI`. Retraining is never automatic.
 - If the artifact is missing or unreadable the service keeps running in `history_only` mode (recorded historical
-  averages, no probability, no accuracy claim) and `/readyz` reports not ready, so a bad artifact is noticed
-  before traffic shifts. Set `DELAY_HISTORY_ONLY=true` to run in that mode on purpose; `/readyz` then passes and
+  averages, no probability, no accuracy claim) and `/readyz` reports not ready, so the candidate revision fails its
+  smoke test and never receives traffic. Set `DELAY_HISTORY_ONLY=true` to run in that mode on purpose; `/readyz` then passes and
   reports `delay_model.mode`.
 - `POST /internal/collect` samples the live running status of trains users looked at in the last day
   (`OBSERVATION_SEEN_TTL_SECONDS`, at most `OBSERVATION_MAX_TRAINS` per run, through the shared RailRadar quota)
@@ -100,9 +117,13 @@ REDIS_HOST="$(gcloud redis instances describe railsaathi --region="$REGION" --fo
 REDIS_PORT="$(gcloud redis instances describe railsaathi --region="$REGION" --format 'value(port)')"
 REDIS_AUTH="$(gcloud redis instances get-auth-string railsaathi --region="$REGION" --format 'value(authString)')"
 
-# Secrets referenced by the backend service (RAILRADAR_API_KEY may be empty so the deploy does not fail)
-printf '' | gcloud secrets create RAILRADAR_API_KEY --data-file=-
-# later: printf 'real-key' | gcloud secrets versions add RAILRADAR_API_KEY --data-file=-
+# Secrets referenced by the backend service. RAILRADAR_API_KEY is created without a version (Secret Manager rejects
+# an empty payload); add the real key as its first version BEFORE the first production deploy, because the deploy
+# mounts RAILRADAR_API_KEY:latest and fails while the secret has no version.
+gcloud secrets create RAILRADAR_API_KEY --replication-policy=automatic
+read -rsp 'RailRadar API key: ' RAILRADAR_KEY; echo   # typed, not echoed or kept in shell history
+printf '%s' "$RAILRADAR_KEY" | gcloud secrets versions add RAILRADAR_API_KEY --data-file=-
+unset RAILRADAR_KEY
 printf 'redis://:%s@%s:%s/0' "$REDIS_AUTH" "$REDIS_HOST" "$REDIS_PORT" | gcloud secrets create REDIS_URL --data-file=-
 openssl rand -base64 48 | tr -d '\n' | gcloud secrets create SESSION_SIGNING_KEY --data-file=-
 
@@ -113,7 +134,9 @@ for ROLE in roles/run.admin roles/artifactregistry.writer roles/iam.serviceAccou
   gcloud projects add-iam-policy-binding "$PROJECT_ID" --member "serviceAccount:$SA" --role "$ROLE"
 done
 
-# Cloud Run runtime service account: read the secrets and call Gemini on Vertex AI
+# Cloud Run runtime service account: read the secrets and call Gemini on Vertex AI. This uses the project's default
+# compute service account, which often holds roles/editor. Before a public launch, create a dedicated runtime
+# service account per service with only these roles and pass it as --service-account in deploy.yml (SECURITY.md R8).
 PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format 'value(projectNumber)')"
 RUNTIME_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 for SECRET in RAILRADAR_API_KEY REDIS_URL SESSION_SIGNING_KEY; do
@@ -164,12 +187,13 @@ Then add these **repository variables** in GitHub (Settings, Secrets and variabl
 | `STATIONS_URI` | `gs://<bucket>/stations` for production; unset uses the stations in the image |
 | `DELAY_MODEL_URI` | optional `gs://<bucket>/<path>/model.joblib`; unset uses the committed artifact in the image |
 | `OBSERVATIONS_URI`, `INTERNAL_OIDC_AUDIENCE`, `INTERNAL_OIDC_SERVICE_ACCOUNT` | the observation collector and the internal closure endpoints (see above); unset means `/internal/*` answers 404 |
-| `AR_GUIDANCE_ENABLED` | leave unset (AR off) until the AR evaluation gate passes; then e.g. `chennai_central` |
+| `AR_GUIDANCE_ENABLED` | leave unset (AR off) until the AR evaluation gate passes; then a station id or a comma-separated list, e.g. `chennai_central` (the workflow passes env vars with gcloud's `^@^` delimiter, so commas survive) |
 
 Optional variables are passed to the service only when they are set, so an empty variable never overrides an
 application default.
 
-Push to `main` or run the workflow manually. The job prints both service URLs at the end.
+Push to `main` (the deploy starts once CI passes) or run the workflow manually. The job prints both service URLs
+at the end.
 
 ## Local verification of the images
 

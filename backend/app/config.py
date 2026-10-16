@@ -147,7 +147,6 @@ class Settings(BaseSettings):
     bedrock_max_retries: int = Field(default=2, ge=0, le=5)
 
     # Logging
-    log_message_content: bool = False  # never log passenger message text unless explicitly enabled
     log_format: str = "json"  # "json" (Cloud Logging) or "text"
     gcp_project: str | None = Field(default=None, validation_alias=AliasChoices("GOOGLE_CLOUD_PROJECT", "GCP_PROJECT",
                                                                               "gcp_project"))

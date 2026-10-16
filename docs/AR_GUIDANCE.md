@@ -56,7 +56,7 @@ Today only Chennai Central opts in.
 - **Off route:** the arrow points back to the nearest node of the route.
 - **At the destination:** the app shows an arrival message.
 - **Low confidence:** "Are you near…?" lists the candidates. The user's pick becomes the fix, but a pick has no facing bearing, so the app asks for a rescan before it shows an arrow.
-- **Re-localisation:** automatic while guiding, on a "Scan again" tap, or after a turn of 60° or more. The client keeps within the server's budget of 20 fixes per session per 10 minutes (`frontend/src/ar/budget.ts`):
+- **Re-localisation:** automatic while guiding, on a "Scan again" tap, or after a turn of 60° or more. The client keeps within the server's budget of 20 fixes per session per 10 minutes (`frontend/src/ar/budget.ts`). That per-session budget is a courtesy limit, not a cost control: a caller that omits the session token gets a new session, and a fresh budget, on every call, so only the 120-per-IP tier binds it:
   - It keeps a sliding window of its own sends.
   - Automatic sends never use the last 4 slots, which are kept for taps and picks.
   - Automatic sends come at most every 8 s while at least 8 automatic slots are left, and are then paced across the rest of the window.

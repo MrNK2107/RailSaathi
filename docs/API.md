@@ -34,6 +34,8 @@ as the `X-Session-Token` header:
   `invalid_session_token`.
 - Goal plans are bound to the token that created them. Another token's `plan_id` behaves like an unknown one.
 - `/api/chat` and `/api/navigation/localize` issue a token when none is sent and return it as `session_token`.
+  A caller that omits the token therefore starts a new session (and a fresh per-session `/localize` budget) on every
+  call; only the per-IP tier bounds such a caller.
 
 Tokens are HMAC-signed with `SESSION_SIGNING_KEY`. Sessions, plans and conversations expire after
 `SESSION_TTL_MINUTES` (120) without activity.
@@ -88,7 +90,7 @@ issued by `POST /api/planner/sessions`.
 | POST | `/api/planner/sessions/{session_id}/reassess` | Apply a disruption `{"event_id"?}`. Picks a relevant event if omitted |
 | POST | `/api/planner/sessions/{session_id}/cancel` | Cancel the workflow |
 | GET | `/api/planner/sessions/{session_id}/handoff` | Confirmed handoff payload. 409 `not_ready` before confirmation. See [INTEGRATION.md](INTEGRATION.md) |
-| GET | `/api/planner/sessions/{session_id}/audit` | Audit events: statuses and field names only, never message text |
+| GET | `/api/planner/sessions/{session_id}/audit` | Audit events: statuses and field names only, never message text. Best effort and per instance: each replica keeps only the sessions it served (a bounded LRU that expires with the session TTL), so a request served by another replica can return fewer events. The durable record is the structured `audit` log line |
 
 Every planner response has the same envelope:
 
@@ -169,9 +171,11 @@ The response contains `conversation_id`, `session_token`, `status`, `answer`, `s
 - `unavailable`;
 - `error`.
 
-`provenance.mode` says who answered:
+`provenance.mode` says who answered. Nothing here is live data: answers come from a curated snapshot of official
+pages.
 
-- `live`: Gemini.
+- `cached`: Gemini over the knowledge base. `as_of` is the oldest cited source's date (or the knowledge base's
+  curation date) and `source` names the curation date.
 - `fallback`: the rule-based agent.
 - `unavailable`: Gemini is configured but failed or timed out. This is still a 200, with
   `message: "guidance unavailable"` and official `links`, never a 500.
@@ -272,7 +276,7 @@ simulator only when that flag is true.
 | GET | `/api/client-config` | What the browser needs at start-up: `google_maps_browser_key` (the public, referrer-restricted key, or `null` so the tour links out to Google Maps), `features.ar_guidance_stations` (station ids) and `features.simulate_closures` (boolean) |
 | GET | `/api/health` | Service status, version, `data_mode`, `data_provider` (requested, active, configured, reason), AI status and the Redis, model and LLM status. No secrets |
 | GET | `/healthz` | Liveness. No I/O |
-| GET | `/readyz` | Readiness. Returns 503 `not_ready` unless all of the following hold: Redis (when configured), the station catalogue, the RailRadar key (in production), the delay model (or `DELAY_HISTORY_ONLY=true`) and at least one navigation station. LLM and knowledge-base problems are listed under `degraded` and never fail readiness |
+| GET | `/readyz` | Readiness. Returns 503 `not_ready` unless all of the following hold: Redis (reachable when configured; in production it must also be configured), an active railway data provider (`data_provider`: production refuses demo data, which leaves none), the station catalogue, the RailRadar key (in production), the delay model (or `DELAY_HISTORY_ONLY=true`) and at least one navigation station. LLM and knowledge-base problems are listed under `degraded` and never fail readiness |
 | GET | `/` | Service name, version and a capability summary |
 
 ## Internal endpoints (not public)
@@ -310,14 +314,17 @@ These are not in the OpenAPI schema and are not proxied for browsers on purpose:
 | 422 | `validation_failed` / `message_too_long` / `meeting_in_past` / `date_out_of_range` | Value checks |
 | 404 | `plan_not_found` | Goal plan unknown, expired or owned by another session |
 | 404 | `station_not_found` / `unknown_station` / `unknown_node` / `unknown_closure_target` | Navigation and live lookups |
+| 404 | `unknown_target` | Internal closure write whose `target_id` is not an edge or node of the station |
+| 422 | `unknown_node` | `/api/navigation/localize`: `previous_node_id` or a `route_node_ids` entry is not a node of the station |
 | 403 | `simulation_disabled` | `simulate_closures` or a simulated internal disruption where simulation is off |
 | 413 | `payload_too_large` | Body over `MAX_BODY_BYTES` |
 | 429 | `rate_limited` | Over a rate limit (`Retry-After` says when to retry) |
 | 503 | `data_unavailable` | The live data provider failed during reassessment |
 | 503 | `routing_unavailable` | Routing requested at an untraced station |
 | 503 | `disruptions_unavailable` / `live_unavailable` / `delay_model_unavailable` | A dependency is not set up or not reachable |
-| 503 | `session_busy` | Another request holds the session lock (`Retry-After: 2`) |
-| 500 | `internal_error` / `route_integrity_failed` | An unexpected error. No stack trace is exposed |
+| 503 | `session_busy` | Another request holds the session lock, or this turn outlived its lock and a newer request now owns the session; nothing was saved (`Retry-After: 2`) |
+| 503 | `storage_unavailable` | Redis (sessions, goal plans, conversations, closures) is unreachable (`Retry-After: 5`). Never a 500 |
+| 500 | `internal_error` / `route_integrity_failed` | An unexpected error, or a computed route failed its integrity check (the ids go to the server log only). No stack trace is exposed |
 
 ## Planner session lifecycle
 

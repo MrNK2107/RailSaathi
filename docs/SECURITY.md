@@ -59,7 +59,7 @@ The trust boundaries are:
       Request ids and the Cloud Trace context are logged on every line (`api/observability.py`).
 - [x] Audit events record statuses and field names, never message text. Internal writes log the caller's service
       account.
-- [x] Passenger message text is never logged unless `LOG_MESSAGE_CONTENT=true`.
+- [x] Passenger message text is never logged. There is no setting that enables it.
 
 ### Information disclosure
 
@@ -82,11 +82,14 @@ The trust boundaries are:
 
 - [x] Redis sliding-window rate limits per client IP and per session token: 60/min standard, 20/min on LLM routes.
       Health routes are exempt. The limiter fails open after 1 s, so a Redis outage does not take the API down.
-- [x] AR has its own budget: 20 fixes per session and 120 per IP per 10 minutes.
+- [x] AR has its own budget: 20 fixes per session and 120 per IP per 10 minutes. A caller that omits the session
+      token gets a new session (and a fresh per-session budget) on every call, so for such a caller only the per-IP
+      tier binds.
 - [x] Body limits are enforced while streaming: 16 KiB by default, and the 1.5 MB frame only on `/localize`. nginx
       allows 64 KiB on `/api/*` and 2 MiB on `/api/navigation/localize`. Messages are capped at 1,000 characters.
 - [x] LLM work per turn is capped by `LLM_OVERALL_DEADLINE_SECONDS` (20 s), retries and agent budgets
-      (`MAX_AGENT_ROUNDS`, `MAX_TOOL_CALLS`). The session lock TTL outlives the deadline.
+      (`MAX_AGENT_ROUNDS`, `MAX_TOOL_CALLS`); RailRadar work by `RAILRADAR_CALL_BUDGET_SECONDS` (15 s) per batch.
+      The session lock TTL is validated to outlive the whole turn, and saves are fenced on the lock token.
 - [x] One RailRadar quota is shared by all replicas. It fails closed when Redis is down, so the key is never
       overrun. Refusals are logged and alerted on (`infra/monitoring/`).
 - [x] Cloud Run max instances bound the spend.
@@ -136,7 +139,8 @@ The trust boundaries are:
       reports 0 vulnerabilities.
 - [x] **Frontend, whole tree:** `node scripts/audit-gate.mjs` in CI. It fails on any high or critical advisory that
       is not accepted in `frontend/audit-allowlist.json`, where each entry needs a reason and a review-by date,
-      and it fails again once an entry expires.
+      and it fails again once an entry expires. It fails closed: when `npm audit` cannot produce a report (an error
+      object, unreadable JSON or no vulnerabilities section), the gate fails instead of reading it as clean.
   - The local audit on 2026-10-16 found 16 advisories, all in dev tooling: 3 critical, 8 high and 5 moderate.
   - Fixed by upgrading vite 5 → 6.4.4, vitest 2 → 4.1.12 and @playwright/test 1.49 → 1.56.1, and by running
     `npm audit fix`.

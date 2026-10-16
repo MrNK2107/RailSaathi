@@ -26,12 +26,13 @@ BACKEND_URL="$(gcloud run services describe $BACKEND --region $REGION --format '
 Check each item before calling a deployment production-ready. Each one is set in the deploy workflow's
 repository variables or secrets.
 
-- [ ] **`RAILWAY_DATA_MODE=railradar` and the `RAILRADAR_API_KEY` secret.** Production refuses demo data. Without a
-      key, `/readyz` is 503 and the post-deploy smoke test fails.
+- [ ] **`RAILWAY_DATA_MODE=railradar` and the `RAILRADAR_API_KEY` secret, with a real key version.** Production
+      refuses demo data. Without a key (or with demo mode refused), `/readyz` is 503, the candidate revision fails
+      its smoke test and keeps no traffic.
 - [ ] **`SESSION_SIGNING_KEY` secret.** The app refuses to start in production without it. Every replica must share
       it.
 - [ ] **`REDIS_URL` pointing at Memorystore Redis 7 or later.** Station closures use `EXPIRE … NX`/`GT`, which Redis
-      6 rejects.
+      6 rejects. Without `REDIS_URL`, production `/readyz` is 503.
 - [ ] **`STATIONS_URI=gs://<bucket>/stations`**, published with `scripts/stations.py publish`. When it is unset,
       production serves the station data baked into the image, which changes only on rebuild.
 - [ ] **`INTERNAL_OIDC_AUDIENCE` and `INTERNAL_OIDC_SERVICE_ACCOUNT`, plus `OBSERVATIONS_URI`.** Without them,
@@ -46,17 +47,32 @@ repository variables or secrets.
       in [AR_GUIDANCE.md](AR_GUIDANCE.md). That needs at least 30 photos taken on site by the owner.
 - [ ] The alert policies and the log-based metric are created, with a notification channel (see "Alerts").
 - [ ] A staging load test has passed (see "Load test").
+- [ ] **Must do before public launch: R1 closed or explicitly acknowledged.** Restrict the backend's ingress or IAM
+      so only the frontend (GFE/nginx) path reaches it (`--ingress internal` with the frontend on Direct VPC
+      egress, or `--no-allow-unauthenticated` with nginx sending an ID token). Until then a direct caller can spoof
+      `X-Forwarded-For`, pick its rate-limit bucket and run up Gemini spend ([SECURITY.md](SECURITY.md), R1). If it
+      stays open, record who accepted the risk and until when.
+- [ ] **Must do before public launch: a billing budget alert and a Vertex AI quota cap.** Create a Cloud Billing
+      budget with alert thresholds on the project, and lower the Vertex AI Gemini request quota (per minute, per
+      region) to what max instances need, so a burst or abuse cannot run up an unbounded bill.
+- [ ] **Recommended before public launch: a dedicated runtime service account per service** (only the secret,
+      Vertex AI and bucket roles it needs), passed as `--service-account`, instead of the default compute account
+      ([SECURITY.md](SECURITY.md), R8).
 
 ## Deploy and roll back
 
-- **Deploy:** push to `main`, or run the "Deploy to Cloud Run" workflow. It:
+- **Deploy:** push to `main` (the deploy workflow starts only after CI passes for that push), or run the "Deploy
+  to Cloud Run" workflow by hand. It:
   1. builds both images;
-  2. deploys the backend;
-  3. runs `backend/scripts/smoke.sh` (health, readiness, one planner turn, no `/data` exposure);
-  4. deploys the frontend;
-  5. checks the proxy.
+  2. deploys the backend with `--no-traffic --tag candidate`;
+  3. runs `backend/scripts/smoke.sh` against the candidate's tag URL (health, `/readyz` ready, one planner turn, no
+     `/data` exposure);
+  4. moves backend traffic to the candidate (`update-traffic --to-latest`);
+  5. does the same for the frontend: candidate deploy, proxy check on its tag URL, then traffic.
 
-  The smoke test runs after traffic has moved to the new revision. If it fails, roll back.
+  A failed smoke test stops the workflow before traffic moves, so users stay on the previous revision. Delete or
+  ignore the failed candidate revision; there is nothing to roll back. (The first deploy of a new service goes live
+  directly: Cloud Run rejects `--no-traffic` on create.)
 - **Roll back** the backend (or the frontend) to a previous revision:
 
   ```bash
@@ -71,13 +87,13 @@ repository variables or secrets.
 | Probe | Meaning |
 |---|---|
 | `GET /healthz` | Liveness, with no I/O. If it fails, the process is wedged |
-| `GET /readyz` | 503 lists the failing `checks`: `redis`, `station_catalogue`, `railradar_key`, `delay_model` or `navigation_stations`. `degraded` lists non-blocking problems: `llm`, `knowledge`, `railradar` or `navigation_stations` (some stations failed validation) |
+| `GET /readyz` | 503 lists the failing `checks`: `redis` (unreachable, or unset in production), `data_provider` (production refused demo data), `station_catalogue`, `railradar_key`, `delay_model` or `navigation_stations`. `degraded` lists non-blocking problems: `llm`, `knowledge`, `railradar` or `navigation_stations` (some stations failed validation) |
 | `GET /api/health` | The full status: data provider (requested, active, reason), LLM and vision status, Redis ping, model mode. No secrets |
 
 ## Logs
 
 Logs are JSON lines in Cloud Logging. Every request writes one `request` line with `method`, `path`, `status`,
-`latency_ms` and `request_id`. Message text is never logged unless `LOG_MESSAGE_CONTENT=true`.
+`latency_ms` and `request_id`. Passenger message text is never logged; there is no setting that enables it.
 
 ```
 resource.labels.service_name="railsaathi-backend" AND jsonPayload.request_id="<id from X-Request-Id>"
@@ -110,9 +126,10 @@ The backend answers 5xx on purpose only with 503 for documented unavailable stat
 
 1. Run the 5xx log query above, then group by `path`.
 2. A burst right after a deploy means you should roll back (see above).
-3. 503 `session_busy` means one session is getting concurrent requests (a client retry loop). 503 from many routes
-   at once usually means Redis is unreachable: check `/readyz` and the Memorystore instance. Rate limiting fails
-   open while Redis is down; sessions do not.
+3. 503 `session_busy` means one session is getting concurrent requests (a client retry loop), or a turn outlived
+   its session lock and its save was refused. 503 `storage_unavailable` (from planner sessions, goal plans, chats
+   or the internal closure routes) means Redis is unreachable: check `/readyz` and the Memorystore instance. Rate
+   limiting fails open while Redis is down; sessions do not.
 4. 500 `internal_error`: find the matching `exception` field through the request id.
 
 ### Alert: p95 latency
@@ -160,6 +177,8 @@ Never load-test production. Production shares the RailRadar quota and Gemini spe
      --set-secrets "REDIS_URL=REDIS_URL:latest,SESSION_SIGNING_KEY=SESSION_SIGNING_KEY:latest"
    ```
 
+   Staging with more than one instance needs the shared `SESSION_SIGNING_KEY` secret (mounted above): without it
+   every instance signs with its own random key, so a token issued by one instance is rejected (401) by the next.
    `REDIS_KEY_PREFIX` keeps staging keys apart from production keys on the shared instance. A separate Memorystore
    instance or database is cleaner if you have one. Use `LLM_PROVIDER=gemini` with `GOOGLE_CLOUD_PROJECT` to
    include Gemini latency, which costs Vertex AI usage.
@@ -206,6 +225,11 @@ The current settings are in `.github/workflows/deploy.yml`. The rationale sits n
     one instance.
   - Max 10 bounds Redis connections and Gemini spend.
 - **Frontend: concurrency 80, 256 MiB, min 0, max 3.** nginx only serves static files and proxies.
+- **Shared IPs (CGNAT):** per-IP limits (60/min, 20/min on LLM routes, 120 AR fixes per 10 min) apply to the
+  client IP nginx sees. Mobile carriers in India put many users behind one carrier-grade NAT address, and offices or
+  campuses share one too, so a busy shared IP can hit the per-IP limit while each user is well under it. Watch 429s
+  by IP after launch and raise the limits (`RATE_LIMIT_PER_MINUTE`, `RATE_LIMIT_LLM_PER_MINUTE`,
+  `LOCALIZE_IP_RATE_LIMIT`) rather than assuming abuse; the per-session limits still bound each session.
 - **Tuning after a staging run:**
   - If p95 on ordinary routes rises with concurrency while CPU stays below 60 %, requests are waiting on threads
     or Redis. Lower concurrency to 20 to 30, or raise the thread limit (`anyio.to_thread` default limiter).

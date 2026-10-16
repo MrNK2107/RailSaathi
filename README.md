@@ -2,7 +2,7 @@
 
 An Indian Railways passenger assistant: a mobile-first progressive web app in English and Tamil, with a FastAPI
 backend on Google Cloud Run. It plans journeys from what a passenger says, answers ticketing questions with
-citations, shows live boards and delay estimates, and guides passengers through a station.
+citations, shows departure boards and delay estimates, and guides passengers through a station.
 
 **It never books a ticket.** Every railway, station, model or AI answer is labelled with its provenance: `live`,
 `cached`, `stale`, `unavailable`, `demo` or `fallback`. Schematic, estimated, demo or cached data is never

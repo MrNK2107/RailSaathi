@@ -35,7 +35,14 @@ NTES integration and no IRCTC data feed.
 - **Missing data is never proof of absence.** A facility the source does not mention is `unknown`. An empty
   answer caused by an error is `unavailable` with a reason, never "no trains".
 - **Demo and simulated data are refused when `APP_ENV=production`.** The container builds the unavailable
-  implementations instead, and `/readyz` reports not ready.
+  implementations instead (`data_provider.active` is `none`), and `/readyz` reports not ready through its
+  `data_provider` check, whatever `RAILRADAR_API_KEY` holds.
+- **A fresh cache hit is `cached`, not `live`.** RailRadar responses reused from the response cache keep their
+  original fetch time as `as_of` and carry a CACHED note; an expired copy served because the quota is used up is
+  `stale`.
+- **A search the quota did not allow is named.** The journey search runs no more uncached RailRadar calls than the
+  shared quota has free (primary stations first). Options from a partial search carry a `PARTIAL:` note listing
+  the searches that did not run; if nothing usable came back, the search is `unavailable`, never "no trains".
 - **Failures never become 500s.** Map upstream errors to `ProviderError` kinds (`providers/errors.py`) or to an
   `unavailable` answer.
 
