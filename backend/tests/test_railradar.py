@@ -518,3 +518,21 @@ def test_up_to_three_real_options_shown_when_categories_collapse():
     unlabeled = [x for x in recs if not x.labels]
     assert unlabeled and all(x.explanation.startswith("Also eligible") for x in unlabeled)
     assert all(x.total_fare is None for x in recs)
+
+
+def test_search_is_bounded_by_the_call_budget_not_the_bridge_default():
+    """A search runs under the planner's session lock, so a stalled upstream must end within the budget."""
+    import time as _time
+
+    async def stalled(request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(3)
+        return httpx.Response(200, json=envelope(CBE_MAS))
+
+    client = RailRadarClient("https://x", KEY, 30, 300, transport=httpx.MockTransport(stalled),
+                             wall_clock=lambda: FETCHED_AT)
+    provider = RailRadarJourneyProvider(client, budget_seconds=0.3)
+    started = _time.monotonic()
+    with pytest.raises(ProviderError) as err:
+        provider.search(["CBE"], ["MAS"], [date(2026, 10, 11)])
+    assert err.value.kind is ProviderErrorKind.TIMEOUT
+    assert _time.monotonic() - started < 2

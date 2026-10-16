@@ -15,7 +15,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.observability import REQUEST_ID_HEADER, request_id_from_scope
 from app.harness.errors import PlannerError
-from app.sessions.redis_store import SessionLockTimeout
+from app.sessions.redis_store import SessionLockLost, SessionLockTimeout
 
 log = logging.getLogger("railsaathi")
 
@@ -45,6 +45,13 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(SessionLockTimeout)
     async def session_busy(request: Request, _: SessionLockTimeout) -> JSONResponse:
         return error_response(request, 503, "session_busy", "This session is busy. Please retry shortly.",
+                              headers={"Retry-After": "2"})
+
+    @app.exception_handler(SessionLockLost)
+    async def session_overtaken(request: Request, _: SessionLockLost) -> JSONResponse:
+        # The turn outlived its session lock and a newer request now owns the session; nothing was saved.
+        return error_response(request, 503, "session_busy",
+                              "This session was updated by another request. Please retry.",
                               headers={"Retry-After": "2"})
 
     @app.exception_handler(RedisError)

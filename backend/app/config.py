@@ -89,8 +89,9 @@ class Settings(BaseSettings):
     redis_url: str | None = None
     redis_key_prefix: str = "rs"
     redis_socket_timeout_seconds: float = Field(default=2.0, gt=0)
-    # The session lock is held across a whole request (including LLM calls), so its TTL must outlive the
-    # overall LLM deadline plus a margin (validated below); otherwise a slow turn could lose its lock.
+    # The session lock is held across a whole request (LLM calls and RailRadar calls), so its TTL must outlive the
+    # worst-case turn plus a margin (validated below); a turn that still outlives it cannot overwrite newer state,
+    # because session saves are fenced on the lock token (sessions/redis_store.py).
     llm_overall_deadline_seconds: float = Field(default=20.0, gt=0)
     session_lock_ttl_ms: int = Field(default=45_000, ge=1000)
     session_lock_wait_seconds: float = Field(default=10.0, gt=0)
@@ -109,6 +110,10 @@ class Settings(BaseSettings):
     railradar_api_key: SecretStr | None = None
     railradar_base_url: str = "https://api.railradar.in"
     railradar_timeout_seconds: float = Field(default=10.0, gt=0)
+    # Hard bound on one batch of RailRadar calls (a journey search, or the live-status lookup for a plan's trains),
+    # including queueing behind the concurrency gate and the retry. A planner turn makes at most two batches under
+    # its session lock (reassess: live status, then a search), so this budget is part of the lock TTL check below.
+    railradar_call_budget_seconds: float = Field(default=15.0, gt=0)
     railradar_cache_seconds: int = Field(default=300, ge=0)
     railradar_max_concurrency: int = Field(default=4, ge=1, le=10)
     railradar_requests_per_minute: int = Field(default=10, ge=1)  # observed limit of the current key
@@ -149,12 +154,20 @@ class Settings(BaseSettings):
     gcp_location: str = Field(default="us-central1", validation_alias=AliasChoices("GOOGLE_CLOUD_LOCATION",
                                                                                 "GCP_LOCATION", "gcp_location"))
 
+    @property
+    def planner_turn_budget_seconds(self) -> float:
+        """Worst-case work under one session lock: a message turn (LLM deadline + one RailRadar search) or a
+        reassessment (live status + a search, no LLM)."""
+        budget = self.railradar_call_budget_seconds
+        return max(self.llm_overall_deadline_seconds + budget, 2 * budget)
+
     @model_validator(mode="after")
-    def _lock_outlives_llm_deadline(self) -> "Settings":
-        needed = int((self.llm_overall_deadline_seconds + LOCK_TTL_MARGIN_SECONDS) * 1000)
+    def _lock_outlives_planner_turn(self) -> "Settings":
+        needed = int((self.planner_turn_budget_seconds + LOCK_TTL_MARGIN_SECONDS) * 1000)
         if self.session_lock_ttl_ms < needed:
-            raise ValueError(f"SESSION_LOCK_TTL_MS ({self.session_lock_ttl_ms}) must be at least the LLM overall "
-                             f"deadline plus {LOCK_TTL_MARGIN_SECONDS}s margin ({needed} ms)")
+            raise ValueError(f"SESSION_LOCK_TTL_MS ({self.session_lock_ttl_ms}) must be at least the planner turn "
+                             f"budget (LLM overall deadline and RailRadar call budget) plus "
+                             f"{LOCK_TTL_MARGIN_SECONDS}s margin ({needed} ms)")
         return self
 
     @property

@@ -183,8 +183,9 @@ def build_data_sources(settings: Settings, redis: Redis | None = None) -> tuple[
             requests_per_minute=settings.railradar_requests_per_minute,
             stale_seconds=settings.railradar_stale_seconds, **shared,
         )
-        provider = RailRadarJourneyProvider(client, settings.timezone, settings.railradar_max_concurrency)
-        return provider, RailRadarDisruptionSource(client, settings.timezone), {
+        budget = settings.railradar_call_budget_seconds
+        provider = RailRadarJourneyProvider(client, settings.timezone, settings.railradar_max_concurrency, budget)
+        return provider, RailRadarDisruptionSource(client, settings.timezone, budget), {
             "requested": requested, "active": "railradar", "configured": True, "reason": None}
     if requested == "railradar":
         log.error("RAILWAY_DATA_MODE=railradar but RAILRADAR_API_KEY is empty; live searches will fail (no demo fallback)")

@@ -46,7 +46,28 @@ def test_lock_ttl_must_outlive_llm_deadline():
     from app.config import Settings
     with pytest.raises(ValueError):
         Settings(_env_file=None, llm_overall_deadline_seconds=30, session_lock_ttl_ms=30_000)
-    Settings(_env_file=None, llm_overall_deadline_seconds=30, session_lock_ttl_ms=40_000)
+    Settings(_env_file=None, llm_overall_deadline_seconds=30, session_lock_ttl_ms=55_000)
+
+
+def test_lock_ttl_must_also_cover_the_railradar_call_budget():
+    """A turn runs the LLM and then a RailRadar search under the lock; a reassessment runs two RailRadar batches."""
+    import pytest
+    from app.config import Settings
+    with pytest.raises(ValueError, match="RailRadar call budget"):  # 20 s LLM + 30 s search + 10 s margin
+        Settings(_env_file=None, railradar_call_budget_seconds=30, session_lock_ttl_ms=45_000)
+    with pytest.raises(ValueError):  # reassess: 2 x 25 s + 10 s margin > 55 s even though 20 + 25 + 10 fits
+        Settings(_env_file=None, railradar_call_budget_seconds=25, session_lock_ttl_ms=55_000)
+    ok = Settings(_env_file=None, railradar_call_budget_seconds=25, session_lock_ttl_ms=60_000)
+    assert ok.planner_turn_budget_seconds == 50
+    assert Settings(_env_file=None).planner_turn_budget_seconds == 35  # 20 s LLM + 15 s RailRadar
+
+
+def test_railradar_batches_run_under_the_configured_budget():
+    from app.config import Settings
+    from app.container import build_data_sources
+    provider, disruptions, _ = build_data_sources(Settings(_env_file=None, RAILWAY_DATA_MODE="railradar",
+                                                           railradar_api_key="k", railradar_call_budget_seconds=7))
+    assert provider._budget == 7 and disruptions._budget == 7
 
 
 def test_lock_timeout_maps_to_503_session_busy():

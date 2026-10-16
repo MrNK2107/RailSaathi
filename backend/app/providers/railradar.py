@@ -46,10 +46,12 @@ def load_catalogue() -> tuple[list[CityRecord], dict[str, StationRecord]]:
 
 
 class RailRadarJourneyProvider:
-    def __init__(self, client: RailRadarClient, tz: str = "Asia/Kolkata", max_concurrency: int = 4) -> None:
+    def __init__(self, client: RailRadarClient, tz: str = "Asia/Kolkata", max_concurrency: int = 4,
+                 budget_seconds: float = 15.0) -> None:
         self._client = client
         self._tz = ZoneInfo(tz)
         self._workers = max_concurrency
+        self._budget = budget_seconds  # bounds a whole search (it runs under the planner's session lock)
         self._cities, self._stations = load_catalogue()
         self._names = {code: st.name for code, st in self._stations.items()}
 
@@ -79,7 +81,7 @@ class RailRadarJourneyProvider:
 
     def search(self, origin_codes: list[str], destination_codes: list[str],
                departure_dates: list[date]) -> list[JourneyOption]:
-        return run_sync(self._search(origin_codes, destination_codes, departure_dates))
+        return run_sync(self._search(origin_codes, destination_codes, departure_dates), self._budget)
 
     async def _search(self, origin_codes: list[str], destination_codes: list[str],
                       departure_dates: list[date]) -> list[JourneyOption]:
@@ -118,9 +120,10 @@ class RailRadarJourneyProvider:
 class RailRadarDisruptionSource:
     """Turns live running status into disruption events for the trains in a plan."""
 
-    def __init__(self, client: RailRadarClient, tz: str = "Asia/Kolkata") -> None:
+    def __init__(self, client: RailRadarClient, tz: str = "Asia/Kolkata", budget_seconds: float = 15.0) -> None:
         self._client = client
         self._tz = ZoneInfo(tz)
+        self._budget = budget_seconds  # bounds the whole lookup (it runs under the planner's session lock)
         self._events: dict[str, DisruptionEvent] = {}
         self._lock = threading.Lock()
 
@@ -134,7 +137,7 @@ class RailRadarDisruptionSource:
 
     def events_for_trains(self, trains: list[tuple[str, date]]) -> list[DisruptionEvent]:
         """Fetch live status for (train_no, run_date) pairs; return delays/cancellations only."""
-        return run_sync(self._events_for_trains(trains))
+        return run_sync(self._events_for_trains(trains), self._budget)
 
     async def _events_for_trains(self, trains: list[tuple[str, date]]) -> list[DisruptionEvent]:
         pairs = list(dict.fromkeys(trains))

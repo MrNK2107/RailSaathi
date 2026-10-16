@@ -25,7 +25,7 @@ def _client_ms(name: str) -> int:
 
 def test_planner_turn_budget_nests_inside_client_and_cloud_run_timeouts():
     s = Settings(_env_file=None)
-    backend_turn = s.session_lock_wait_seconds + s.llm_overall_deadline_seconds + s.railradar_timeout_seconds
+    backend_turn = s.session_lock_wait_seconds + s.planner_turn_budget_seconds
     client = _client_ms("PLANNER_TIMEOUT_MS") / 1000
     cloud_run = _cloud_run_backend_timeout()
     assert backend_turn <= client < cloud_run, (backend_turn, client, cloud_run)
@@ -40,5 +40,5 @@ def test_smoke_planner_message_timeout_outlasts_the_backend_turn():
     planner_call = smoke[smoke.index('REPLY="$(curl'):]
     max_time = int(re.search(r"--max-time (\d+)", planner_call).group(1))
     s = Settings(_env_file=None)
-    assert max_time > s.session_lock_wait_seconds + s.llm_overall_deadline_seconds + s.railradar_timeout_seconds
+    assert max_time > s.session_lock_wait_seconds + s.planner_turn_budget_seconds
     assert max_time < _cloud_run_backend_timeout()

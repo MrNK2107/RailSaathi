@@ -138,3 +138,61 @@ def test_in_memory_lock_is_a_context_manager():
     store.create(make_state())
     with store.lock("s1"):
         pass
+
+
+def test_save_inside_the_lock_succeeds_while_the_lock_is_held(server):
+    store = store_on(server)
+    store.create(make_state())
+    with store.lock("s1"):
+        store.save(make_state().model_copy(update={"language": Language.TA}))
+    assert store.get("s1").language == Language.TA
+
+
+def test_stale_turn_cannot_overwrite_newer_state_after_its_lock_expired(server):
+    """Two requests overlap after lock expiry: A's lock lapses mid-turn, B takes it and saves; A's late save is
+    refused (fenced on the lock token) and B's state stands."""
+    from app.sessions.redis_store import SessionLockLost
+
+    slow = store_on(server, lock_ttl_ms=150)
+    fast = store_on(server, lock_ttl_ms=5_000, lock_wait_seconds=5)
+    slow.create(make_state())
+    a_locked, b_saved = threading.Event(), threading.Event()
+    outcome: dict = {}
+
+    def turn_a():
+        with slow.lock("s1"):
+            a_locked.set()
+            b_saved.wait(5)  # A's work outlives its 150 ms lock; B gets in meanwhile
+            try:
+                slow.save(make_state().model_copy(update={"pending_question": "stale-turn"}))
+                outcome["a"] = "saved"
+            except SessionLockLost:
+                outcome["a"] = "refused"
+
+    def turn_b():
+        a_locked.wait(5)
+        with fast.lock("s1"):  # acquired only once A's lock has expired
+            fast.save(make_state().model_copy(update={"language": Language.TA}))
+        b_saved.set()
+
+    threads = [threading.Thread(target=turn_a), threading.Thread(target=turn_b)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(10)
+    assert outcome["a"] == "refused"
+    final = fast.get("s1")
+    assert final.language == Language.TA and final.pending_question != "stale-turn"
+
+
+def test_lost_lock_maps_to_503_session_busy(server):
+    from app.sessions.redis_store import SessionLockLost
+    from tests.test_rate_limit import make
+
+    c = make(redis=raw(server))
+    created = c.post("/api/planner/sessions", json={}).json()
+    c.app.state.container.planner.store.save = lambda state: (_ for _ in ()).throw(SessionLockLost(state.session_id))
+    res = c.post(f"/api/planner/sessions/{created['session_id']}/messages", json={"message": "hello"},
+                 headers={"X-Session-Token": created["session_token"]})
+    assert res.status_code == 503 and res.json()["error"]["code"] == "session_busy"
+    assert res.headers["Retry-After"] == "2"
