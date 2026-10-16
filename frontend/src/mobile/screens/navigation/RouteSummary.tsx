@@ -41,7 +41,7 @@ export function RouteSummary({ route, prefs, nodeName }: Props) {
           value={minutes !== null ? `${minutes} ${n.min}` : n.noDistance} />
         <Tile icon={NAV_SUMMARY_ICONS.walk} label={n.distance} hint={isEstimate && distance !== null ? n.estimate : undefined}
           value={distance !== null ? formatMetres(distance)! : n.noDistance} />
-        <Tile icon={NAV_SUMMARY_ICONS.route} label={n.routeStatus} value={anyPref ? n.shortestPrefs : n.shortest} />
+        <Tile icon={NAV_SUMMARY_ICONS.route} label={n.routeStatus} value={anyPref ? n.recommendedPrefs : n.recommended} />
       </div>
       {first && last && <p className="mt-2 text-xs text-ink-700">{nodeName(first)} → {nodeName(last)}</p>}
       {route.duration_assumption && <p className="text-[11px] text-ink-500">{route.duration_assumption}</p>}

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import App from '../App'
 import { ApiError, createApiClient, type ApiClient } from '../api/client'
 import type { TicketingResponse } from '../api/types'
+import { MOBILE_STRINGS } from '../mobile/strings'
 import { officialUrl } from '../utils/officialLinks'
 import { response } from './fixtures'
 
@@ -94,11 +95,18 @@ describe('Ticketing guidance screen', () => {
     expect(screen.queryByText(/Evil site/)).toBeNull()
   })
 
-  it('shows the error envelope message', async () => {
+  it('shows the rate-limit copy for a 429', async () => {
     const ticketing = vi.fn().mockRejectedValue(new ApiError(429, 'rate_limited', 'Too many requests, slow down.'))
     const { user } = await open(ticketing)
     await ask(user)
-    expect(await screen.findByRole('alert')).toHaveTextContent('Too many requests, slow down.')
+    expect(await screen.findByRole('alert')).toHaveTextContent(MOBILE_STRINGS.en.errors.rateLimited)
+  })
+
+  it('shows a 4xx envelope message in English as detail', async () => {
+    const ticketing = vi.fn().mockRejectedValue(new ApiError(422, 'invalid_request', 'The message is too long.'))
+    const { user } = await open(ticketing)
+    await ask(user)
+    expect(await screen.findByRole('alert')).toHaveTextContent('The message is too long.')
   })
 
   it('never renders non-allowlisted links or HTML from the answer as live elements', async () => {

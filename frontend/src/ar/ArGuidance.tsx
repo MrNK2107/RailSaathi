@@ -182,15 +182,32 @@ export default function ArGuidance({ client, stationId, details, route, m, onExi
     if (ar.phase === 'localising' && stream && !inflight.current) void localise('manual')
   }, [ar.phase, stream, localise])
 
-  // Automatic re-localisation while guiding, paced by the budget; paused in floor mode or a hidden tab.
+  // Automatic re-localisation while guiding, paced by the budget; paused in floor mode or a hidden tab. A timer that
+  // fires while the tab is hidden waits for the tab to be visible again instead of stopping the cadence for good.
   useEffect(() => {
     if (ar.phase !== 'guiding' || floor) return undefined
     const delay = Math.max(AUTO_INTERVAL_MS / 8, nextAutoAt(sessionBudget, now()) - now())
+    let onVisible: (() => void) | null = null
+    const stopWaiting = () => {
+      if (onVisible) document.removeEventListener('visibilitychange', onVisible)
+      onVisible = null
+    }
     const timer = setTimeout(() => {
-      if (typeof document !== 'undefined' && document.hidden) return
+      if (typeof document !== 'undefined' && document.hidden) {
+        onVisible = () => {
+          if (document.hidden) return
+          stopWaiting()
+          void localise('auto')
+        }
+        document.addEventListener('visibilitychange', onVisible)
+        return
+      }
       void localise('auto')
     }, delay)
-    return () => clearTimeout(timer)
+    return () => {
+      clearTimeout(timer)
+      stopWaiting()
+    }
   }, [ar.phase, ar.active, ar.notice, floor, localise, now])
 
   const turned = ar.active && ar.motion ? yawSinceFixDeg(ar.active.yawAtFix, yaw) : 0

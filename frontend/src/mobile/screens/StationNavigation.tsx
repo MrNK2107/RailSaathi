@@ -5,13 +5,14 @@
 // The camera (AR) tab is offered only for a traced station that client-config lists for AR, in a secure context with
 // a camera; its code (camera, motion, WebXR) is a lazy chunk under src/ar/. Leaving AR always lands on the steps.
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { errorText } from '../../api/errorText'
 import type { RoutePreferencesBody, StationSummary } from '../../api/types'
 import type { FallbackReason } from '../../ar/machine'
 import { ScreenBoundary } from '../../components/ScreenBoundary'
 import StationBlueprintModal from '../../components/StationBlueprintModal'
 import { StationNotice } from '../../components/WayfinderParts'
 import { RouteMap } from '../../navigation/RouteMap'
-import { NO_PREFS, useStationNav } from '../../navigation/useStationNav'
+import { accessibilityPrefs, useStationNav } from '../../navigation/useStationNav'
 import { formatDay, formatTime } from '../../utils/format'
 import { AlertIcon, ArrowRight, CameraIcon, CompassIcon, HomeIcon, InfoIcon, MapIcon, StepsIcon, TrainIcon } from '../icons'
 import { useApp } from '../PlannerContext'
@@ -36,7 +37,7 @@ export default function StationNavigation() {
   const client = planner.client
   const n = m.navigation
   const [stations, setStations] = useState<StationSummary[]>([])
-  const [listError, setListError] = useState<string | null>(null)
+  const [listError, setListError] = useState<unknown>(null)
   const [picked, setPicked] = useState<string | null>(null)
   const [view, setView] = useState<View>('map')
   const [blueprintOpen, setBlueprintOpen] = useState(false)
@@ -59,10 +60,10 @@ export default function StationNavigation() {
     const ctl = new AbortController()
     client.stations({ signal: ctl.signal }).then(
       setStations,
-      (e) => { if (!ctl.signal.aborted) setListError(e instanceof Error ? e.message : n.stationFailed) },
+      (e) => { if (!ctl.signal.aborted) setListError(e) },
     )
     return () => ctl.abort()
-  }, [client, n.stationFailed])
+  }, [client])
 
   const rec = selectedRecommendation(planner.state)
   const legs = rec?.option.legs
@@ -84,7 +85,7 @@ export default function StationNavigation() {
   const needsKey = [...needs].sort().join(',')
   const needPrefs = useMemo<RoutePreferencesBody>(() => {
     const has = (need: string) => needsKey.split(',').includes(need)
-    return { ...NO_PREFS, wheelchair: has('wheelchair'), avoid_stairs: has('wheelchair') || has('reduced_walking') }
+    return accessibilityPrefs(has('wheelchair'), has('reduced_walking'))
   }, [needsKey])
   const nav = useStationNav(client, stationId, { initialPrefs: needPrefs })
   // Apply the planner's passenger needs when they arrive (the session may load after this screen), but never
@@ -176,7 +177,7 @@ export default function StationNavigation() {
       </section>
 
       <section className="mx-4 mt-3 space-y-3 rounded-2xl bg-white p-3 shadow-card ring-1 ring-ink-100">
-        {listError && <p role="alert" className="text-xs text-red-900">{n.stationFailed} {listError}</p>}
+        {listError !== null && <p role="alert" className="text-xs text-red-900">{n.stationFailed} {errorText(listError, m, planner.language)}</p>}
         {leg && !journeyStation && !picked && stations.length > 0 && (
           <p className="rounded-xl bg-ink-100 p-3 text-xs text-ink-700">{fill(n.noPlanForJourney, { station: leg.from_name })}</p>
         )}
@@ -189,7 +190,7 @@ export default function StationNavigation() {
           </select>
         </div>
         {stationId && !details && !nav.detailsError && <p role="status" className="text-xs text-ink-500">{n.loading}</p>}
-        {nav.detailsError && <p role="alert" className="text-xs text-red-900">{n.stationFailed} {nav.detailsError.message}</p>}
+        {nav.detailsError && <p role="alert" className="text-xs text-red-900">{n.stationFailed} {errorText(nav.detailsError, m, planner.language)}</p>}
         {/* The station's own layout note is English-only data; Tamil shows the translated generic notice. */}
         {details && <StationNotice details={details} note={planner.language === 'en' ? nav.layoutNote : null} m={n} />}
         {details && !routed && (
@@ -210,7 +211,7 @@ export default function StationNavigation() {
           {nav.routeError && (
             <p role="alert" data-code={nav.routeError.code} className="flex items-start gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-800">
               <AlertIcon size={18} className="mt-0.5 shrink-0" />
-              {nav.routeError.code === 'routing_unavailable' ? nav.routeError.message : `${n.routeFailed} ${nav.routeError.message}`}
+              {nav.routeError.code === 'routing_unavailable' ? errorText(nav.routeError, m, planner.language) : `${n.routeFailed} ${errorText(nav.routeError, m, planner.language)}`}
             </p>
           )}
 
@@ -248,7 +249,7 @@ export default function StationNavigation() {
               <>
                 {arExit && (
                   <div role="status" data-code={`ar_${arExit.reason}`} className="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
-                    <p className="flex-1">{m.ar.fallback[arExit.reason]}{arExit.reason === 'rejected' && arExit.message ? ` (${arExit.message})` : ''}</p>
+                    <p className="flex-1">{m.ar.fallback[arExit.reason]}{arExit.reason === 'rejected' && arExit.message && planner.language === 'en' ? ` (${arExit.message})` : ''}</p>
                     <button type="button" onClick={() => setArExit(null)} className="font-semibold underline">{m.ar.dismiss}</button>
                   </div>
                 )}
@@ -339,7 +340,7 @@ export default function StationNavigation() {
         </div>
       )}
 
-      <CoachPosition client={client} m={n} />
+      <CoachPosition client={client} m={n} errors={m.errors} lang={planner.language} />
 
       <StationBlueprintModal isOpen={blueprintOpen} onClose={() => setBlueprintOpen(false)} client={client} m={m} stationId={stationId} />
     </Screen>

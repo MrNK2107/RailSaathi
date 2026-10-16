@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import type { StationSummary } from '../../api/types'
 import { formatDate, formatDuration, formatRupees } from '../../utils/format'
 import { ArrowLeft, ArrowRight, CheckIcon, ClockIcon, CompassIcon, EditIcon, InfoIcon, LiveIcon, RupeeIcon, SaveIcon, SeatIcon, TrainIcon } from '../icons'
 import { useApp } from '../PlannerContext'
+import { routeHref } from '../router'
 import { saveTrip } from '../trips'
 import { ErrorBanner, PrimaryButton, Screen, SecondaryButton, SourceLine, selectedRecommendation } from '../ui'
 
@@ -11,6 +13,14 @@ export default function Confirmation() {
   const conf = state?.confirmation ?? null
   const rec = selectedRecommendation(state)
   const [saved, setSaved] = useState(false)
+  // The navigation catalogue, to open the tour on this journey's station (looked up by railway code).
+  const [stations, setStations] = useState<StationSummary[]>([])
+  const client = planner.client
+  useEffect(() => {
+    const ctl = new AbortController()
+    client.stations({ signal: ctl.signal }).then(setStations, () => setStations([]))
+    return () => ctl.abort()
+  }, [client])
 
   if (!state || !conf || !rec) {
     return (
@@ -27,6 +37,13 @@ export default function Confirmation() {
   const j = state.journey
   const first = o.legs[0]
   const last = o.legs[o.legs.length - 1]
+
+  const tourStation = [first.from_code, last.to_code]
+    .map((code) => stations.find((s) => s.station_code?.toUpperCase() === code.toUpperCase()))
+    .find((s) => s !== undefined)
+  const openTour = () => {
+    window.location.hash = routeHref('tour', tourStation ? { station: tourStation.station_id } : {}).slice(1)
+  }
 
   const onSave = () => {
     setSaved(saveTrip({
@@ -88,7 +105,7 @@ export default function Confirmation() {
         </p>
 
         <PrimaryButton onClick={() => go('navigation')}>{m.confirmation.toStationGuide} <ArrowRight size={20} /></PrimaryButton>
-        <SecondaryButton onClick={() => go('tour')}><CompassIcon size={18} /> {m.confirmation.exploreStation}</SecondaryButton>
+        <SecondaryButton onClick={openTour}><CompassIcon size={18} /> {m.confirmation.exploreStation}</SecondaryButton>
         <SecondaryButton onClick={onSave} disabled={saved}><SaveIcon size={18} /> {saved ? m.confirmation.saved : m.confirmation.save}</SecondaryButton>
         <SecondaryButton onClick={() => go('plan')}><EditIcon size={18} /> {m.confirmation.modify}</SecondaryButton>
 

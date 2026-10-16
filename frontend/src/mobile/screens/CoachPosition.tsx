@@ -1,14 +1,17 @@
 // Where to stand for a coach. Shown only when a coach order is known (the passenger enters it, and the backend's
 // parse_rake_composition places the coach); otherwise the position is explicitly "unknown".
 import { useState, type FormEvent } from 'react'
-import { ApiError, type ApiClient } from '../../api/client'
-import type { RakeCoach } from '../../api/types'
+import type { ApiClient } from '../../api/client'
+import { errorText, type ErrorCopy } from '../../api/errorText'
+import type { Language, RakeCoach } from '../../api/types'
 import type { MobileStrings } from '../strings'
 
 type State = { kind: 'idle' } | { kind: 'busy' } | { kind: 'found'; coach: RakeCoach; total: number }
   | { kind: 'missing' } | { kind: 'error'; message: string }
 
-export default function CoachPosition({ client, m }: { client: ApiClient; m: MobileStrings['navigation'] }) {
+export default function CoachPosition({ client, m, errors, lang }: {
+  client: ApiClient; m: MobileStrings['navigation']; errors: ErrorCopy; lang: Language
+}) {
   const [order, setOrder] = useState('')
   const [target, setTarget] = useState('')
   const [state, setState] = useState<State>({ kind: 'idle' })
@@ -21,7 +24,7 @@ export default function CoachPosition({ client, m }: { client: ApiClient; m: Mob
       const res = await client.rakePosition(order.trim(), target.trim())
       setState(res.target_coach_info ? { kind: 'found', coach: res.target_coach_info, total: res.total_coaches } : { kind: 'missing' })
     } catch (err) {
-      setState({ kind: 'error', message: err instanceof ApiError ? err.message : '' })
+      setState({ kind: 'error', message: errorText(err, { errors }, lang) })
     }
   }
 

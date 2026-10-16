@@ -1,6 +1,6 @@
 // The planner keeps its session id, signed token and the UI language in sessionStorage, resumes the session with
 // getSession after a reload, and falls back to a fresh session when it cannot.
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from '../App'
 import { ApiError, type ApiClient } from '../api/client'
@@ -106,5 +106,34 @@ describe('planner session persistence', () => {
     await waitFor(() => expect(loadState().session?.sessionId).toBe('new-session'))
     await act(async () => { await userEvent.setup().click(await screen.findByRole('button', { name: 'தமிழ்' })) })
     expect(loadState()).toEqual({ language: 'ta', session: { sessionId: 'new-session', token: 'new-token' } })
+  })
+
+  it.each([
+    ['offline', new ApiError(0, 'network_error', 'Cannot reach the planner service.')],
+    ['a timeout', new ApiError(0, 'timeout', 'took too long')],
+    ['a 503', new ApiError(503, 'storage_unavailable', 'Saved data is temporarily unavailable.')],
+  ])('keeps the stored session after %s on reload, and Retry resumes the same plan', async (_label, error) => {
+    saveState({ session: { sessionId: 'old-session', token: 'old-token' } })
+    const getSession = vi.fn()
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce(response({ session_id: 'old-session', status: 'presenting_recommendations' }, 'Welcome back'))
+    const client = fakeClient({ getSession })
+    render(<App client={client} />)
+    const alert = await screen.findByRole('alert')
+    expect(client.createSession).not.toHaveBeenCalled() // the saved plan is not thrown away
+    expect(loadState().session).toEqual({ sessionId: 'old-session', token: 'old-token' })
+    expect(client.setSessionToken).not.toHaveBeenCalledWith(null)
+    await userEvent.setup().click(within(alert).getByRole('button', { name: /Retry/ }))
+    expect(await screen.findByText('Welcome back')).toBeInTheDocument()
+    expect(getSession).toHaveBeenCalledTimes(2)
+    expect(client.createSession).not.toHaveBeenCalled()
+  })
+
+  it('a token the backend rejects is cleared and a fresh session started', async () => {
+    saveState({ session: { sessionId: 'old-session', token: 'bad-token' } })
+    const client = fakeClient({ getSession: vi.fn().mockRejectedValue(new ApiError(401, 'invalid_session_token', 'bad')) })
+    render(<App client={client} />)
+    await waitFor(() => expect(client.createSession).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(loadState().session).toEqual({ sessionId: 'new-session', token: 'new-token' }))
   })
 })

@@ -103,7 +103,7 @@ describe('Delay estimate result', () => {
     } as unknown as ApiClient
     render(<App client={c} />)
     await userEvent.click(await screen.findByRole('button', { name: 'Predict Delay' }))
-    const alert = await screen.findByText('The delay estimate is not set up.')
+    const alert = await screen.findByText(/\(The delay estimate is not set up\.\)/)
     expect(alert.closest('[data-mode="unavailable"]')).not.toBeNull()
     expect(screen.queryByTestId('delay-result')).not.toBeInTheDocument()
   })

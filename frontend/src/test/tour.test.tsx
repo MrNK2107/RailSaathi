@@ -276,7 +276,7 @@ describe('Tour screen', () => {
     await user.selectOptions(screen.getByLabelText('To platform or facility'), 'platform_10')
     await waitFor(() => expect(c.stationRoute).toHaveBeenLastCalledWith(expect.objectContaining({
       station_id: 'chennai_central', source: 'ent_wall_tax', destination: 'platform_10',
-      preferences: { wheelchair: true, avoid_stairs: true, require_verified_accessibility: true },
+      preferences: { wheelchair: true, avoid_stairs: true, require_verified_accessibility: false },
     }), expect.anything()))
     await waitFor(() => expect(scene.last!.path?.length).toBeGreaterThan(1))
     expect(scene.last!.pose).not.toBeNull() // framed from above, without animation

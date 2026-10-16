@@ -4,16 +4,12 @@
 import { useEffect, useState } from 'react'
 import type { ApiClient } from '../api/client'
 import type { RoutePreferencesBody } from '../api/types'
-import { useStationNav } from '../navigation/useStationNav'
+import { accessibilityPrefs, useStationNav } from '../navigation/useStationNav'
 
 export type Mobility = 'wheelchair' | 'avoid_stairs' | 'normal'
 
 export function mobilityPrefs(mobility: Mobility): RoutePreferencesBody {
-  return {
-    wheelchair: mobility === 'wheelchair',
-    avoid_stairs: mobility !== 'normal',
-    require_verified_accessibility: mobility === 'wheelchair',
-  }
+  return accessibilityPrefs(mobility === 'wheelchair', mobility === 'avoid_stairs')
 }
 
 export function useStationWayfinding(client: ApiClient, stationId: string, enabled: boolean, initialDestination = '') {

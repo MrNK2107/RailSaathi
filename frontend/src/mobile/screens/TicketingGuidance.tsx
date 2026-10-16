@@ -2,6 +2,7 @@
 // or HTML) and every link must pass the official-domain allowlist before it becomes a live anchor.
 import { useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { ApiError } from '../../api/client'
+import { errorText } from '../../api/errorText'
 import type { TicketingLink, TicketingResponse, TicketingSource } from '../../api/types'
 import { ProvenanceBadge } from '../../components/ProvenanceBadge'
 import { officialUrl } from '../../utils/officialLinks'
@@ -91,7 +92,7 @@ export default function TicketingGuidance() {
   const { planner, m } = useApp()
   const [turns, setTurns] = useState<Turn[]>([])
   const [text, setText] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<unknown>(null)
   const [busy, setBusy] = useState(false)
   const conversationId = useRef<string | undefined>(undefined)
   const nextId = useRef(0)
@@ -124,7 +125,7 @@ export default function TicketingGuidance() {
       conversationId.current = res.conversation_id
       setTurns((t) => [...t, { kind: 'assistant', id: nextId.current++, res }])
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : String(err))
+      setError(err)
     } finally {
       setBusy(false)
     }
@@ -149,9 +150,9 @@ export default function TicketingGuidance() {
           ))}
         </ol>
 
-        {error && (
+        {error !== null && (
           <div role="alert" className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-            <AlertIcon size={18} className="mt-0.5 shrink-0" /> <span>{error}</span>
+            <AlertIcon size={18} className="mt-0.5 shrink-0" /> <span>{errorText(error, m, planner.language)}</span>
           </div>
         )}
 

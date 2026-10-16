@@ -149,7 +149,9 @@ describe('Station Navigation screen', () => {
     const summary = screen.getByLabelText(n.summary)
     expect(summary).toHaveTextContent('2 min')
     expect(summary).toHaveTextContent('160 m')
-    expect(summary).toHaveTextContent('Shortest route')
+    // The backend weighs effort, step-free uncertainty and unknown status, not distance alone: never "shortest".
+    expect(summary).toHaveTextContent('Recommended route')
+    expect(summary).not.toHaveTextContent(/shortest/i)
     expect(summary).toHaveTextContent('(estimate)')
     expect(summary).toHaveTextContent('Assumes an average walking speed of 1.2 m/s')
     expect(summary).toHaveTextContent(n.routeStepFree.not_applicable)
@@ -202,7 +204,7 @@ describe('Station Navigation screen', () => {
     expect(screen.getByRole('button', { name: n.avoidStairs })).toHaveAttribute('aria-pressed', 'true')
     await routeTo(user, 'p1')
     expect(lastRoute(c).preferences).toMatchObject({ wheelchair: true, avoid_stairs: true })
-    expect(screen.getByLabelText(n.summary)).toHaveTextContent(n.shortestPrefs)
+    expect(screen.getByLabelText(n.summary)).toHaveTextContent(n.recommendedPrefs)
   })
 
   it('toggling an accessibility preference recalculates with the new constraints', async () => {
@@ -353,12 +355,16 @@ describe('Station Navigation screen', () => {
   it('shows a route error from the backend', async () => {
     const user = await openNav(client({ stationRoute: vi.fn().mockRejectedValue(new ApiError(500, 'route_integrity_failed', 'Route integrity check failed')) }))
     await user.selectOptions(screen.getByRole('combobox', { name: n.pickTo }), 'p1')
-    expect(await screen.findByRole('alert')).toHaveTextContent(`${n.routeFailed} Route integrity check failed`)
+    // A 5xx: the "temporarily unavailable" copy, with the server's own message as English detail.
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      `${n.routeFailed} ${MOBILE_STRINGS.en.errors.unavailable} (Route integrity check failed)`)
   })
 
   it('reports an unreachable station catalogue', async () => {
     render(<App client={client({ stations: vi.fn().mockRejectedValue(new ApiError(0, 'network_error', 'Cannot reach the planner service.')) })} />)
-    expect(await screen.findByRole('alert')).toHaveTextContent('Cannot reach the planner service.')
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Cannot reach RailSaathi. Check your connection and try again.')
+    expect(alert).not.toHaveTextContent('planner service')
   })
 
   it("opens the journey's station by its railway code from the catalogue", async () => {

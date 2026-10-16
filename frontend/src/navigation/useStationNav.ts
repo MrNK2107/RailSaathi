@@ -16,6 +16,16 @@ const SELECTABLE_TYPES = new Set(['entrance', 'platform', 'platform_access', 'ti
 
 export const NO_PREFS: RoutePreferencesBody = { avoid_stairs: false, wheelchair: false, require_verified_accessibility: false }
 
+/**
+ * The one mapping from a passenger's mobility needs to route preferences, shared by every station view. A
+ * wheelchair user gets step-free routing (no stairs) but not "verified only": no surveyed station data exists yet,
+ * so that would hide every route. The backend labels such a route unverified and lists the unknown pathways; the
+ * navigation screen's "verified only" chip is the explicit opt-in.
+ */
+export function accessibilityPrefs(wheelchair: boolean, avoidStairs: boolean): RoutePreferencesBody {
+  return { wheelchair, avoid_stairs: wheelchair || avoidStairs, require_verified_accessibility: false }
+}
+
 /** null for a cancelled request (the effect was replaced), so stale results never show an error. */
 function asApiError(e: unknown): ApiError | null {
   if (e instanceof ApiError) return e.isAborted ? null : e

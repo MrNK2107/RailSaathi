@@ -161,6 +161,36 @@ describe('AR guidance', () => {
     expect(localize.mock.calls[2][0].previous_node_id).toBe('cj')
   })
 
+  it('an auto re-localise that comes due in a hidden tab runs when the tab is visible again', async () => {
+    const timers: { fn: () => void; ms: number }[] = []
+    const real = globalThis.setTimeout
+    const spy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((fn: () => void, ms?: number) => {
+      if ((ms ?? 0) > 1_000) { timers.push({ fn, ms: ms ?? 0 }); return 0 as unknown as ReturnType<typeof setTimeout> }
+      return real(fn, ms)
+    }) as typeof setTimeout)
+    let hidden = false
+    const desc = Object.getOwnPropertyDescriptor(Document.prototype, 'hidden')
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden })
+    try {
+      const localize = vi.fn().mockResolvedValue(fixAt('cj', 0))
+      const { user } = setup(localize)
+      await user.click(screen.getByRole('button', { name: a.accept }))
+      await screen.findByTestId('ar-arrow')
+      expect(localize).toHaveBeenCalledTimes(1)
+      const auto = timers[timers.length - 1]
+      hidden = true
+      clock = 60_000
+      act(() => auto.fn()) // due while hidden: nothing is sent
+      expect(localize).toHaveBeenCalledTimes(1)
+      hidden = false
+      act(() => { document.dispatchEvent(new Event('visibilitychange')) })
+      await waitFor(() => expect(localize).toHaveBeenCalledTimes(2))
+    } finally {
+      spy.mockRestore()
+      if (desc) Object.defineProperty(document, 'hidden', { configurable: true, get: () => false })
+    }
+  })
+
   it('without motion permission the arrow stays put and says so', async () => {
     dev.requestMotionPermission.mockResolvedValue(false)
     const { user } = setup(vi.fn().mockResolvedValue(fixAt('cj', 90)))

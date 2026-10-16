@@ -1,6 +1,7 @@
 // Bottom-navigation pages: My Trips (device-local saved plans), Alerts (Live departures & ML delay), Profile.
 import { useState, useEffect, useRef } from 'react'
 import { ApiError } from '../../api/client'
+import { errorText } from '../../api/errorText'
 import type { DelayPrediction, DepartureBoard, Language } from '../../api/types'
 import { formatDate, formatTime } from '../../utils/format'
 import { fill } from '../strings'
@@ -12,6 +13,7 @@ import {
   TrainIcon,
 } from '../icons'
 import { useApp } from '../PlannerContext'
+import { showClassicLink } from '../config'
 import { loadTrips, removeTrip, type SavedTrip } from '../trips'
 import { ProvenanceBadge } from '../../components/ProvenanceBadge'
 import { Logo, Screen } from '../ui'
@@ -58,9 +60,10 @@ export function MyTrips() {
   )
 }
 
-/** Passenger-safe text for a failed call: the backend envelope's message when there is one. */
-function failureMessage(err: unknown, fallback: string): string {
-  return err instanceof ApiError && err.message ? err.message : fallback
+/** Passenger copy for a failed call in the screen's language; `fallback` when there is no specific copy. */
+function failureMessage(err: unknown, fallback: string, m: Parameters<typeof errorText>[1], lang: Language): string {
+  const text = errorText(err, m, lang)
+  return text === m.errors.generic ? fallback : text
 }
 
 function DelayResult({ prediction }: { prediction: DelayPrediction }) {
@@ -70,11 +73,11 @@ function DelayResult({ prediction }: { prediction: DelayPrediction }) {
   return (
     <div className="mt-3 rounded-xl bg-ink-100/60 p-3" data-testid="delay-result">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-bold text-ink-900">{d.train} {p.train_number}</span>
+        <span className="text-xs font-bold text-ink-900">{d.train} {p.train_number} {fill(d.atStation, { station: p.station_code })}</span>
         {p.risk_level && (
           <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
             p.risk_level === 'LOW' ? 'bg-match-50 text-match-700'
-              : p.risk_level === 'MODERATE' ? 'bg-amber-50 text-amber-800' : 'bg-red-50 text-red-600'
+              : p.risk_level === 'MODERATE' ? 'bg-amber-50 text-amber-800' : 'bg-red-50 text-red-700'
           }`}>
             {d.risk[p.risk_level]}
           </span>
@@ -99,7 +102,7 @@ function DelayResult({ prediction }: { prediction: DelayPrediction }) {
       <dl className="mt-2 space-y-0.5 text-[11px] text-ink-500" data-testid="delay-basis">
         <div className="flex justify-between"><dt>{d.basis[p.basis]}</dt><dd>{d.modelVersion} {p.model_version}</dd></div>
         {p.mae_minutes !== null && (
-          <div className="flex justify-between"><dt>{d.mae}</dt><dd>±{p.mae_minutes} min</dd></div>
+          <div className="flex justify-between"><dt>{d.mae}</dt><dd>{fill(d.maeValue, { n: p.mae_minutes })}</dd></div>
         )}
       </dl>
       <ProvenanceBadge provenance={p.provenance} variant="full" className="mt-2" unavailableTitle={d.unavailableTitle} />
@@ -134,7 +137,7 @@ export function Alerts() {
     } catch (err) {
       if (call.signal.aborted || (err instanceof ApiError && err.isAborted)) return
       setBoard(null)
-      setBoardError(failureMessage(err, fill(m.alerts.board.loadFailed, { station: code })))
+      setBoardError(failureMessage(err, fill(m.alerts.board.loadFailed, { station: code }), m, planner.language))
     } finally {
       if (!call.signal.aborted) setLoadingLive(false)
     }
@@ -142,6 +145,9 @@ export function Alerts() {
 
   useEffect(() => {
     fetchLiveBoard(selectedStation)
+    // A delay estimate is for one station: never leave the previous station's result under the new board.
+    setPrediction(null)
+    setPredictionError(null)
     return () => boardCall.current?.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStation])
@@ -153,7 +159,7 @@ export function Alerts() {
       setPrediction(await client.predictDelay(predictTrainNo.trim(), selectedStation))
     } catch (err) {
       setPrediction(null)
-      setPredictionError(failureMessage(err, m.alerts.delay.unavailableTitle))
+      setPredictionError(failureMessage(err, m.alerts.delay.unavailableTitle, m, planner.language))
     } finally {
       setLoadingPred(false)
     }
@@ -307,7 +313,10 @@ export function Profile() {
           <span>{h?.ai?.active ? fill(m.profile.aiActive, { provider: String(h.ai.provider ?? '') }) : m.profile.aiInactive}</span></p>
       </section>
       <p className="flex items-start gap-2 text-xs text-ink-500"><InfoIcon size={16} className="shrink-0" /> {m.profile.noAccount}</p>
-      <button type="button" onClick={() => go('classic')} className="text-sm font-semibold text-brand-600 underline">{m.profile.classic}</button>
+      {/* The legacy classic view is a development aid with known accessibility gaps: no link to it in production. */}
+      {showClassicLink() && (
+        <button type="button" onClick={() => go('classic')} className="text-sm font-semibold text-brand-600 underline">{m.profile.classic}</button>
+      )}
     </Page>
   )
 }

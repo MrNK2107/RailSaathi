@@ -72,6 +72,13 @@ describe('api client', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1)
   })
 
+  it('does not retry session creation on a network error (a retry could leave an orphan session)', async () => {
+    const fetchImpl = vi.fn(networkDown)
+    const api = createApiClient({ baseUrl: 'http://api', fetchImpl, retryDelayMs: 0 })
+    await expect(api.createSession('en')).rejects.toMatchObject({ code: 'network_error' })
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
+
   it('does not retry non-idempotent message posts even on network errors', async () => {
     const fetchImpl = vi.fn(networkDown)
     const api = createApiClient({ baseUrl: 'http://api', fetchImpl, retryDelayMs: 0 })

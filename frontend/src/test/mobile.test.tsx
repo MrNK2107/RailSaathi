@@ -262,7 +262,8 @@ describe('AI Voice Agent', () => {
     await user.type(screen.getByLabelText('Type your journey request'), 'to Chennai')
     await user.click(screen.getByRole('button', { name: 'Send' }))
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent('Cannot reach the planner service.')
+    expect(alert).toHaveTextContent('Cannot reach RailSaathi. Check your connection and try again.')
+    expect(alert).not.toHaveTextContent('planner service')
     expect(within(alert).getByRole('button', { name: /Retry/ })).toBeInTheDocument()
   })
 })
@@ -361,5 +362,31 @@ describe('placeholder screens are honest', () => {
   it('confirmation without a confirmed plan says so', async () => {
     await open('confirmation')
     expect(screen.getByText(/No confirmed plan yet/)).toBeInTheDocument()
+  })
+})
+
+describe('Confirmation tour link', () => {
+  const confirmed = {
+    ...withRecs, status: 'confirmed', selected_option_id: rec.option.option_id,
+    confirmation: { confirmation_id: 'RSP-MOBILE1', confirmed_at: '', selected_option_id: rec.option.option_id, constraints_hash: 'abc', handoff: { module: 'smart_passenger_planner' }, superseded: false },
+  } as Partial<SessionState>
+  const chennai = { station_id: 'chennai_central', station_name: 'Chennai Central', node_count: 1, edge_count: 0, version: 'local', data_status: 'schematic', city: 'Chennai', station_code: 'MAS' }
+
+  it("opens the tour on the journey's station, found by railway code", async () => {
+    const stations = vi.fn().mockResolvedValue([chennai])
+    const { user } = await open('confirmation', fakeClient({
+      createSession: vi.fn().mockResolvedValue(response(confirmed, 'Confirmed.')), stations,
+    }))
+    const link = await screen.findByRole('button', { name: /Explore the station before you go/ })
+    await waitFor(() => expect(stations).toHaveBeenCalled())
+    await act(async () => { await stations.mock.results[0].value })
+    await user.click(link)
+    await waitFor(() => expect(window.location.hash).toBe('#/tour?station=chennai_central'))
+  })
+
+  it('without a catalogue match the tour opens with its own default', async () => {
+    const { user } = await open('confirmation', fakeClient({ createSession: vi.fn().mockResolvedValue(response(confirmed, 'Confirmed.')) }))
+    await user.click(await screen.findByRole('button', { name: /Explore the station before you go/ }))
+    await waitFor(() => expect(window.location.hash).toBe('#/tour'))
   })
 })

@@ -6,7 +6,6 @@ import type {
   ErrorEnvelope,
   GoalPlanRequest,
   GoalPlanResponse,
-  GoalRefineRequest,
   HealthResponse,
   JourneyPatch,
   Language,
@@ -33,8 +32,8 @@ export const READ_TIMEOUT_MS = 20_000
 /**
  * Planner session calls: a turn may wait for the session lock (SESSION_LOCK_WAIT_SECONDS, 10 s), spend the whole
  * LLM budget (LLM_OVERALL_DEADLINE_SECONDS, 20 s; a slow LLM then degrades to rules and still returns 200) and run
- * the journey search. 45 s covers that with margin and stays under the Cloud Run request timeout (60 s in
- * .github/workflows/deploy.yml). backend/tests/test_timeout_budget.py checks these values stay consistent.
+ * the journey search (RAILRADAR_CALL_BUDGET_SECONDS, 15 s). 45 s covers that and stays under the Cloud Run request
+ * timeout (60 s in .github/workflows/deploy.yml). backend/tests/test_timeout_budget.py checks these stay consistent.
  */
 export const PLANNER_TIMEOUT_MS = 45_000
 /** Camera localisation: the backend deadline (LOCALIZE_DEADLINE_SECONDS, 8 s) plus the frame upload. */
@@ -217,9 +216,10 @@ export function createApiClient(options: ApiClientOptions = {}) {
     },
     health: (o?: O) => request<HealthResponse>('GET', '/api/health', { signal: o?.signal }),
     reference: (o?: O) => request<ReferenceData>('GET', '/api/planner/reference', { signal: o?.signal }),
+    // Not retried: each POST creates a session, so a retry after a lost response would leave an orphan one.
     createSession: async (language: Language, o?: O) => {
       const res = await request<PlannerResponse>('POST', '/api/planner/sessions',
-        { body: { language }, idempotent: true, signal: o?.signal, planner: true })
+        { body: { language }, signal: o?.signal, planner: true })
       sessionToken = res.session_token ?? null
       return res
     },
@@ -241,8 +241,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
     // Goal planner: needs the session token from createSession(); plan ids are bound to that session.
     planGoal: (body: GoalPlanRequest, o?: O) =>
       request<GoalPlanResponse>('POST', '/api/journey/plan', { body, signal: o?.signal, planner: true }),
-    refineGoal: (body: GoalRefineRequest, o?: O) =>
-      request<GoalPlanResponse>('POST', '/api/journey/refine', { body, signal: o?.signal, planner: true }),
     // Ticketing guidance chat (LLM turn, so the planner timeout applies). Not retried: a turn is not idempotent.
     ticketing: (body: TicketingRequest, o?: O) =>
       request<TicketingResponse>('POST', '/api/chat', { body, signal: o?.signal, planner: true }),
@@ -291,8 +289,6 @@ export function createApiClient(options: ApiClientOptions = {}) {
       request<RakePosition>('GET',
         `/api/trains/rake-position?coach_composition=${encodeURIComponent(composition)}&target_coach=${encodeURIComponent(targetCoach)}`,
         { signal: o?.signal }),
-    goalPlan: (planId: string, o?: O) =>
-      request<GoalPlanResponse>('GET', `/api/journey/options/${encodeURIComponent(planId)}`, { signal: o?.signal, planner: true }),
   }
 }
 

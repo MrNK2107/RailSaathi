@@ -1,6 +1,7 @@
 // Goal-based planner: "reach my meeting on time". Uses /api/journey/plan with the planner session token.
 import { useState, type FormEvent } from 'react'
 import { ApiError } from '../../api/client'
+import { errorText } from '../../api/errorText'
 import type { GoalEvaluation, GoalPlanRequest, GoalPlanResponse, TravelClass } from '../../api/types'
 import { ProvenanceBadge } from '../../components/ProvenanceBadge'
 import { formatDay, formatTime } from '../../utils/format'
@@ -76,7 +77,7 @@ export default function GoalPlanner() {
   const { planner, m } = useApp()
   const [form, setForm] = useState<Form>(EMPTY)
   const [plan, setPlan] = useState<GoalPlanResponse | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<unknown>(null)
   const [busy, setBusy] = useState(false)
   const set = (key: keyof Form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [key]: e.target.value }))
 
@@ -97,7 +98,7 @@ export default function GoalPlanner() {
       }
     } catch (err) {
       setPlan(null)
-      setError(err instanceof ApiError ? err.message : String(err))
+      setError(err)
     } finally {
       setBusy(false)
     }
@@ -144,9 +145,9 @@ export default function GoalPlanner() {
           <PrimaryButton type="submit" disabled={busy}>{busy ? m.goal.planning : m.goal.submit}</PrimaryButton>
         </form>
 
-        {error && (
+        {error !== null && (
           <div role="alert" className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-            <AlertIcon size={18} className="mt-0.5 shrink-0" /> <span>{error}</span>
+            <AlertIcon size={18} className="mt-0.5 shrink-0" /> <span>{errorText(error, m, planner.language)}</span>
           </div>
         )}
 

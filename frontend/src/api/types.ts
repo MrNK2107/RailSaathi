@@ -297,16 +297,6 @@ export interface GoalPlanRequest {
 }
 
 /** Changes to a stored plan; only the fields sent are applied (null clears class, train and budget). */
-export interface GoalRefineRequest {
-  plan_id: string
-  meeting_date?: string
-  meeting_time?: string
-  required_arrival_buffer_minutes?: number
-  preferred_class?: TravelClass | null
-  preferred_train_name_or_number?: string | null
-  budget_max?: number | null
-}
-
 export interface TripRequirements {
   origin: string
   destination_venue: string | null

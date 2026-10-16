@@ -66,7 +66,10 @@ describe('App', () => {
     await screen.findByText('Tell me where and when you want to travel.')
     await user.type(screen.getByLabelText('Type your travel request'), 'hello')
     await user.click(screen.getByRole('button', { name: 'Send' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Cannot reach the planner service.')
+    // Passenger copy from the string table, never the client's developer text.
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Cannot reach RailSaathi. Check your connection and try again.')
+    expect(alert).not.toHaveTextContent('planner service')
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
   })
 

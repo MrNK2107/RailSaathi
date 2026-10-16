@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, api as defaultApi, type ApiClient } from '../api/client'
+import { errorText } from '../api/errorText'
 import type { HealthResponse, JourneyPatch, Language, PlannerResponse, ReferenceData } from '../api/types'
 import { STRINGS } from '../i18n/strings'
 import { loadState, saveState } from '../mobile/persist'
+import { MOBILE_STRINGS } from '../mobile/strings'
 
 export interface ChatMessage {
   id: number
@@ -21,7 +23,8 @@ export function usePlanner(client: ApiClient = defaultApi) {
   const [response, setResponse] = useState<PlannerResponse | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // The failed call itself; rendered in the current language (errorText) so a language switch updates it.
+  const [error, setError] = useState<unknown>(null)
   const [health, setHealth] = useState<HealthResponse | null>(null)
   const [reference, setReference] = useState<ReferenceData | null>(null)
   const retryRef = useRef<Action | null>(null)
@@ -62,7 +65,7 @@ export function usePlanner(client: ApiClient = defaultApi) {
         ])
       } else {
         retryRef.current = apiErr.status === 0 || apiErr.status >= 500 ? action : null
-        setError(apiErr.message)
+        setError(apiErr)
       }
       return false
     } finally {
@@ -83,7 +86,7 @@ export function usePlanner(client: ApiClient = defaultApi) {
       setMessages([message('assistant', fresh.assistant_message), message('user', text), message('assistant', res.assistant_message)])
       return true
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : String(err))
+      setError(err)
       return false
     } finally {
       setLoading(false)
@@ -97,14 +100,18 @@ export function usePlanner(client: ApiClient = defaultApi) {
     client.health().then(setHealth).catch(() => setHealth(null))
     client.reference().then(setReference).catch(() => setReference(null))
     // Resume this tab's session after a reload; the backend is the source of truth, so ask it for the state.
-    // Any failure (expired, unknown, offline) falls back to a fresh session, which `run` reports if it also fails.
+    // Only a session the backend says is gone (expired, unknown, or a token it rejects) is discarded for a fresh
+    // one. A transient failure (offline, timeout, 5xx) keeps the stored session and is rethrown, so `run` shows
+    // the error and its Retry resumes the same plan.
     const resume = async (): Promise<PlannerResponse> => {
       const stored = loadState().session
       if (stored) {
         try {
           client.setSessionToken(stored.token)
           return await client.getSession(stored.sessionId) // run() shows its assistant message
-        } catch {
+        } catch (err) {
+          const gone = err instanceof ApiError && (err.isSessionGone || err.code === 'invalid_session_token')
+          if (!gone) throw err
           client.setSessionToken(null)
           saveState({ session: null })
         }
@@ -127,7 +134,7 @@ export function usePlanner(client: ApiClient = defaultApi) {
     state: response?.state ?? null,
     messages,
     loading,
-    error,
+    error: error === null ? null : errorText(error, MOBILE_STRINGS[language], language),
     health,
     reference,
     canRetry: retryRef.current !== null,

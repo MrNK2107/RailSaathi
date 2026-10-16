@@ -41,3 +41,27 @@ describe('relax suggestions', () => {
     expect(Object.keys(RELAX_PATCHES).sort()).toEqual(['arrival_deadline', 'budget_limit', 'direct_only', 'mandatory_assistance', 'travel_class'])
   })
 })
+
+describe('release-only switches', () => {
+  it('hides the legacy classic link in production builds', async () => {
+    const { showClassicLink } = await import('../mobile/config')
+    expect(showClassicLink({ DEV: false })).toBe(false)
+    expect(showClassicLink({ DEV: true })).toBe(true)
+  })
+
+  it('maps a wheelchair the same way in every station view (step-free, not verified-only)', async () => {
+    const { accessibilityPrefs } = await import('../navigation/useStationNav')
+    const { mobilityPrefs } = await import('../hooks/useStationWayfinding')
+    expect(mobilityPrefs('wheelchair')).toEqual(accessibilityPrefs(true, false))
+    expect(mobilityPrefs('wheelchair')).toEqual({ wheelchair: true, avoid_stairs: true, require_verified_accessibility: false })
+    expect(mobilityPrefs('avoid_stairs')).toEqual(accessibilityPrefs(false, true))
+    expect(mobilityPrefs('normal')).toEqual(accessibilityPrefs(false, false))
+  })
+
+  it('the page description does not call the release a demo-data prototype', async () => {
+    const html = (await import('../../index.html?raw')).default
+    const description = /<meta name="description" content="([^"]+)"/.exec(html)?.[1] ?? ''
+    expect(description).toMatch(/RailSaathi/)
+    expect(description).not.toMatch(/prototype|demo data/i)
+  })
+})

@@ -249,12 +249,12 @@ describe('Wayfinder screen states', () => {
     expect(c.stationRoute).not.toHaveBeenCalled()
   })
 
-  it('a routing_unavailable error from the API shows the backend message', async () => {
+  it('a routing_unavailable error from the API shows the routing-unavailable copy', async () => {
     const msg = 'Step-by-step directions are not available for this station.'
     const c = client({ stationRoute: vi.fn().mockRejectedValue(new ApiError(503, 'routing_unavailable', msg)) })
     const user = await openNavigation(c)
     await user.selectOptions(await screen.findByLabelText(m.navigation.pickTo), 'platform_10')
-    expect(await screen.findByRole('alert')).toHaveTextContent(msg)
+    expect(await screen.findByRole('alert')).toHaveTextContent(m.errors.routingUnavailable)
   })
 
   it('no_route explains why instead of drawing a route', async () => {

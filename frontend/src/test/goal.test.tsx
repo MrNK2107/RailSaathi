@@ -25,11 +25,10 @@ const plan: GoalPlanResponse = {
 }
 
 describe('goal planner flow', () => {
-  it('plans with the session token, then refines the server-issued plan id', async () => {
+  it('plans with the session token', async () => {
     const fetchImpl = vi.fn()
       .mockImplementationOnce(() => json(200, { session_id: 's1', session_token: 's1.sig', state: {} }))
       .mockImplementationOnce(() => json(200, plan))
-      .mockImplementationOnce(() => json(200, { ...plan, trip_requirements: { ...plan.trip_requirements!, required_arrival_buffer_minutes: 90 } }))
     const api = createApiClient({ baseUrl: 'http://api', fetchImpl })
     await api.createSession('en')
 
@@ -40,29 +39,15 @@ describe('goal planner flow', () => {
     expect(first.url).toBe('http://api/api/journey/plan')
     expect(first.init.method).toBe('POST')
     expect(first.headers['X-Session-Token']).toBe('s1.sig')
-
-    const refined = await api.refineGoal({ plan_id: res.plan_id!, required_arrival_buffer_minutes: 90 })
-    expect(refined.trip_requirements?.required_arrival_buffer_minutes).toBe(90)
-    const second = call(fetchImpl, 2)
-    expect(second.url).toBe('http://api/api/journey/refine')
-    expect(second.body).toEqual({ plan_id: 'plan_abcdefghijkl', required_arrival_buffer_minutes: 90 })
-    expect(second.headers['X-Session-Token']).toBe('s1.sig')
   })
 
-  it('surfaces a foreign or expired plan id as a typed plan_not_found error and never retries a refine', async () => {
-    const fetchImpl = vi.fn(() => json(404, { error: { code: 'plan_not_found', message: 'This plan does not exist or has expired.', details: {} }, request_id: 'r1' }))
+  it('surfaces a typed error from a plan and never retries the POST', async () => {
+    const fetchImpl = vi.fn(() => json(422, { error: { code: 'meeting_in_past', message: 'The meeting time has already passed.', details: {} }, request_id: 'r1' }))
     const api = createApiClient({ baseUrl: 'http://api', fetchImpl, retryDelayMs: 0 })
-    const err = await api.refineGoal({ plan_id: 'plan_someoneelse', meeting_time: '11:00' }).catch((e: unknown) => e)
+    const err = await api.planGoal({ origin: 'Coimbatore', destination_venue: 'Tidel Park', meeting_date: '2026-10-11', meeting_time: '10:00' }).catch((e: unknown) => e)
     expect(err).toBeInstanceOf(ApiError)
-    expect(err).toMatchObject({ status: 404, code: 'plan_not_found', requestId: 'r1' })
+    expect(err).toMatchObject({ status: 422, code: 'meeting_in_past', requestId: 'r1' })
     expect(fetchImpl).toHaveBeenCalledTimes(1)
-  })
-
-  it('fetches a stored plan by id', async () => {
-    const fetchImpl = vi.fn(() => json(200, plan))
-    const api = createApiClient({ baseUrl: 'http://api', fetchImpl })
-    await api.goalPlan('plan_abcdefghijkl')
-    expect(call(fetchImpl, 0).url).toBe('http://api/api/journey/options/plan_abcdefghijkl')
   })
 
   it('a provider outage plan renders as an explicit unavailable state', () => {

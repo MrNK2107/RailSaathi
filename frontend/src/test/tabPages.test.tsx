@@ -120,8 +120,16 @@ describe('Alerts', () => {
   it('shows the backend error message when the estimate fails', async () => {
     open('alerts', fakeClient({ predictDelay: vi.fn().mockRejectedValue(new ApiError(503, 'unavailable', 'Delay model is not loaded.')) }))
     await userEvent.setup().click(await screen.findByRole('button', { name: en.alerts.delay.predict }))
-    expect(await screen.findByText('Delay model is not loaded.')).toBeInTheDocument()
+    expect(await screen.findByText(`${en.errors.unavailable} (Delay model is not loaded.)`)).toBeInTheDocument()
     expect(screen.queryByTestId('delay-result')).not.toBeInTheDocument()
+  })
+
+  it('in Tamil a failed estimate shows Tamil copy, never the English envelope text', async () => {
+    saveState({ language: 'ta' })
+    open('alerts', fakeClient({ predictDelay: vi.fn().mockRejectedValue(new ApiError(503, 'unavailable', 'Delay model is not loaded.')) }))
+    await userEvent.setup().click(await screen.findByRole('button', { name: ta.alerts.delay.predict }))
+    expect(await screen.findByText(ta.errors.unavailable)).toBeInTheDocument()
+    expect(screen.queryByText(/Delay model is not loaded/)).not.toBeInTheDocument()
   })
 
   it('says push alerts are not sent instead of claiming a connection that does not exist', async () => {
@@ -209,5 +217,29 @@ describe('Profile', () => {
     expect(await screen.findByText('No RailRadar key.')).toBeInTheDocument()
     expect(screen.getByTestId('provenance-badge')).toHaveAttribute('data-mode', 'fallback')
     expect(screen.getByTestId('provenance-badge')).toHaveTextContent(en.provenance.fallback)
+  })
+})
+
+describe('Alerts delay estimate details', () => {
+  it('clears the estimate when the board station changes, and names the station it is for', async () => {
+    const predictDelay = vi.fn().mockResolvedValue(prediction({ risk_level: 'HIGH' }))
+    open('alerts', fakeClient({ predictDelay }))
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: en.alerts.delay.predict }))
+    const result = await screen.findByTestId('delay-result')
+    expect(result).toHaveTextContent(fill(en.alerts.delay.atStation, { station: 'MAS' }))
+    expect(within(result).getByText(en.alerts.delay.risk.HIGH)).toHaveClass('text-red-700')
+    expect(within(result).getByText(fill(en.alerts.delay.maeValue, { n: 6.4 }))).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'SBC' }))
+    await waitFor(() => expect(screen.queryByTestId('delay-result')).not.toBeInTheDocument())
+  })
+
+  it('the typical error unit is Tamil in Tamil mode', async () => {
+    saveState({ language: 'ta' })
+    open('alerts')
+    await userEvent.setup().click(await screen.findByRole('button', { name: ta.alerts.delay.predict }))
+    const result = await screen.findByTestId('delay-result')
+    expect(within(result).getByText('±6.4 நிமி')).toBeInTheDocument()
+    expect(result).not.toHaveTextContent(/\bmin\b/)
   })
 })
