@@ -11,7 +11,7 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Path, Query, Request
 
 from app.api.deps import offload
-from app.navigation.curbside_topology import parse_rake_composition
+from app.navigation.rake_composition import parse_rake_composition
 from app.providers.live_source import DepartureBoard, LiveSource, TrainLiveStatus, TrainSchedule, UnknownStation
 
 log = logging.getLogger("railsaathi.live")

@@ -89,7 +89,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
                 "conversational_planner": "Natural-language journey planning with deterministic validation and ranking",
                 "goal_journey": "Reach-a-meeting journey evaluation with arrival buffers",
                 "ticketing_guidance": "Indian Railways ticketing guidance grounded in a sourced knowledge base",
-                "station_navigation": "Indoor concourse routing and curbside wayfinding for authored stations",
+                "station_navigation": "Indoor routing over schematic station layouts (routing only where a layout is traced), AR guidance and a virtual tour",
                 "delay_estimate": "Statistical delay estimate from historical records (trained model or historical average, with measured error and provenance)",
                 "live_station_info": "Station search and live board (data provenance reported per response)",
             },

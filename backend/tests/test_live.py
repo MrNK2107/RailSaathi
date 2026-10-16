@@ -304,6 +304,15 @@ def test_rake_position_moved_under_api(api):
     assert api.get("/api/trains/rake-position?coach_composition=ENG-A1-B1-SLR&target_coach=B1").status_code == 200
 
 
+def test_curbside_topology_endpoint_is_gone(api):
+    """It served hand-written gate data with unverified step-free claims, and an invented template (a "step-free"
+    FOB with lifts) for any other station code; the app never used it. Coach position stays."""
+    assert api.get("/api/stations/MAS/navigation").status_code == 404
+    assert api.get("/api/stations/XYZ/navigation").status_code == 404
+    body = api.get("/api/trains/rake-position?coach_composition=ENG-A1-B1-SLR&target_coach=B1").json()
+    assert body["target_coach_info"]["coach_code"] == "B1" and body["total_coaches"] == 4
+
+
 @pytest.mark.parametrize("path", ["/stations/MAS/live", "/stations/search?q=MAS", "/stations/nearest?lat=1&lon=1",
                                   "/trains/12658/schedule", "/plan/journey?from_station=SBC&to_station=MAS",
                                   "/trains/rake-position?coach_composition=ENG", "/predict/delay?train_number=1",

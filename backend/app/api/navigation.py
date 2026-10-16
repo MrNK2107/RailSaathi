@@ -1,8 +1,7 @@
 """Indoor station navigation: read-only station data, routing over prebuilt graphs, and the disruption overlay.
 
 Everything here is read-only. Stations are authored and published with `scripts/stations.py`; disruptions are
-written only through the OIDC-protected internal endpoints in `app/api/internal.py`. The curbside topology
-(`/api/stations/{code}/navigation`) is a separate bundled dataset.
+written only through the OIDC-protected internal endpoints in `app/api/internal.py`.
 """
 
 import logging
@@ -16,7 +15,6 @@ from app.api.deps import offload
 from app.container import Container
 from app.domain.enums import DataMode
 from app.domain.options import DataProvenance
-from app.navigation.curbside_topology import get_station_topology
 from app.navigation.models.station import RouteRequest, RouteResponse, Station
 from app.navigation.services.geometry import project_to_polyline
 from app.navigation.services.graph_builder import UnknownClosureTarget, apply_closures
@@ -188,15 +186,6 @@ async def get_station_tour(request: Request, station_id: str) -> dict:
         "panoramas_note": extra.get("panoramas_note"),
         "provenance": _provenance(c, loaded).model_dump(mode="json"),
     }
-
-
-@router.get("/api/stations/{station_code}/navigation")
-async def get_navigation_topology(station_code: str):
-    """Returns curbside gates, security checkpoints, and FOB connections."""
-    topology = await offload(get_station_topology, station_code)
-    if not topology:
-        raise HTTPException(status_code=404, detail=f"Navigation topology not mapped for {station_code.upper()}")
-    return topology
 
 
 @router.post("/api/navigation/route", response_model=RouteResponse)
