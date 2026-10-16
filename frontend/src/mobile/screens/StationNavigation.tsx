@@ -45,6 +45,7 @@ export default function StationNavigation() {
   const [blueprintOpen, setBlueprintOpen] = useState(false)
   const [arStations, setArStations] = useState<string[]>([])
   const [arCapableStations, setArCapableStations] = useState<string[]>([])
+  const [arOffReasons, setArOffReasons] = useState<Record<string, string>>({})
   const [canSimulate, setCanSimulate] = useState(false)
   const [arCapable, setArCapable] = useState(false)
   const [arExit, setArExit] = useState<{ reason: FallbackReason; message: string | null } | null>(null)
@@ -56,6 +57,7 @@ export default function StationNavigation() {
       (cfg) => {
         setArStations(cfg?.features?.ar_guidance_stations ?? [])
         setArCapableStations(cfg?.features?.ar_capable_stations ?? [])
+        setArOffReasons(cfg?.features?.ar_unavailable_reason ?? {})
         setCanSimulate(cfg?.features?.simulate_closures === true)
       },
       () => { setArStations([]); setArCapableStations([]); setCanSimulate(false) },
@@ -143,8 +145,13 @@ export default function StationNavigation() {
     ...nav.simulated.map((id) => ({ id, simulated: true })),
   ]
   const stationName = details?.station.station_name ?? stations.find((s) => s.station_id === stationId)?.station_name ?? null
-  const views: [View, string, typeof MapIcon][] = [['map', n.mapView, MapIcon], ['steps', n.steps, StepsIcon],
-    ...(arOffered || arSwitchedOff ? [['ar', m.ar.tab, CameraIcon] as [View, string, typeof MapIcon]] : [])]
+  // [view, short tab label, long name (tooltip), icon]
+  const views: [View, string, string, typeof MapIcon][] = [['map', n.tabs.map, n.mapView, MapIcon],
+    ['steps', n.tabs.steps, n.steps, StepsIcon],
+    ...(arOffered || arSwitchedOff ? [['ar', n.tabs.ar, m.ar.tab, CameraIcon] as [View, string, string, typeof MapIcon]] : [])]
+  const arOffReason = arOffReasons[stationId]
+  const arOffText = arOffReason === 'vision_unavailable' ? m.ar.notSwitchedOn
+    : arOffReason === 'not_enabled' ? m.ar.notEnabled : m.ar.offUnknown
 
   const footer = routed ? (
     navigating ? (
@@ -237,15 +244,16 @@ export default function StationNavigation() {
             </p>
           )}
 
-          {/* Guidance modes: Map, Step-by-Step and, where offered, Camera (AR). */}
+          {/* Guidance modes: Map, Steps and, where offered, AR. Short labels so all three fit at 320 px. */}
           <div role="tablist" aria-label={n.title} className={`grid gap-2 ${views.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-            {views.map(([key, text, Icon]) => {
+            {views.map(([key, text, long, Icon]) => {
               const off = key === 'ar' && arSwitchedOff
               return (
-                <button key={key} type="button" role="tab" aria-selected={view === key}
+                <button key={key} type="button" role="tab" aria-selected={view === key} title={long} data-view={key}
                   aria-disabled={off || undefined} aria-describedby={off ? 'ar-off-reason' : undefined}
                   onClick={() => { if (off) return; setView(key); if (key === 'ar') setArExit(null) }}
-                  className={`flex min-h-[44px] min-w-0 items-center justify-center gap-1.5 rounded-full px-2 py-2 text-sm font-bold ring-2 ${
+                  // On phones (below 440 px) the icon sits above the label, so even the Tamil labels fit a third of 320 px.
+                  className={`flex min-h-[44px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-full px-2 py-1 text-sm font-bold leading-tight ring-2 min-[440px]:flex-row min-[440px]:gap-1.5 min-[440px]:py-2 ${
                     off ? 'cursor-not-allowed bg-ink-100 text-ink-500 ring-ink-300'
                       : view === key ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-brand-700 ring-brand-600'}`}>
                   <Icon size={18} /> <span className="truncate">{text}</span>
@@ -254,12 +262,12 @@ export default function StationNavigation() {
             })}
           </div>
           {arSwitchedOff && (
-            <p id="ar-off-reason" data-code="ar_not_switched_on" className="flex items-start gap-2 rounded-xl bg-ink-100 p-3 text-xs text-ink-700">
-              <CameraIcon size={16} className="mt-0.5 shrink-0" /> {m.ar.notSwitchedOn}
+            <p id="ar-off-reason" data-code="ar_not_switched_on" data-reason={arOffReason ?? 'unknown'} className="flex items-start gap-2 rounded-xl bg-ink-100 p-3 text-xs text-ink-700">
+              <CameraIcon size={16} className="mt-0.5 shrink-0" /> {arOffText}
             </p>
           )}
 
-          <section role="tabpanel" aria-label={views.find(([key]) => key === view)?.[1]} className="space-y-3">
+          <section role="tabpanel" aria-label={views.find(([key]) => key === view)?.[2]} className="space-y-3">
             {view === 'ar' ? (
               <ScreenBoundary message={m.ar.loadFailed} reloadLabel={m.errors.reload}>
                 <Suspense fallback={<p role="status" className="text-sm text-ink-500">{m.ar.loading}</p>}>

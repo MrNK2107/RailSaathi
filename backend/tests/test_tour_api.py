@@ -86,6 +86,7 @@ def test_client_config_without_key_or_localizer():
     body = make().get("/api/client-config").json()
     assert body == {"google_maps_browser_key": None,
                     "features": {"ar_guidance_stations": [], "ar_capable_stations": ["chennai_central"],
+                                 "ar_unavailable_reason": {"chennai_central": "vision_unavailable"},
                                  "simulate_closures": True}}
 
 
@@ -95,14 +96,30 @@ def test_client_config_returns_only_the_browser_key_and_flags():
     res = client.get("/api/client-config")
     assert res.json() == {"google_maps_browser_key": "AIza-browser",
                           "features": {"ar_guidance_stations": ["chennai_central"],
-                                       "ar_capable_stations": ["chennai_central"], "simulate_closures": True}}
+                                       "ar_capable_stations": ["chennai_central"], "ar_unavailable_reason": {},
+                                       "simulate_closures": True}}
     for secret in ("s" * 32, "rr-secret", "gm-secret"):
         assert secret not in res.text
 
 
 def test_client_config_respects_the_per_station_flag():
     client = make(vision=MockVisionLocalizer([]), ar_guidance_enabled="ksr_bengaluru")
-    assert client.get("/api/client-config").json()["features"]["ar_guidance_stations"] == []
+    features = client.get("/api/client-config").json()["features"]
+    assert features["ar_guidance_stations"] == []
+    assert features["ar_unavailable_reason"] == {"chennai_central": "not_enabled"}
+
+
+def test_ar_unavailable_reason_names_the_real_cause():
+    """Production with a vision service but no AR_GUIDANCE_ENABLED is off because of the flag, not the vision
+    service; without a vision service that is the reason whatever the flag says."""
+    prod = make(vision=MockVisionLocalizer([]), app_env="production", session_signing_key="s" * 32)
+    assert prod.get("/api/client-config").json()["features"]["ar_unavailable_reason"] == {
+        "chennai_central": "not_enabled"}
+    no_vision = make(ar_guidance_enabled="*")
+    assert no_vision.get("/api/client-config").json()["features"]["ar_unavailable_reason"] == {
+        "chennai_central": "vision_unavailable"}
+    on = make(vision=MockVisionLocalizer([]), ar_guidance_enabled="chennai_central")
+    assert on.get("/api/client-config").json()["features"]["ar_unavailable_reason"] == {}
 
 
 def test_client_config_lists_ar_capable_stations_whatever_the_flags(tmp_path):

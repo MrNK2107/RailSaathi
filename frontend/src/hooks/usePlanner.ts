@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError, api as defaultApi, type ApiClient } from '../api/client'
 import { errorText } from '../api/errorText'
 import type { HealthResponse, JourneyPatch, Language, PlannerResponse, ReferenceData } from '../api/types'
@@ -10,12 +10,15 @@ export interface ChatMessage {
   id: number
   role: 'user' | 'assistant' | 'system'
   text: string
+  /** Set on a new session's greeting: the language the backend greeted in. */
+  greeting?: Language
 }
 
 type Action = () => Promise<PlannerResponse>
 
 let nextId = 1
 const message = (role: ChatMessage['role'], text: string): ChatMessage => ({ id: nextId++, role, text })
+const greeting = (text: string, lang: Language): ChatMessage => ({ ...message('assistant', text), greeting: lang })
 
 /** Session-scoped planner state. The backend response is always the source of truth. */
 export function usePlanner(client: ApiClient = defaultApi) {
@@ -28,6 +31,8 @@ export function usePlanner(client: ApiClient = defaultApi) {
   const [health, setHealth] = useState<HealthResponse | null>(null)
   const [reference, setReference] = useState<ReferenceData | null>(null)
   const retryRef = useRef<Action | null>(null)
+  // The language of a session just created, whose first assistant message is its greeting.
+  const pendingGreeting = useRef<Language | null>(null)
   const langRef = useRef(language)
   langRef.current = language
 
@@ -41,6 +46,7 @@ export function usePlanner(client: ApiClient = defaultApi) {
     saveState({ session: { sessionId: res.session_id, token: res.session_token ?? null } })
     setResponse(res)
     setMessages([]) // run() appends the greeting
+    pendingGreeting.current = lang
     return res
   }, [client])
 
@@ -52,16 +58,22 @@ export function usePlanner(client: ApiClient = defaultApi) {
     try {
       const res = await action()
       setResponse(res)
-      if (res.assistant_message) setMessages((prev) => [...prev, message('assistant', res.assistant_message)])
+      const greetLang = pendingGreeting.current
+      pendingGreeting.current = null
+      if (res.assistant_message) {
+        const reply = greetLang ? greeting(res.assistant_message, greetLang) : message('assistant', res.assistant_message)
+        setMessages((prev) => [...prev, reply])
+      }
       retryRef.current = null
       return true
     } catch (err) {
       const apiErr = err instanceof ApiError ? err : new ApiError(0, 'unknown', String(err))
       if (apiErr.isSessionGone) {
         const fresh = await startSession(langRef.current).catch(() => null)
+        pendingGreeting.current = null
         setMessages([
           message('system', STRINGS[langRef.current].errors.sessionGone),
-          ...(fresh ? [message('assistant', fresh.assistant_message)] : []),
+          ...(fresh ? [greeting(fresh.assistant_message, langRef.current)] : []),
         ])
       } else {
         retryRef.current = apiErr.status === 0 || apiErr.status >= 500 ? action : null
@@ -83,7 +95,7 @@ export function usePlanner(client: ApiClient = defaultApi) {
       setResponse(fresh)
       const res = await client.sendMessage(fresh.session_id, text, langRef.current)
       setResponse(res)
-      setMessages([message('assistant', fresh.assistant_message), message('user', text), message('assistant', res.assistant_message)])
+      setMessages([greeting(fresh.assistant_message, langRef.current), message('user', text), message('assistant', res.assistant_message)])
       return true
     } catch (err) {
       setError(err)
@@ -124,6 +136,10 @@ export function usePlanner(client: ApiClient = defaultApi) {
   }, [])
 
   const sid = response?.session_id ?? ''
+  // A greeting follows the UI language: when the language changed after the session began (e.g. Tamil picked on
+  // the home screen), the app shows its own greeting in the current language instead of the backend's.
+  const shown = useMemo(() => messages.map((msg) => (msg.greeting && msg.greeting !== language
+    ? { ...msg, text: MOBILE_STRINGS[language].plan.greeting } : msg)), [messages, language])
 
   return {
     /** The API client (carries the session token used by the goal planner). */
@@ -132,7 +148,7 @@ export function usePlanner(client: ApiClient = defaultApi) {
     setLanguage,
     response,
     state: response?.state ?? null,
-    messages,
+    messages: shown,
     loading,
     error: error === null ? null : errorText(error, MOBILE_STRINGS[language], language),
     health,

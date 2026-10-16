@@ -214,7 +214,7 @@ describe('Wayfinder screen states', () => {
     const c = client()
     const user = await openNavigation(c)
     await user.selectOptions(await screen.findByLabelText(m.navigation.pickTo), 'platform_10')
-    await user.click(await screen.findByRole('tab', { name: /Step-by-Step/ }))
+    await user.click(await screen.findByRole('tab', { name: 'Steps' }))
     const items = await screen.findAllByRole('listitem')
     expect(items.some((li) => li.textContent?.includes('Step-free: verified'))).toBe(true)
     expect(items.some((li) => li.textContent?.includes('Step-free: reported, not verified'))).toBe(true)
@@ -234,7 +234,7 @@ describe('Wayfinder screen states', () => {
     expect(screen.queryByRole('button', { name: /Start Navigation|Choose a destination/ })).not.toBeInTheDocument()
     expect(screen.queryByText(/Choose where you are entering/)).not.toBeInTheDocument()
     expect(screen.getByRole('img', { name: /Station map/ })).toBeInTheDocument()
-    await user.click(screen.getByRole('tab', { name: /Step-by-Step/ }))
+    await user.click(screen.getByRole('tab', { name: 'Steps' }))
     expect(c.stationRoute).not.toHaveBeenCalled()
   })
 

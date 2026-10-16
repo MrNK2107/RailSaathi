@@ -53,7 +53,10 @@ export function Composer({ draft, onDraft, onSubmit, sending, inputRef, listenin
           )}
         </button>
       )}
-      <div className="flex min-w-0 flex-1 items-end gap-1 rounded-3xl border border-ink-300 bg-white px-3 py-0.5 shadow-card focus-within:border-brand-500">
+      {/* The send button sits inside the box; pr-14 reserves its width, so text and placeholder (cut with an ellipsis)
+          always end before it, even at 320 px. */}
+      <div data-testid="composer-box"
+        className="relative flex min-h-12 min-w-0 flex-1 items-center rounded-3xl border border-ink-300 bg-white py-0.5 pl-3 pr-14 shadow-card focus-within:border-brand-500">
         {/* While empty the box is exactly one line: the placeholder is cut with an ellipsis, never wrapped or scrolled. */}
         <label htmlFor="voice-input" className="sr-only">{m.plan.inputLabel}</label>
         <textarea id="voice-input" ref={inputRef} rows={1} maxLength={1000} value={draft}
@@ -64,7 +67,7 @@ export function Composer({ draft, onDraft, onSubmit, sending, inputRef, listenin
           className={`max-h-32 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-sm text-ink-900 outline-none placeholder:text-ink-500 ${
             empty ? 'overflow-hidden text-ellipsis whitespace-nowrap placeholder:text-ellipsis placeholder:whitespace-nowrap' : ''}`} />
         <button type="submit" disabled={!canSend} aria-label={m.plan.send}
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-600 text-white transition hover:bg-brand-700 disabled:opacity-40">
+          className="absolute bottom-0.5 right-0.5 grid h-11 w-11 place-items-center rounded-full bg-brand-600 text-white transition hover:bg-brand-700 disabled:opacity-40">
           <ArrowRight size={18} className="-rotate-90" />
         </button>
       </div>

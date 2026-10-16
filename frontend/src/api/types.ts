@@ -778,6 +778,9 @@ export interface StationTour {
   provenance: Provenance
 }
 
+/** `vision_unavailable`: no Gemini vision service; `not_enabled`: AR_GUIDANCE_ENABLED does not name the station. */
+export type ArUnavailableReason = 'vision_unavailable' | 'not_enabled'
+
 /** GET /api/client-config */
 export interface ClientConfig {
   /** The public, referrer-restricted Maps JavaScript key; null when not configured. */
@@ -787,6 +790,8 @@ export interface ClientConfig {
     ar_guidance_stations: string[]
     /** Stations whose data opts in to AR whatever the flags; the app shows a disabled AR tab with the reason. */
     ar_capable_stations?: string[]
+    /** Why AR is off at each capable station that is not in `ar_guidance_stations`. */
+    ar_unavailable_reason?: Record<string, ArUnavailableReason>
     /** Whether POST /api/navigation/route accepts `simulate_closures` (the what-if closure tool). */
     simulate_closures?: boolean
   }

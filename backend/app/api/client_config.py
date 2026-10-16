@@ -10,11 +10,13 @@ where the backend accepts it.
 `features.ar_guidance_stations` lists the stations where camera guidance works now (the data opts in, the per-station
 `AR_GUIDANCE_ENABLED` flag is on and a Gemini vision localiser exists). `features.ar_capable_stations` lists every
 station whose data opts in, whatever the flags: the app shows a disabled AR tab with the reason for the ones not in
-the first list. It is a discovery hint only; POST /api/stations/{id}/localize keeps its own gate."""
+the first list. `features.ar_unavailable_reason` says why for each of those: `vision_unavailable` (no Gemini vision
+service) or `not_enabled` (the AR_GUIDANCE_ENABLED flag does not name the station). It is a discovery hint only;
+POST /api/stations/{id}/localize keeps its own gate."""
 
 from fastapi import APIRouter, Request
 
-from app.api.localize import ar_capable_stations, ar_guidance_stations
+from app.api.localize import ar_capable_stations, ar_guidance_stations, ar_unavailable_reason
 
 router = APIRouter(tags=["system"])
 
@@ -26,5 +28,6 @@ async def client_config(request: Request) -> dict:
     return {"google_maps_browser_key": key, "features": {
         "ar_guidance_stations": ar_guidance_stations(c),
         "ar_capable_stations": ar_capable_stations(c),
+        "ar_unavailable_reason": ar_unavailable_reason(c),
         "simulate_closures": c.settings.disruption_simulation_enabled,
     }}

@@ -48,8 +48,12 @@ for (const lang of ['en', 'ta'] as const) {
       await expect(page.getByTestId('route-line')).toBeVisible()
       await expect(page.getByTestId('station-map')).toBeVisible()
       // The demo backend has no Gemini vision service: Chennai Central's AR tab is shown disabled, with the reason.
-      await expect(page.getByRole('tab', { name: lang === 'ta' ? 'கேமரா (AR)' : 'Camera (AR)' })).toHaveAttribute('aria-disabled', 'true')
+      await expect(page.getByRole('tab', { name: 'AR' })).toHaveAttribute('aria-disabled', 'true')
       await expect(page.locator('[data-code="ar_not_switched_on"]')).toContainText('Gemini')
+      await expect(page.locator('[data-code="ar_not_switched_on"]')).toHaveAttribute('data-reason', 'vision_unavailable')
+      const clipped = await page.getByRole('tablist').locator('[role=tab] span').evaluateAll((spans) =>
+        spans.filter((el) => el.scrollWidth > el.clientWidth + 0.5).map((el) => el.textContent))
+      expect(clipped).toEqual([])  // short labels: nothing truncated at 412 px either
       await expect(page.getByTestId('station-explore')).toBeVisible()
       expect(await noHorizontalScroll(page)).toBe(true)
       if (SHOTS) await page.screenshot({ path: `${SHOTS}/navigation-chennai-central-${lang}.png`, fullPage: true })
@@ -99,6 +103,27 @@ test.describe('320 px width', () => {
         return { oneLine: el.clientHeight < line * 2, noScroll: el.scrollHeight <= el.clientHeight + 1, overflow: s.overflowY, wrap: s.whiteSpace }
       })
       expect(fit).toEqual({ oneLine: true, noScroll: true, overflow: 'hidden', wrap: 'nowrap' })
+      // The send button sits inside the box, and the text area (where the placeholder and its ellipsis are drawn)
+      // ends before the button: the placeholder never runs under it.
+      const send = await page.getByRole('button', { name: lang === 'ta' ? 'அனுப்பு' : 'Send' }).boundingBox()
+      const frame = await page.getByTestId('composer-box').boundingBox()
+      const textRight = await box.evaluate((el) => el.getBoundingClientRect().right - parseFloat(getComputedStyle(el).paddingRight))
+      expect(send && frame).toBeTruthy()
+      expect(send!.x).toBeGreaterThanOrEqual(frame!.x)
+      expect(send!.x + send!.width).toBeLessThanOrEqual(frame!.x + frame!.width)
+      expect(textRight).toBeLessThanOrEqual(send!.x)
+    })
+
+    test(`the Map / Steps / AR guidance tabs fit without truncation (${lang})`, async ({ page }) => {
+      await openNavigation(page, lang)
+      const tabs = page.getByRole('tablist').getByRole('tab')
+      await expect(tabs).toHaveCount(3)
+      expect((await tabs.allTextContents()).map((t) => t.trim())).toEqual(lang === 'ta' ? ['வரைபடம்', 'படிகள்', 'AR'] : ['Map', 'Steps', 'AR'])
+      const clipped = await page.getByRole('tablist').locator('[role=tab] span').evaluateAll((spans) =>
+        spans.filter((el) => el.scrollWidth > el.clientWidth + 0.5).map((el) => el.textContent))
+      expect(clipped).toEqual([])
+      expect(await noHorizontalScroll(page)).toBe(true)
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/navigation-tabs-320-${lang}.png` })
     })
   }
 
@@ -107,7 +132,7 @@ test.describe('320 px width', () => {
     await page.locator('#nav-to').selectOption({ label: 'Platform 10' })
     await expect(page.getByTestId('route-line')).toBeVisible()
     expect(await noHorizontalScroll(page)).toBe(true)
-    await page.getByRole('tab', { name: 'Step-by-Step' }).click()
+    await page.getByRole('tab', { name: 'Steps' }).click()
     await expect(page.getByRole('list', { name: 'Step-by-Step' })).toBeVisible()
     expect(await noHorizontalScroll(page)).toBe(true)
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/navigation-chennai-central-320.png`, fullPage: true })

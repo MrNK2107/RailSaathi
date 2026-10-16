@@ -76,7 +76,7 @@ test('AR camera guidance (camera stream, frame upload, arrow) runs without a CSP
   } }))
   await page.goto('/#/navigation')
   await page.locator('#nav-to').selectOption('platform_10')
-  await page.getByRole('tab', { name: 'Camera (AR)' }).click()
+  await page.getByRole('tab', { name: 'AR' }).click()
   await page.getByRole('button', { name: 'Start camera' }).click()
   await expect(page.getByTestId('ar-arrow')).toBeVisible()
   await expect(page.getByText(/Near Concourse North Junction/)).toBeVisible()

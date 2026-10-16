@@ -387,13 +387,13 @@ describe('AR tab in the wayfinder', () => {
   it('is offered for an AR station; leaving returns to the text steps', async () => {
     const c = client()
     const user = await open(c)
-    const tab = await screen.findByRole('tab', { name: a.tab })
+    const tab = await screen.findByRole('tab', { name: m.navigation.tabs.ar })
     await user.selectOptions(screen.getByLabelText(m.navigation.pickTo), 'platform_10')
     await user.click(tab)
     await user.click(await screen.findByRole('button', { name: a.accept }))
     await screen.findByTestId('ar-arrow')
     await user.click(screen.getByRole('button', { name: a.exit }))
-    expect(screen.getByRole('tab', { name: m.navigation.steps })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: m.navigation.tabs.steps })).toHaveAttribute('aria-selected', 'true')
     expect(await screen.findByText('Turn left at Concourse Junction to Platform 10')).toBeInTheDocument() // the step list
   })
 
@@ -401,39 +401,40 @@ describe('AR tab in the wayfinder', () => {
     dev.openRearCamera.mockResolvedValue({ ok: false, reason: 'camera_denied' })
     const user = await open(client())
     await user.selectOptions(screen.getByLabelText(m.navigation.pickTo), 'platform_10')
-    await user.click(await screen.findByRole('tab', { name: a.tab }))
+    await user.click(await screen.findByRole('tab', { name: m.navigation.tabs.ar }))
     await user.click(await screen.findByRole('button', { name: a.accept }))
     expect(await screen.findByText(a.fallback.camera_denied)).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: m.navigation.steps })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: m.navigation.tabs.steps })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('is not offered when client-config does not list the station, for an untraced station, or without a camera', async () => {
     await open(client({ clientConfig: vi.fn().mockResolvedValue({ google_maps_browser_key: null, features: { ar_guidance_stations: [] } }) }))
-    await screen.findByRole('tab', { name: m.navigation.steps })
-    expect(screen.queryByRole('tab', { name: a.tab })).not.toBeInTheDocument()
+    await screen.findByRole('tab', { name: m.navigation.tabs.steps })
+    expect(screen.queryByRole('tab', { name: m.navigation.tabs.ar })).not.toBeInTheDocument()
     document.body.innerHTML = ''
 
     const untraced = client({ station: vi.fn().mockResolvedValue(details({ routing_enabled: false })) })
     await open(untraced, () => screen.findByText(m.navigation.routingUnavailable))
     await waitFor(() => expect(untraced.clientConfig).toHaveBeenCalled())
-    expect(screen.queryByRole('tab', { name: a.tab })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: m.navigation.tabs.ar })).not.toBeInTheDocument()
     document.body.innerHTML = ''
 
     dev.checkArSupport.mockResolvedValueOnce({ ok: false, reason: 'no_camera' })
     const c = client()
     await open(c)
     await waitFor(() => expect(dev.checkArSupport).toHaveBeenCalled())
-    expect(screen.queryByRole('tab', { name: a.tab })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: m.navigation.tabs.ar })).not.toBeInTheDocument()
   })
 
   it('an AR-capable station with AR switched off on the server shows the tab disabled, with the reason', async () => {
     const off = client({ clientConfig: vi.fn().mockResolvedValue({ google_maps_browser_key: null,
       features: { ar_guidance_stations: [], ar_capable_stations: ['chennai_central'] } }) })
     const user = await open(off)
-    const tab = await screen.findByRole('tab', { name: a.tab })
+    const tab = await screen.findByRole('tab', { name: m.navigation.tabs.ar })
     expect(tab).toHaveAttribute('aria-disabled', 'true')
-    const reason = screen.getByText(a.notSwitchedOn)
-    expect(reason).toHaveTextContent('Camera guidance (AR) is not switched on for this server yet. It needs the Gemini vision service.')
+    // An older backend without ar_unavailable_reason: a reason that claims no cause.
+    const reason = screen.getByText(a.offUnknown)
+    expect(reason).toHaveTextContent('Camera guidance (AR) is not switched on at this station yet.')
     expect(tab).toHaveAttribute('aria-describedby', reason.id)
     await user.selectOptions(screen.getByLabelText(m.navigation.pickTo), 'platform_10')
     await user.click(tab)
@@ -442,10 +443,27 @@ describe('AR tab in the wayfinder', () => {
     expect(dev.checkArSupport).not.toHaveBeenCalled()  // no camera probing where AR cannot run
   })
 
+  it('names the real reason AR is off: the station flag, not the vision service', async () => {
+    const flagOff = client({ clientConfig: vi.fn().mockResolvedValue({ google_maps_browser_key: null,
+      features: { ar_guidance_stations: [], ar_capable_stations: ['chennai_central'],
+        ar_unavailable_reason: { chennai_central: 'not_enabled' } } }) })
+    await open(flagOff)
+    const tab = await screen.findByRole('tab', { name: m.navigation.tabs.ar })
+    expect(tab).toHaveAttribute('aria-disabled', 'true')
+    const reason = screen.getByText(a.notEnabled)
+    expect(reason).toHaveAttribute('data-reason', 'not_enabled')
+    expect(reason).not.toHaveTextContent('Gemini')
+    document.body.innerHTML = ''
+    await open(client({ clientConfig: vi.fn().mockResolvedValue({ google_maps_browser_key: null,
+      features: { ar_guidance_stations: [], ar_capable_stations: ['chennai_central'],
+        ar_unavailable_reason: { chennai_central: 'vision_unavailable' } } }) }))
+    expect(await screen.findByText(a.notSwitchedOn)).toHaveAttribute('data-reason', 'vision_unavailable')
+  })
+
   it('an available AR station keeps the enabled tab and shows no switched-off reason', async () => {
     await open(client({ clientConfig: vi.fn().mockResolvedValue({ google_maps_browser_key: null,
       features: { ar_guidance_stations: ['chennai_central'], ar_capable_stations: ['chennai_central'] } }) }))
-    const tab = await screen.findByRole('tab', { name: a.tab })
+    const tab = await screen.findByRole('tab', { name: m.navigation.tabs.ar })
     expect(tab).not.toHaveAttribute('aria-disabled')
     expect(screen.queryByText(a.notSwitchedOn)).not.toBeInTheDocument()
   })

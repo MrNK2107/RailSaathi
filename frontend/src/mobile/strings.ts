@@ -113,6 +113,8 @@ const en = {
     typing: 'RailSaathi is typing…',
     inputLabel: 'Type your journey request',
     inputPlaceholder: 'Where do you want to go?',
+    // Shown instead of the session's greeting when the UI language differs from the language the session began in.
+    greeting: "Tell me where and when you want to travel, who is travelling, and what matters most (cheapest, fastest, arrival time, class, assistance). I'll ask only for what's missing.",
     send: 'Send',
     conversation: 'Conversation',
     understanding: 'Understanding your request…',
@@ -195,6 +197,8 @@ const en = {
     title: 'Station Navigation',
     mapView: 'Map View',
     steps: 'Step-by-Step',
+    // Short guidance-tab labels: all three fit on one line at 320 px (the long names stay as the tooltips).
+    tabs: { map: 'Map', steps: 'Steps', ar: 'AR' },
     station: 'Station',
     platform: 'Platform',
     noTrain: 'No journey selected. Pick a station below.',
@@ -471,6 +475,8 @@ const en = {
   ar: {
     tab: 'Camera (AR)',
     notSwitchedOn: 'Camera guidance (AR) is not switched on for this server yet. It needs the Gemini vision service.',
+    notEnabled: 'Camera guidance (AR) is not switched on at this station yet. It is turned on station by station after on-site testing.',
+    offUnknown: 'Camera guidance (AR) is not switched on at this station yet.',
     title: 'Camera guidance',
     safety: 'Watch your step, look up at platform edges and stairs.',
     approximate: 'Approximate — confirm with station signs.',
@@ -666,6 +672,7 @@ const ta: MobileStrings = {
     typing: 'RailSaathi தட்டச்சு செய்கிறது…',
     inputLabel: 'உங்கள் பயணக் கோரிக்கை',
     inputPlaceholder: 'எங்கே செல்ல வேண்டும்?',
+    greeting: 'எங்கு, எப்போது, யாருடன் பயணம் செய்கிறீர்கள், எது முக்கியம் (மலிவு, வேகம், நேரம், வகுப்பு, உதவி) என்று சொல்லுங்கள். தேவையானதை மட்டும் கேட்பேன்.',
     send: 'அனுப்பு',
     conversation: 'உரையாடல்',
     understanding: 'உங்கள் கோரிக்கையைப் புரிந்துகொள்கிறது…',
@@ -766,6 +773,7 @@ const ta: MobileStrings = {
   navigation: {
     title: 'நிலைய வழிகாட்டி',
     mapView: 'வரைபடக் காட்சி',
+    tabs: { map: 'வரைபடம்', steps: 'படிகள்', ar: 'AR' },
     steps: 'படிப்படியாக',
     station: 'நிலையம்',
     platform: 'நடைமேடை',
@@ -1066,6 +1074,8 @@ const ta: MobileStrings = {
   ar: {
     tab: 'கேமரா (AR)',
     notSwitchedOn: 'கேமரா வழிகாட்டல் (AR) இந்தச் சேவையகத்தில் இன்னும் இயக்கப்படவில்லை. இதற்கு Gemini பார்வைச் சேவை தேவை.',
+    notEnabled: 'கேமரா வழிகாட்டல் (AR) இந்த நிலையத்தில் இன்னும் இயக்கப்படவில்லை. நிலையத்தில் சோதித்த பிறகு ஒவ்வொரு நிலையமாக இயக்கப்படும்.',
+    offUnknown: 'கேமரா வழிகாட்டல் (AR) இந்த நிலையத்தில் இன்னும் இயக்கப்படவில்லை.',
     title: 'கேமரா வழிகாட்டல்',
     safety: 'கவனமாக நடங்கள்; நடைமேடை ஓரங்களையும் படிக்கட்டுகளையும் நிமிர்ந்து பாருங்கள்.',
     approximate: 'தோராயமானது — நிலையப் பலகைகளுடன் சரிபாருங்கள்.',

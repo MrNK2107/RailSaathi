@@ -76,7 +76,7 @@ test('station navigation: routed with map, steps, turn-by-turn and a simulated c
   await expect(page.getByTestId('route-line')).toBeVisible()
   await expectNoAxeViolations(page, 'navigation (routed, map)')
 
-  await page.getByRole('tab', { name: 'Step-by-Step' }).click()
+  await page.getByRole('tab', { name: 'Steps' }).click()
   await expect(page.getByRole('list', { name: 'Step-by-Step' })).toBeVisible()
   await expectNoAxeViolations(page, 'navigation (step list)')
 

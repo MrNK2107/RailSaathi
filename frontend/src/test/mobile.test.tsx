@@ -96,6 +96,31 @@ describe('Dashboard', () => {
     expect(screen.getByRole('button', { name: /நிலைய வழிகாட்டி & AR/ })).toBeInTheDocument()
   })
 
+  it('the first greeting follows the UI language when Tamil is picked after the session began', async () => {
+    const { user } = await open('home')
+    await user.click(screen.getByRole('button', { name: 'தமிழ்' }))
+    act(() => { window.location.hash = '/plan' })
+    expect(await screen.findByText(/எங்கு, எப்போது, யாருடன் பயணம் செய்கிறீர்கள்/)).toBeInTheDocument()
+    expect(screen.queryByText(GREETING)).not.toBeInTheDocument()
+    act(() => { window.location.hash = '/home' })
+    await user.click(await screen.findByRole('button', { name: 'EN' }))
+    act(() => { window.location.hash = '/plan' })
+    expect(await screen.findByText(GREETING)).toBeInTheDocument()  // the backend's own greeting in its language
+  })
+
+  it('the live alerts card leaves no empty source line in demo mode', async () => {
+    await open('home')
+    expect(screen.getByRole('heading', { name: 'Live train alerts' })).toBeInTheDocument()
+    expect(screen.queryByTestId('alerts-source')).not.toBeInTheDocument()
+  })
+
+  it('the live alerts card names the live source', async () => {
+    const live = fakeClient({ health: vi.fn().mockResolvedValue({ status: 'ok', api_version: '0.1.0', data_mode: 'live',
+      data_provider: { requested: 'ntes', active: 'ntes', reason: null }, ai: { active: false } }) })
+    await open('home', live)
+    expect(await screen.findByTestId('alerts-source')).toHaveTextContent('NTES (unofficial client)')
+  })
+
   it('switches language to Tamil', async () => {
     const { user } = await open('home')
     await user.click(screen.getByRole('button', { name: 'தமிழ்' }))

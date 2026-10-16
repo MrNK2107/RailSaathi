@@ -49,7 +49,7 @@ test('camera guidance: consent, a fix from the fake camera, the arrow, and back 
   await page.goto('/#/navigation')
   await page.locator('#nav-station').selectOption('chennai_central')
   await page.getByLabel('To', { exact: true }).selectOption('platform_10')
-  await page.getByRole('tab', { name: 'Camera (AR)' }).click()
+  await page.getByRole('tab', { name: 'AR' }).click()
 
   await expect(page.getByRole('heading', { name: 'Use your camera to find your way?' })).toBeVisible()
   await expect(page.getByText('Watch your step, look up at platform edges and stairs.')).toBeVisible()
@@ -76,7 +76,7 @@ test('camera guidance: consent, a fix from the fake camera, the arrow, and back 
   expect(stored.session.every(([, size]) => size < 2_000)).toBe(true)
 
   await page.getByRole('button', { name: 'Exit camera and show steps' }).click()
-  await expect(page.getByRole('tab', { name: 'Step-by-Step' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('tab', { name: 'Steps' })).toHaveAttribute('aria-selected', 'true')
   await expect(page.getByText(/Start at Main Entrance/).first()).toBeVisible()
   expect(errors).toEqual([])
 })
@@ -86,8 +86,8 @@ test('camera guidance is not offered when client-config lists no AR station', as
     fulfilJson(route, { google_maps_browser_key: null, features: { ar_guidance_stations: [] } }))
   await page.goto('/#/navigation')
   await page.locator('#nav-station').selectOption('chennai_central')
-  await expect(page.getByRole('tab', { name: 'Step-by-Step' })).toBeVisible()
-  await expect(page.getByRole('tab', { name: 'Camera (AR)' })).toHaveCount(0)
+  await expect(page.getByRole('tab', { name: 'Steps' })).toBeVisible()
+  await expect(page.getByRole('tab', { name: 'AR' })).toHaveCount(0)
 })
 
 test('camera guidance against the real /localize: the demo backend has no vision model, so it falls back to the steps', async ({ page }) => {
@@ -100,9 +100,9 @@ test('camera guidance against the real /localize: the demo backend has no vision
   await page.goto('/#/navigation')
   await page.locator('#nav-station').selectOption('chennai_central')
   await page.getByLabel('To', { exact: true }).selectOption('platform_10')
-  await page.getByRole('tab', { name: 'Camera (AR)' }).click()
+  await page.getByRole('tab', { name: 'AR' }).click()
   await page.getByRole('button', { name: 'Start camera' }).click()
   await expect(page.getByText('Camera positioning is unavailable right now. Follow the steps below.')).toBeVisible()
-  await expect(page.getByRole('tab', { name: 'Step-by-Step' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('tab', { name: 'Steps' })).toHaveAttribute('aria-selected', 'true')
   expect(statuses).toEqual([200])
 })

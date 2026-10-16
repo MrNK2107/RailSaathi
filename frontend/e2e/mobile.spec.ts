@@ -72,7 +72,7 @@ test('popular route starts a real plan; the journey card waits for every detail;
   await expect(summary).toContainText('Recommended route')
   await expect(summary).toContainText('→ Platform 10')
   // Step-by-step shows the same route; turn-by-turn advances in order and can be exited.
-  await page.getByRole('tab', { name: 'Step-by-Step' }).click()
+  await page.getByRole('tab', { name: 'Steps' }).click()
   const steps = page.getByRole('list', { name: 'Step-by-Step' }).getByRole('listitem')
   await expect(steps.first()).toContainText('Start at')
   await expect(steps.last()).toContainText('Platform 10')

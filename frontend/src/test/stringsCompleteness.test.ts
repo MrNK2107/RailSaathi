@@ -16,6 +16,7 @@ const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1
 // Proper nouns, abbreviations and numbers that are written the same in Tamil.
 const SAME_AS_ENGLISH = new Set([
   'brand', 'dashboard.sos', 'ticketing.assistant', 'tour.streetView', 'tour.streetViewTitle', 'alerts.delay.trainPlaceholder',
+  'navigation.tabs.ar',
 ])
 
 describe('mobile strings', () => {

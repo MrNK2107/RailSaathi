@@ -227,6 +227,15 @@ def ar_capable_stations(c: Container) -> list[str]:
     return [sid for sid in c.stations.ids() if c.stations.get(sid).station.ar_enabled]
 
 
+def ar_unavailable_reason(c: Container) -> dict[str, str]:
+    """Why AR is off at each capable station where it is not offered: `vision_unavailable` when there is no Gemini
+    vision localiser (whatever the flags), else `not_enabled` (AR_GUIDANCE_ENABLED does not name the station, e.g.
+    in production before the on-site evaluation passes)."""
+    offered = set(ar_guidance_stations(c))
+    reason = "vision_unavailable" if c.vision is None else "not_enabled"
+    return {sid: reason for sid in ar_capable_stations(c) if sid not in offered}
+
+
 def ar_guidance_stations(c: Container) -> list[str]:
     """Stations where AR guidance is offered: data opts in, the per-station flag is on and a localizer exists."""
     if c.vision is None or c.stations is None:
