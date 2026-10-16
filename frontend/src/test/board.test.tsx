@@ -9,7 +9,7 @@ const prov = { mode: 'cached', source: 'RailRadar live API (third-party)', as_of
 const board = (over: Partial<DepartureBoard> = {}): DepartureBoard => ({
   station: { code: 'MAS', name: 'Chennai Central' },
   window_start: '2026-10-10T10:00:00+05:30', window_end: '2026-10-10T12:00:00+05:30',
-  neighbours_checked: [], complete: true, reason: null, provenance: prov,
+  neighbours_checked: [{ code: 'ED', name: 'Erode Jn' }], complete: true, reason: null, provenance: prov,
   departures: [{ train_no: '12676', train_name: 'Kovai Express', scheduled_departure: '2026-10-10T10:30:00+05:30',
     towards: [{ code: 'CBE', name: 'Coimbatore Jn' }], delay_minutes: 12, cancelled: false, status_as_of: null }],
   ...over,
@@ -37,6 +37,21 @@ describe('Departure board provenance', () => {
     expect(screen.getByTestId('provenance-badge')).toHaveTextContent('Built from cached results.')
     expect(screen.getByText(/Only direct trains to nearby catalogue cities/)).toBeInTheDocument()
     expect(screen.queryByTestId('board-incomplete')).not.toBeInTheDocument()
+  })
+
+  it('an NTES board says it is the station board via an unofficial client, not a nearby-cities sample', async () => {
+    await open(board({ neighbours_checked: [],
+      provenance: { mode: 'live', source: 'NTES (unofficial client)', as_of: '2026-10-10T09:55:00+05:30', note: 'Station board as published by NTES.' } }))
+    expect(await screen.findByText('Kovai Express')).toBeInTheDocument()
+    expect(screen.getByTestId('board-coverage')).toHaveTextContent('unofficial client')
+    expect(screen.queryByText(/nearby catalogue cities/)).not.toBeInTheDocument()
+    expect(screen.getByTestId('provenance-badge')).toHaveTextContent('NTES (unofficial client)')
+  })
+
+  it('a demo board claims no coverage it does not have', async () => {
+    await open(board({ neighbours_checked: [], provenance: { ...prov, mode: 'demo', source: 'RailSaathi sample timetable' } }))
+    expect(await screen.findByText('Kovai Express')).toBeInTheDocument()
+    expect(screen.queryByTestId('board-coverage')).not.toBeInTheDocument()
   })
 
   it('marks a stale board as STALE', async () => {

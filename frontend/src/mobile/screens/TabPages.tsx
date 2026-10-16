@@ -277,7 +277,13 @@ export function Alerts() {
                   {m.alerts.board.incomplete}
                 </p>
               )}
-              <p className="text-[11px] text-ink-500">{m.alerts.board.coverage}</p>
+              {/* What the board covers depends on the source: NTES publishes the station's own board; RailRadar boards
+                  are built from trains to nearby catalogue stations (neighbours_checked). */}
+              {board.provenance.source.startsWith('NTES') ? (
+                <p className="text-[11px] text-ink-500" data-testid="board-coverage">{m.alerts.board.coverageNtes}</p>
+              ) : board.neighbours_checked.length > 0 && (
+                <p className="text-[11px] text-ink-500" data-testid="board-coverage">{m.alerts.board.coverage}</p>
+              )}
               <ProvenanceBadge provenance={board.provenance} variant="full" />
             </>
           )}
