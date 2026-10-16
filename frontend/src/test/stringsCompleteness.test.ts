@@ -1,6 +1,6 @@
 // Every English string has a real, non-empty Tamil counterpart with the same placeholders.
 import { STRINGS } from '../i18n/strings'
-import { MOBILE_STRINGS, SPEECH_OPTIONS, VOICE_EXAMPLES, fill } from '../mobile/strings'
+import { MOBILE_STRINGS, SPEECH_OPTIONS, fill } from '../mobile/strings'
 
 function leaves(o: unknown, path = '', out: Record<string, string> = {}): Record<string, string> {
   if (typeof o === 'string') out[path] = o
@@ -39,9 +39,8 @@ describe('mobile strings', () => {
     for (const path of Object.keys(en)) expect(placeholders(ta[path]), path).toEqual(placeholders(en[path]))
   })
 
-  it('has Tamil voice examples and speech options for both languages', () => {
-    expect(VOICE_EXAMPLES.ta.length).toBe(VOICE_EXAMPLES.en.length)
-    expect(SPEECH_OPTIONS.map((o) => o.code)).toEqual(['ta-IN', 'en-IN'])
+  it('offers Tamil, English and Tanglish speech options (Tanglish is recognised as Indian English)', () => {
+    expect(SPEECH_OPTIONS.map((o) => [o.id, o.code])).toEqual([['ta', 'ta-IN'], ['en', 'en-IN'], ['tanglish', 'en-IN']])
   })
 
   it('no longer carries the stale preview / not-connected copy', () => {

@@ -85,6 +85,48 @@ describe('Dashboard', () => {
     const { user } = await open('home')
     await user.click(screen.getByRole('button', { name: 'தமிழ்' }))
     expect(screen.getByText('வணக்கம்,')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /சென்னை → மதுரை/ })).toBeInTheDocument()
+    expect(screen.getByText('நேரடி ரயில் அறிவிப்புகள்')).toBeInTheDocument()
+  })
+
+  it('shows the four popular routes as cards with station codes, no fares or timings, and no mislabelled photo', async () => {
+    await open('home')
+    const expected: [string, string, string | null][] = [
+      ['Chennai → Bengaluru', 'MAS → SBC', null],
+      ['Chennai → Coimbatore', 'MAS → CBE', 'coimbatore'],
+      ['Chennai → Madurai', 'MAS → MDU', 'madurai'],
+      ['Chennai → Tiruchirappalli', 'MAS → TPJ', 'tiruchirappalli'],
+    ]
+    for (const [name, codes, image] of expected) {
+      const card = screen.getByRole('button', { name: new RegExp(name) })
+      expect(within(card).getByText(codes)).toBeInTheDocument()
+      expect(within(card).getByText('Plan this route')).toBeInTheDocument()
+      expect(card.textContent).not.toMatch(/₹|\d+ ?h\b/)
+      // No Bengaluru photo exists, so that card must not borrow another city's picture.
+      const img = card.querySelector('img')
+      if (image) expect(img?.getAttribute('src')).toContain(image)
+      else expect(img).toBeNull()
+    }
+  })
+
+  it('live alerts promo is honest: no push alerts, opens Alerts when nothing is confirmed', async () => {
+    const { user } = await open('home')
+    const promo = screen.getByRole('region', { name: 'Live train alerts' })
+    expect(within(promo).getByText('RailSaathi does not send push alerts.')).toBeInTheDocument()
+    expect(within(promo).getByTestId('provenance-badge')).toHaveAttribute('data-mode', 'demo')
+    await user.click(within(promo).getByRole('button', { name: 'Open alerts' }))
+    await waitFor(() => expect(window.location.hash).toBe('#/alerts'))
+  })
+
+  it('live alerts promo offers live status once a plan is confirmed', async () => {
+    const confirmed = {
+      ...withRecs, status: 'confirmed', selected_option_id: rec.option.option_id,
+      confirmation: { confirmation_id: 'RSP-MOBILE1', confirmed_at: '', selected_option_id: rec.option.option_id, constraints_hash: 'abc', handoff: { module: 'smart_passenger_planner' }, superseded: false },
+    } as Partial<SessionState>
+    const { user } = await open('home', fakeClient({ createSession: vi.fn().mockResolvedValue(response(confirmed, 'Confirmed.')) }))
+    const promo = screen.getByRole('region', { name: 'Live train alerts' })
+    await user.click(within(promo).getByRole('button', { name: 'Check live status' }))
+    await waitFor(() => expect(window.location.hash).toBe('#/confirmation'))
   })
 })
 
@@ -103,13 +145,6 @@ describe('AI Voice Agent', () => {
     await waitFor(() => expect(window.location.hash).toBe('#/options'))
   })
 
-  it('example prompts fill the input without sending', async () => {
-    const { client, user } = await open('plan')
-    await user.click(screen.getByRole('button', { name: /Find a direct train from Chennai to Coimbatore/ }))
-    expect(screen.getByLabelText('Type your journey request')).toHaveValue('Find a direct train from Chennai to Coimbatore for 2 people.')
-    expect(client.sendMessage).not.toHaveBeenCalled()
-  })
-
   it('voice transcript fills the box, Send waits for Stop, nothing is auto-sent', async () => {
     let instance: { onresult: ((e: unknown) => void) | null; onend: (() => void) | null; lang: string } | null = null
     class FakeRecognition {
@@ -120,15 +155,100 @@ describe('AI Voice Agent', () => {
     }
     ;(globalThis as Record<string, unknown>).webkitSpeechRecognition = FakeRecognition
     const { client, user } = await open('plan')
-    await user.selectOptions(screen.getByLabelText('Speak in'), 'ta-IN')
+    const speakIn = screen.getByRole('group', { name: 'Speak in' })
+    expect(within(speakIn).getAllByRole('button').map((b) => b.textContent)).toEqual(['தமிழ்', 'English', 'Tanglish'])
+    await user.click(within(speakIn).getByRole('button', { name: 'தமிழ்' }))
+    const waves = screen.getAllByTestId('voice-wave')
+    expect(waves).toHaveLength(2)
+    waves.forEach((w) => expect(w).toHaveAttribute('data-listening', 'false'))
     await user.click(screen.getByRole('button', { name: 'Start voice input' }))
     expect(instance!.lang).toBe('ta-IN')
+    expect(screen.getByRole('status')).toHaveTextContent('Listening')
+    screen.getAllByTestId('voice-wave').forEach((w) => expect(w).toHaveAttribute('data-listening', 'true'))
     act(() => instance!.onresult?.({ results: [Object.assign([{ transcript: 'நாளை சென்னைக்கு', confidence: 0.9 }], { isFinal: true })] }))
     expect(screen.getByLabelText('Type your journey request')).toHaveValue('நாளை சென்னைக்கு')
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'Stop voice input' }))
     expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled()
+    expect(screen.getByRole('status')).toHaveTextContent('Transcript ready')
+    screen.getAllByTestId('voice-wave').forEach((w) => expect(w).toHaveAttribute('data-listening', 'false'))
     expect(client.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('renders the supplied artwork: background, robot, mic button image and two voice waves', async () => {
+    await open('plan')
+    expect(screen.getByRole('img', { name: 'RailSaathi AI assistant robot' }).getAttribute('src')).toContain('robot')
+    const mic = screen.getByRole('button', { name: 'Start voice input' })
+    expect(within(mic).getByRole('presentation').getAttribute('src')).toContain('mic-button')
+    expect(mic).toHaveAttribute('data-state', 'unsupported')
+    expect(mic).toBeDisabled()
+    expect(screen.getByTestId('voice-hero').getAttribute('data-bg')).toContain('station-bg')
+  })
+
+  it('Tanglish uses Indian-English recognition and permission denial is explained', async () => {
+    let lang = ''
+    class FakeRecognition {
+      lang = ''; interimResults = false; continuous = false; onresult = null; onerror = null; onend = null
+      start() { lang = this.lang } stop() {} abort() {}
+    }
+    ;(globalThis as Record<string, unknown>).webkitSpeechRecognition = FakeRecognition
+    Object.defineProperty(navigator, 'permissions', {
+      configurable: true, value: { query: vi.fn().mockResolvedValue({ state: 'denied', onchange: null }) },
+    })
+    try {
+      const { user } = await open('plan')
+      await user.click(within(screen.getByRole('group', { name: 'Speak in' })).getByRole('button', { name: 'Tanglish' }))
+      expect(await screen.findByText(/Microphone access is blocked/)).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Start voice input' }))
+      expect(lang).toBe('en-IN')
+    } finally {
+      delete (navigator as unknown as Record<string, unknown>).permissions
+    }
+  })
+
+  it('works when the Permissions API is missing', async () => {
+    ;(globalThis as Record<string, unknown>).webkitSpeechRecognition = class { start() {} stop() {} abort() {} }
+    await open('plan')
+    expect(screen.getByRole('status')).toHaveTextContent('Tap the microphone and speak')
+  })
+
+  it('keeps the journey card hidden until every mandatory detail is collected', async () => {
+    const partial: Partial<SessionState> = {
+      ...baseState, status: 'collecting_details', missing_fields: ['destination', 'journey_date', 'passenger_count'],
+      journey: { ...withRecs.journey!, destination: null, journey_date: null, passenger_count: null },
+    }
+    const client = fakeClient({
+      sendMessage: vi.fn()
+        .mockResolvedValueOnce(response(partial, 'Where do you want to go?'))
+        .mockResolvedValueOnce(response(withRecs, 'I found 3 eligible option(s).')),
+    })
+    const { user } = await open('plan', client)
+    await user.type(screen.getByLabelText('Type your journey request'), 'from Coimbatore')
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+    const thread = screen.getByTestId('chat-thread')
+    expect(await within(thread).findByText('Where do you want to go?')).toBeInTheDocument()
+    expect(within(thread).getByText('from Coimbatore').closest('[data-role]')).toHaveAttribute('data-role', 'user')
+    expect(screen.queryByRole('region', { name: 'Journey details' })).not.toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Type your journey request'), 'to Chennai tomorrow, 2 people')
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+    expect(await screen.findByRole('region', { name: 'Journey details' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'View journey options' })).toBeInTheDocument()
+  })
+
+  it('chat is a thread with the composer at the bottom and one mic button at a time', async () => {
+    ;(globalThis as Record<string, unknown>).webkitSpeechRecognition = class { start() {} stop() {} abort() {} }
+    const { user } = await open('plan')
+    expect(screen.getAllByRole('button', { name: 'Start voice input' })).toHaveLength(1)
+    await user.type(screen.getByLabelText('Type your journey request'), 'Coimbatore to Chennai tomorrow, 2 people')
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+    await screen.findByRole('region', { name: 'Journey details' })
+    const composer = screen.getByRole('form', { name: 'Message' })
+    expect(screen.getAllByRole('button', { name: 'Start voice input' })).toHaveLength(1)
+    expect(within(composer).getByRole('button', { name: 'Start voice input' })).toBeInTheDocument()
+    expect(within(composer).getByRole('button', { name: 'Send' })).toBeInTheDocument()
+    const thread = screen.getByTestId('chat-thread')
+    expect(within(thread).getAllByTestId('bubble').map((b) => b.getAttribute('data-role'))).toEqual(['assistant', 'user', 'assistant'])
   })
 
   it('shows API errors with a retry', async () => {

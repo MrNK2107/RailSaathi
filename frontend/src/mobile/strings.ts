@@ -74,6 +74,14 @@ const en = {
     sos: 'SOS',
     language: 'Language',
     services: 'Services',
+    routeCta: 'Plan this route',
+    alertsTitle: 'Live train alerts',
+    alertsBody: 'Confirm a journey plan, then check delays and cancellations for your trains whenever you like.',
+    alertsSource: 'Live status from',
+    alertsDemo: 'Demo data: disruptions are simulated.',
+    alertsNotice: 'RailSaathi does not send push alerts.',
+    alertsOpen: 'Open alerts',
+    alertsCheck: 'Check live status',
   },
   plan: {
     title: 'Plan with AI',
@@ -95,10 +103,17 @@ const en = {
     },
     startVoice: 'Start voice input',
     stopVoice: 'Stop voice input',
+    stop: 'Stop',
+    processing: 'Processing your speech…',
+    transcriptReady: 'Transcript ready. Check it, edit if needed, then send.',
+    permissionPrompt: 'Tap the microphone. Your browser will ask for permission to use it.',
+    permissionDenied: 'Microphone access is blocked. Allow it in your browser settings, or type your request below.',
+    robotAlt: 'RailSaathi AI assistant robot',
+    composer: 'Message',
+    typing: 'RailSaathi is typing…',
     inputLabel: 'Type your journey request',
     inputPlaceholder: 'e.g. Chennai to Bengaluru tomorrow morning, 2 people, under ₹800',
     send: 'Send',
-    tryExamples: 'Try saying',
     conversation: 'Conversation',
     understanding: 'Understanding your request…',
     stepPlaces: 'Extracting source and destination',
@@ -544,6 +559,14 @@ const ta: MobileStrings = {
     sos: 'SOS',
     language: 'மொழி',
     services: 'சேவைகள்',
+    routeCta: 'இந்த வழியைத் திட்டமிடு',
+    alertsTitle: 'நேரடி ரயில் அறிவிப்புகள்',
+    alertsBody: 'பயணத் திட்டத்தை உறுதி செய்தபின், உங்கள் ரயில்களின் தாமதம் / ரத்து நிலையை எப்போதும் சரிபார்க்கலாம்.',
+    alertsSource: 'நேரடி நிலை:',
+    alertsDemo: 'டெமோ தரவு: இடையூறுகள் உருவகப்படுத்தப்பட்டவை.',
+    alertsNotice: 'RailSaathi புஷ் அறிவிப்புகளை அனுப்புவதில்லை.',
+    alertsOpen: 'அறிவிப்புகளைத் திற',
+    alertsCheck: 'நேரடி நிலையைச் சரிபார்',
   },
   plan: {
     title: 'AI உடன் திட்டமிடுங்கள்',
@@ -565,10 +588,17 @@ const ta: MobileStrings = {
     },
     startVoice: 'குரல் உள்ளீட்டைத் தொடங்கு',
     stopVoice: 'குரல் உள்ளீட்டை நிறுத்து',
+    stop: 'நிறுத்து',
+    processing: 'உங்கள் பேச்சைச் செயலாக்குகிறது…',
+    transcriptReady: 'உரை தயார். சரிபார்த்து, தேவையெனில் திருத்தி, அனுப்புங்கள்.',
+    permissionPrompt: 'மைக்கைத் தட்டுங்கள். உலாவி மைக் அனுமதி கேட்கும்.',
+    permissionDenied: 'மைக் அணுகல் தடுக்கப்பட்டுள்ளது. உலாவி அமைப்புகளில் அனுமதிக்கவும் அல்லது கீழே தட்டச்சு செய்யவும்.',
+    robotAlt: 'RailSaathi AI உதவி ரோபோ',
+    composer: 'செய்தி',
+    typing: 'RailSaathi தட்டச்சு செய்கிறது…',
     inputLabel: 'உங்கள் பயணக் கோரிக்கை',
     inputPlaceholder: 'எ.கா. நாளை காலை சென்னையிலிருந்து பெங்களூருக்கு, 2 பேர், ₹800-க்குள்',
     send: 'அனுப்பு',
-    tryExamples: 'இப்படிச் சொல்லலாம்',
     conversation: 'உரையாடல்',
     understanding: 'உங்கள் கோரிக்கையைப் புரிந்துகொள்கிறது…',
     stepPlaces: 'புறப்படும் / சேரும் இடம்',
@@ -983,21 +1013,14 @@ const ta: MobileStrings = {
 
 export const MOBILE_STRINGS: Record<Language, MobileStrings> = { en, ta }
 
-export const VOICE_EXAMPLES: Record<Language, string[]> = {
-  en: [
-    'I need to go from Chennai to Bengaluru tomorrow morning under ₹800.',
-    'Find a direct train from Chennai to Coimbatore for 2 people.',
-    'I need to reach Chennai before 9 AM tomorrow from Madurai.',
-  ],
-  ta: [
-    'நாளை சென்னையிலிருந்து பெங்களூருக்கு போகணும். காலை 10 மணிக்குள் அடையணும்.',
-    'சென்னையிலிருந்து கோயம்புத்தூருக்கு 2 பேருக்கு நேரடி ரயில் வேண்டும்.',
-    'Naalaiku Kovai la irundhu Chennai ku amma kooda poganum',
-  ],
-}
-
-/** Speech-recognition languages offered by the mic. Recognition quality depends on the browser. */
+/**
+ * Speech-recognition languages offered by the mic. Recognition quality depends on the browser.
+ * Browsers have no Tanglish model: Indian English (en-IN) transcribes romanised Tamil best, and the
+ * planner's extractor already understands Tanglish text.
+ */
 export const SPEECH_OPTIONS = [
-  { code: 'ta-IN', label: 'தமிழில் பேசுங்கள்', name: 'Tamil' },
-  { code: 'en-IN', label: 'Speak in English / Tanglish', name: 'English (India)' },
+  { id: 'ta', code: 'ta-IN', label: 'தமிழ்', name: 'Tamil' },
+  { id: 'en', code: 'en-IN', label: 'English', name: 'English (India)' },
+  { id: 'tanglish', code: 'en-IN', label: 'Tanglish', name: 'Tanglish (Indian English recognition)' },
 ] as const
+export type SpeechOptionId = (typeof SPEECH_OPTIONS)[number]['id']

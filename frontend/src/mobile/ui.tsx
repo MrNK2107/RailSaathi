@@ -70,7 +70,7 @@ export function Screen({ children, nav = false, footer }: { children: ReactNode;
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-[440px] flex-col bg-white shadow-card sm:my-4 sm:min-h-[calc(100vh-2rem)] sm:overflow-hidden sm:rounded-[28px]">
       <div className="flex flex-1 flex-col">{children}</div>
-      {footer && <div className="sticky bottom-0 z-10 border-t border-ink-100 bg-white p-4">{footer}</div>}
+      {footer && <div className="sticky bottom-0 z-10 border-t border-ink-100 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{footer}</div>}
       {nav && <BottomNav />}
     </div>
   )

@@ -1,40 +1,45 @@
 import { useState } from 'react'
+import heroJpg from '../../assets/hero-station.jpg'
+import heroWebp from '../../assets/hero-station.webp'
 import type { Language } from '../../api/types'
 import { POPULAR_ROUTES } from '../config'
-import { AccessibleIcon, ArrowRight, ChevronRight, ClockIcon, HelpIcon, LiveIcon, PinIcon, TagIcon, TrainIcon } from '../icons'
+import { AccessibleIcon, ArrowRight, ClockIcon, HelpIcon, LiveIcon, PinIcon, TagIcon } from '../icons'
 import { ProvenanceBadge } from '../../components/ProvenanceBadge'
 import { useApp } from '../PlannerContext'
 import { ErrorBanner, Logo, Screen } from '../ui'
+import { LiveAlertsPromo } from './LiveAlertsPromo'
+import { RouteCard } from './RouteCard'
 
 const COLLAPSED_ROUTES = 4
 
-function HeroArt() {
+/**
+ * Landing hero: station photo supplied by the team. The photo already contains the English
+ * "Hello, Plan, navigate and travel…" text, so the same words are kept for screen readers only.
+ * In Tamil the baked-in English is covered by an opaque panel with the Tamil greeting.
+ */
+function Hero({ hello, intro, tamil }: { hello: string; intro: string; tamil: boolean }) {
   return (
-    <svg aria-hidden viewBox="0 0 400 210" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMid slice">
-      <defs>
-        <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#dbe7ff" /><stop offset="1" stopColor="#f6d9b8" />
-        </linearGradient>
-        <linearGradient id="coach" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#ffffff" /><stop offset="1" stopColor="#dfe6f3" />
-        </linearGradient>
-      </defs>
-      <rect width="400" height="210" fill="url(#sky)" />
-      <rect x="0" y="150" width="400" height="60" fill="#c9d1e3" />
-      <rect x="0" y="150" width="400" height="6" fill="#a4b0c9" />
-      <g transform="translate(150 78)">
-        <path d="M0 70 L20 18 Q26 6 40 6 H260 V70 Z" fill="url(#coach)" stroke="#94a3c4" />
-        <path d="M0 70 L20 18 Q26 6 40 6 H64 V70 Z" fill="#f97316" opacity=".9" />
-        <rect x="0" y="52" width="260" height="8" fill="#1a56db" />
-        {[80, 120, 160, 200].map((x) => <rect key={x} x={x} y="20" width="28" height="18" rx="3" fill="#1f3b73" />)}
-        <rect x="28" y="20" width="26" height="18" rx="3" fill="#1f3b73" />
-        <circle cx="70" cy="72" r="6" fill="#33405e" /><circle cx="210" cy="72" r="6" fill="#33405e" />
-      </g>
-      <g fill="#1645b5" opacity=".18">
-        <rect x="18" y="40" width="10" height="110" /><rect x="96" y="40" width="10" height="110" />
-        <rect x="10" y="34" width="110" height="8" />
-      </g>
-    </svg>
+    <section className="relative aspect-square w-full overflow-hidden bg-brand-100" aria-labelledby="hero-title">
+      <picture>
+        <source srcSet={heroWebp} type="image/webp" />
+        {/* React 18 only knows the lowercase DOM attribute; the camelCase prop logs a warning. */}
+        <img src={heroJpg} alt="" width={880} height={880} decoding="async" {...{ fetchpriority: 'high' }}
+          className="absolute inset-0 h-full w-full object-cover" />
+      </picture>
+      {tamil ? (
+        // The photo's English text spans roughly the top 47% of the image; cover all of it.
+        <div className="absolute inset-x-0 top-0 h-[54%] px-4 pt-8"
+          style={{ background: 'linear-gradient(to bottom, rgb(255,255,255) 0%, rgb(255,255,255) 86%, rgba(255,255,255,0) 100%)' }}>
+          <h1 id="hero-title" className="text-3xl font-extrabold text-brand-900">{hello}</h1>
+          <p className="mt-1 text-sm font-medium text-ink-700">{intro}</p>
+        </div>
+      ) : (
+        <div className="sr-only">
+          <h1 id="hero-title">{hello}</h1>
+          <p>{intro}</p>
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -83,14 +88,10 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <section className="relative mx-0 h-56 overflow-hidden">
-        <HeroArt />
-        <div className="relative max-w-[60%] p-4">
-          <h1 className="text-3xl font-extrabold text-brand-900">{m.dashboard.hello}</h1>
-          <p className="mt-1 text-sm font-medium text-ink-700">{m.dashboard.intro}</p>
-        </div>
+      <div className="relative">
+        <Hero hello={m.dashboard.hello} intro={m.dashboard.intro} tamil={lang === 'ta'} />
         <div className="absolute right-3 top-3">{planner.health && <ProvenanceBadge provenance={null} mode={planner.health.data_mode} labels={{ live: m.live }} />}</div>
-      </section>
+      </div>
 
       <button type="button" onClick={() => go('plan')}
         className="relative z-10 mx-4 -mt-8 flex items-center gap-3 rounded-2xl bg-white p-4 text-left shadow-card ring-1 ring-ink-100 hover:ring-brand-200">
@@ -120,19 +121,17 @@ export default function Dashboard() {
             {showAll ? m.dashboard.showLess : m.dashboard.viewAll}
           </button>
         </div>
-        <ul className="divide-y divide-ink-100 rounded-2xl bg-white shadow-card ring-1 ring-ink-100">
+        <ul className="grid grid-cols-2 gap-3">
           {routes.map((r) => (
-            <li key={`${r.from}-${r.to}`}>
-              <button type="button" disabled={planner.loading} onClick={() => startRoute(r.from, r.to)}
-                className="flex w-full items-center gap-3 px-3 py-3 text-left text-sm text-ink-900 hover:bg-brand-50 disabled:opacity-60">
-                <TrainIcon size={18} className="text-brand-600" />
-                <span className="flex-1">{lang === 'ta' ? r.ta : `${r.from} → ${r.to}`}</span>
-                <ChevronRight size={18} className="text-ink-500" />
-              </button>
+            <li key={`${r.from}-${r.to}`} className="min-w-0">
+              <RouteCard title={lang === 'ta' ? r.ta : `${r.from} → ${r.to}`} codes={r.codes} station={r.station}
+                image={r.image} cta={m.dashboard.routeCta} disabled={planner.loading} onClick={() => startRoute(r.from, r.to)} />
             </li>
           ))}
         </ul>
       </section>
+
+      <LiveAlertsPromo />
     </Screen>
   )
 }

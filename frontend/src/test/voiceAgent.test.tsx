@@ -1,5 +1,5 @@
 // Voice agent screen: strings come from the string table, recognition follows the UI language, mic failures say why.
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from '../App'
 import type { ApiClient } from '../api/client'
@@ -57,9 +57,10 @@ describe('Voice agent screen', () => {
   it('a manual choice of recognition language is respected for that visit', async () => {
     const user = userEvent.setup()
     render(<App client={fakeClient()} />)
-    const select = await screen.findByRole('combobox', { name: MOBILE_STRINGS.en.plan.speakIn })
-    expect(select).toHaveValue('en-IN')
-    await user.selectOptions(select, 'ta-IN')
+    const group = await screen.findByRole('group', { name: MOBILE_STRINGS.en.plan.speakIn })
+    expect(within(group).getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(within(group).getByRole('button', { name: 'தமிழ்' }))
+    expect(within(group).getByRole('button', { name: 'தமிழ்' })).toHaveAttribute('aria-pressed', 'true')
     await user.click(screen.getByRole('button', { name: MOBILE_STRINGS.en.plan.startVoice }))
     expect(latest().lang).toBe('ta-IN')
   })
