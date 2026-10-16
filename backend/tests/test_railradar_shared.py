@@ -176,3 +176,31 @@ def test_in_memory_gate_limits_and_reports_wait():
 
     a, b = asyncio.run(go())
     assert a.allowed and not b.allowed and b.retry_after == 50
+
+
+def test_every_refused_call_logs_one_quota_exhausted_event_for_the_log_based_metric(caplog):
+    """infra/monitoring/ counts `jsonPayload.event="railradar_quota_exhausted"`: one line per refused call, with or
+    without a stale response to serve, and the field reaches the JSON log line at top level."""
+    import json
+    import logging
+
+    from app.api.observability import JsonLogFormatter
+    from app.providers.railradar_client import QUOTA_EXHAUSTED_EVENT
+
+    server, calls, t = fakeredis.FakeServer(), [], {"now": 0.0}
+    client = make_client(redis_client(server), calls, lambda: t["now"], rpm=1, cache_seconds=50)
+
+    async def go():
+        await client.trains_between("CBE", "MAS", DAY)  # takes the only slot, cached for 50 s
+        t["now"] = 55.0  # cache entry stale, slot still used
+        await client.trains_between("CBE", "MAS", DAY)  # refused: served stale
+        with pytest.raises(ProviderError):
+            await client.trains_between("CBE", "SBC", DAY)  # refused: nothing to serve
+
+    with caplog.at_level(logging.WARNING, logger="railsaathi.railradar"):
+        asyncio.run(go())
+    events = [r for r in caplog.records if getattr(r, "fields", {}).get("event") == QUOTA_EXHAUSTED_EVENT]
+    assert [r.fields["served_stale"] for r in events] == [True, False]
+    line = json.loads(JsonLogFormatter().format(events[0]))
+    assert line["event"] == "railradar_quota_exhausted" and line["severity"] == "WARNING"
+    assert KEY not in line["message"]

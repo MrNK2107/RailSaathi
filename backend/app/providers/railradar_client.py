@@ -28,6 +28,7 @@ from app.providers.railradar_shared import (
 )
 
 log = logging.getLogger("railsaathi.railradar")
+QUOTA_EXHAUSTED_EVENT = "railradar_quota_exhausted"
 
 _STATUS_KINDS = {
     401: ProviderErrorKind.AUTH_FAILED,
@@ -94,9 +95,14 @@ class RailRadarClient:
         try:
             data = await self._request_with_retry(path, params)
         except ProviderError as err:
-            if err.kind is ProviderErrorKind.RATE_LIMITED and entry is not None:
-                log.warning("RailRadar quota exhausted for %s; serving a stale cached response", path)
-                return Fetched(entry.data, entry.fetched_at, DataMode.STALE)
+            if err.kind is ProviderErrorKind.RATE_LIMITED:
+                # One line per refused call (shared quota gate or an upstream 429). The log-based metric
+                # railradar_quota_exhausted (infra/monitoring/) counts these by `event`; keep the field stable.
+                log.warning("RailRadar quota exhausted for %s; %s", path,
+                            "serving a stale cached response" if entry is not None else "no cached response to serve",
+                            extra={"fields": {"event": QUOTA_EXHAUSTED_EVENT, "served_stale": entry is not None}})
+                if entry is not None:
+                    return Fetched(entry.data, entry.fetched_at, DataMode.STALE)
             raise
         fetched = Fetched(data, self._wall())
         if use_cache and self._cache_seconds:
