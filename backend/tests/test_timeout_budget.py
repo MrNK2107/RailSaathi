@@ -33,3 +33,12 @@ def test_planner_turn_budget_nests_inside_client_and_cloud_run_timeouts():
 
 def test_plain_read_timeout_is_not_longer_than_planner_timeout():
     assert _client_ms("READ_TIMEOUT_MS") <= _client_ms("PLANNER_TIMEOUT_MS")
+
+
+def test_smoke_planner_message_timeout_outlasts_the_backend_turn():
+    smoke = (REPO_ROOT / "backend" / "scripts" / "smoke.sh").read_text(encoding="utf-8")
+    planner_call = smoke[smoke.index('REPLY="$(curl'):]
+    max_time = int(re.search(r"--max-time (\d+)", planner_call).group(1))
+    s = Settings(_env_file=None)
+    assert max_time > s.session_lock_wait_seconds + s.llm_overall_deadline_seconds + s.railradar_timeout_seconds
+    assert max_time < _cloud_run_backend_timeout()

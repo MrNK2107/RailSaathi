@@ -28,8 +28,8 @@ def test_healthz_is_pure_liveness_even_with_dead_redis():
 def test_readyz_without_redis_configured():
     body = make().get("/readyz").json()
     assert body["status"] == "ready"
-    assert body["checks"] == {"redis": True, "station_catalogue": True, "railradar_key": True, "delay_model": True,
-                              "navigation_stations": True}
+    assert body["checks"] == {"redis": True, "data_provider": True, "station_catalogue": True, "railradar_key": True,
+                              "delay_model": True, "navigation_stations": True}
     assert body["delay_model"]["mode"] == "trained_model"
 
 
@@ -46,8 +46,8 @@ def test_readyz_requires_railradar_key_in_production_only():
     prod = make(app_env="production", session_signing_key="k" * 32)
     res = prod.get("/readyz")
     assert res.status_code == 503 and res.json()["checks"]["railradar_key"] is False
-    ok = make(app_env="production", session_signing_key="k" * 32, railradar_api_key="rr_key",
-              RAILWAY_DATA_MODE="railradar")
+    ok = make(redis=fakeredis.FakeStrictRedis(decode_responses=True), app_env="production",
+              session_signing_key="k" * 32, railradar_api_key="rr_key", RAILWAY_DATA_MODE="railradar")
     assert ok.get("/readyz").status_code == 200
     assert make().get("/readyz").status_code == 200
 
@@ -82,6 +82,22 @@ def test_demo_mode_is_refused_in_production():
     res = c.get("/readyz")
     assert res.status_code == 503 and res.json()["checks"]["railradar_key"] is False
     assert make(RAILWAY_DATA_MODE="demo").app.state.container.provider.data_mode == "demo"
+
+
+def test_readyz_not_ready_when_production_refused_demo_even_with_a_railradar_key():
+    """A non-empty RAILRADAR_API_KEY must not make a demo-refused production instance look ready."""
+    res = make(redis=fakeredis.FakeStrictRedis(decode_responses=True), app_env="production",
+               session_signing_key="k" * 32, RAILWAY_DATA_MODE="demo", railradar_api_key="dummy").get("/readyz")
+    assert res.status_code == 503
+    assert res.json()["checks"]["data_provider"] is False and res.json()["checks"]["railradar_key"] is True
+
+
+def test_readyz_production_requires_redis_configured():
+    live = {"app_env": "production", "session_signing_key": "k" * 32, "railradar_api_key": "rr_key",
+            "RAILWAY_DATA_MODE": "railradar"}
+    res = make(**live).get("/readyz")
+    assert res.status_code == 503 and res.json()["checks"]["redis"] is False
+    assert make(redis=fakeredis.FakeStrictRedis(decode_responses=True), **live).get("/readyz").status_code == 200
 
 
 def test_readyz_delay_model_history_only_needs_to_be_explicit(tmp_path):

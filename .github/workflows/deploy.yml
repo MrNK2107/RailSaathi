@@ -20,8 +20,11 @@ name: Deploy to Cloud Run
 # Optional: the Maps browser key for the virtual tour, mounted only when the MAPS_BROWSER_KEY_SECRET repository
 # variable names its secret (without it the tour links out to Google Maps and the deploy still works).
 
+# Runs only after the CI workflow has passed for a push to main (never in parallel with it), or by hand.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -39,14 +42,21 @@ env:
   GAR_REPOSITORY: ${{ vars.GAR_REPOSITORY || 'railsaathi' }}
   BACKEND_SERVICE: ${{ vars.BACKEND_SERVICE || 'railsaathi-backend' }}
   FRONTEND_SERVICE: ${{ vars.FRONTEND_SERVICE || 'railsaathi-frontend' }}
+  # The commit CI tested (workflow_run), or the dispatched ref's commit.
+  DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
   deploy:
     name: Build, push and deploy
     runs-on: ubuntu-latest
-    if: ${{ vars.GCP_PROJECT_ID != '' }}
+    # A CI-triggered run deploys only when CI concluded success for a push (not a pull request) to main.
+    if: >-
+      ${{ vars.GCP_PROJECT_ID != '' && (github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')) }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
 
       - name: Authenticate to Google Cloud (Workload Identity Federation)
         uses: google-github-actions/auth@v2
@@ -63,8 +73,8 @@ jobs:
         id: images
         run: |
           BASE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${GAR_REPOSITORY}"
-          echo "backend=${BASE}/backend:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-          echo "frontend=${BASE}/frontend:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "backend=${BASE}/backend:${DEPLOY_SHA}" >> "$GITHUB_OUTPUT"
+          echo "frontend=${BASE}/frontend:${DEPLOY_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push backend image
         run: |
@@ -90,10 +100,12 @@ jobs:
           if [ -n "${MAPS_SECRET}" ]; then
             SECRETS="${SECRETS},GOOGLE_MAPS_BROWSER_KEY=${MAPS_SECRET}:latest"
           fi
-          ENV_VARS="APP_ENV=production,RAILWAY_DATA_MODE=${{ vars.RAILWAY_DATA_MODE || 'railradar' }},LLM_PROVIDER=${{ vars.LLM_PROVIDER || 'gemini' }},GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${{ vars.GOOGLE_CLOUD_LOCATION || 'us-central1' }},TRUSTED_PROXY_HOPS=2,CORS_ORIGINS=${{ vars.FRONTEND_ORIGIN || '' }}"
+          # Env vars are joined with "@" and passed with gcloud's "^@^" delimiter prefix, because some values are
+          # comma-separated lists (CORS_ORIGINS, AR_GUIDANCE_ENABLED) that the default "," delimiter would split.
+          ENV_VARS="APP_ENV=production@RAILWAY_DATA_MODE=${{ vars.RAILWAY_DATA_MODE || 'railradar' }}@LLM_PROVIDER=${{ vars.LLM_PROVIDER || 'gemini' }}@GOOGLE_CLOUD_PROJECT=${PROJECT_ID}@GOOGLE_CLOUD_LOCATION=${{ vars.GOOGLE_CLOUD_LOCATION || 'us-central1' }}@TRUSTED_PROXY_HOPS=2@CORS_ORIGINS=${{ vars.FRONTEND_ORIGIN || '' }}"
           # Optional settings: passed only when the repository variable is set, so an empty value never overrides the
           # application default (an empty STATIONS_URI would point the catalogue at nothing).
-          add_env() { if [ -n "$2" ]; then ENV_VARS="${ENV_VARS},$1=$2"; fi; }
+          add_env() { if [ -n "$2" ]; then ENV_VARS="${ENV_VARS}@$1=$2"; fi; }
           add_env STATIONS_URI "${{ vars.STATIONS_URI || '' }}"
           add_env DELAY_MODEL_URI "${{ vars.DELAY_MODEL_URI || '' }}"
           add_env OBSERVATIONS_URI "${{ vars.OBSERVATIONS_URI || '' }}"
@@ -108,6 +120,13 @@ jobs:
           # Run add instances. Min 2 keeps one warm spare (startup loads the delay model and the station catalogue)
           # and survives one instance loss; max 10 bounds Redis connections and Gemini spend. These are starting
           # values: confirm them with loadtest/k6/load.js against staging before raising traffic.
+          # Traffic gating: the new revision gets no traffic, only a "candidate" tag URL. The next step smoke-tests
+          # that URL (/readyz must say ready) and only then "Promote backend" moves traffic to it, so a bad artifact
+          # never serves users. Cloud Run rejects --no-traffic when it creates a service, so the very first deploy
+          # (no earlier revision to protect) goes without it.
+          TRAFFIC="--no-traffic"
+          gcloud run services describe "${BACKEND_SERVICE}" --region "${REGION}" --format 'value(metadata.name)' \
+            >/dev/null 2>&1 || TRAFFIC=""
           gcloud run deploy "${BACKEND_SERVICE}" \
             --image "${{ steps.images.outputs.backend }}" \
             --region "${REGION}" \
@@ -121,20 +140,31 @@ jobs:
             --timeout 60 \
             --network "${{ vars.VPC_NETWORK || 'default' }}" --subnet "${{ vars.VPC_SUBNET || 'default' }}" \
             --vpc-egress private-ranges-only \
-            --set-env-vars "${ENV_VARS}" \
+            --set-env-vars "^@^${ENV_VARS}" \
             --set-secrets "${SECRETS}" \
+            ${TRAFFIC} --tag candidate \
             --quiet
           URL="$(gcloud run services describe "${BACKEND_SERVICE}" --region "${REGION}" --format 'value(status.url)')"
+          CANDIDATE="$(gcloud run services describe "${BACKEND_SERVICE}" --region "${REGION}" --format json \
+            | jq -r '.status.traffic[] | select(.tag == "candidate") | .url')"
           echo "url=${URL}" >> "$GITHUB_OUTPUT"
+          echo "candidate_url=${CANDIDATE}" >> "$GITHUB_OUTPUT"
 
       - name: Smoke test backend
-        run: sh backend/scripts/smoke.sh "${{ steps.backend.outputs.url }}"
+        # Against the candidate revision, before it receives any traffic.
+        run: sh backend/scripts/smoke.sh "${{ steps.backend.outputs.candidate_url }}"
+
+      - name: Promote backend
+        run: gcloud run services update-traffic "${BACKEND_SERVICE}" --region "${REGION}" --to-latest --quiet
 
       - name: Deploy frontend
         id: frontend
         run: |
           # nginx serves static files and proxies /api/*; it is I/O-bound, so 80 concurrent requests per instance and
-          # scale to zero are fine (a cold start is well under a second).
+          # scale to zero are fine (a cold start is well under a second). Same traffic gating as the backend.
+          TRAFFIC="--no-traffic"
+          gcloud run services describe "${FRONTEND_SERVICE}" --region "${REGION}" --format 'value(metadata.name)' \
+            >/dev/null 2>&1 || TRAFFIC=""
           gcloud run deploy "${FRONTEND_SERVICE}" \
             --image "${{ steps.images.outputs.frontend }}" \
             --region "${REGION}" \
@@ -144,16 +174,24 @@ jobs:
             --cpu 1 --memory 256Mi \
             --min-instances 0 --max-instances 3 --concurrency 80 \
             --set-env-vars "BACKEND_URL=${{ steps.backend.outputs.url }}" \
+            ${TRAFFIC} --tag candidate \
             --quiet
           URL="$(gcloud run services describe "${FRONTEND_SERVICE}" --region "${REGION}" --format 'value(status.url)')"
+          CANDIDATE="$(gcloud run services describe "${FRONTEND_SERVICE}" --region "${REGION}" --format json \
+            | jq -r '.status.traffic[] | select(.tag == "candidate") | .url')"
           echo "url=${URL}" >> "$GITHUB_OUTPUT"
+          echo "candidate_url=${CANDIDATE}" >> "$GITHUB_OUTPUT"
 
       - name: Smoke test frontend (through the nginx proxy)
+        # Against the candidate revision, before it receives any traffic.
         run: |
           set -eu
-          FE="${{ steps.frontend.outputs.url }}"
+          FE="${{ steps.frontend.outputs.candidate_url }}"
           curl -fsS --max-time 20 "${FE}/healthz"
           curl -fsS --max-time 20 "${FE}/" | grep -q '<div id="root">'
           curl -fsS --max-time 20 "${FE}/api/health" | grep -q '"status":"ok"'
           echo "Frontend: ${FE}"
           echo "Backend:  ${{ steps.backend.outputs.url }}"
+
+      - name: Promote frontend
+        run: gcloud run services update-traffic "${FRONTEND_SERVICE}" --region "${REGION}" --to-latest --quiet

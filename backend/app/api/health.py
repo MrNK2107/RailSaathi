@@ -1,8 +1,10 @@
 """Liveness (`/healthz`) and readiness (`/readyz`) probes, plus the shared dependency status used by /api/health.
 
-Liveness does no I/O. Readiness fails only for things this service cannot work without (Redis when configured,
-the station catalogue, at least one navigation station, the RailRadar key in production). Third-party outages such as the LLM being paused are
-reported as `degraded` and never fail readiness."""
+Liveness does no I/O. Readiness fails only for things this service cannot work without: Redis (reachable when
+configured; in production it must also be configured, since sessions, rate limits and the RailRadar quota are shared
+through it), an active railway data provider (production refuses demo data, which leaves none), the station
+catalogue, at least one navigation station and the RailRadar key in production. Third-party outages such as the LLM
+being paused are reported as `degraded` and never fail readiness."""
 
 import logging
 from typing import Any
@@ -57,7 +59,10 @@ def _readyz(c: Container) -> JSONResponse:
     redis = redis_status(c)
     catalogue = len(c.provider.stations())
     checks = {
-        "redis": redis["ok"] is not False,
+        # Production needs Redis configured and reachable; elsewhere an unset REDIS_URL means in-memory state.
+        "redis": redis["ok"] is True if c.settings.is_production else redis["ok"] is not False,
+        # "none" when production refused RAILWAY_DATA_MODE=demo: every journey and board would be unavailable.
+        "data_provider": c.data_provider_status.get("active") not in (None, "none"),
         "station_catalogue": catalogue > 0,
         "railradar_key": not c.settings.is_production or _has_key(c),
         # Ready with the trained artifact, or in history_only mode when that was asked for explicitly.

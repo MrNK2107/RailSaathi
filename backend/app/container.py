@@ -196,7 +196,8 @@ def build_data_sources(settings: Settings, redis: Redis | None = None) -> tuple[
     if requested != "demo":
         raise ValueError(f"Unknown RAILWAY_DATA_MODE '{settings.data_provider}' (use 'demo' or 'railradar')")
     if settings.is_production:
-        # Simulated data is never served in production: searches fail honestly and /readyz reports not ready.
+        # Simulated data is never served in production: searches fail honestly and /readyz reports not ready
+        # (its data_provider check fails while the active provider is "none", whatever RAILRADAR_API_KEY holds).
         log.error("RAILWAY_DATA_MODE=demo is refused when APP_ENV=production; configure RailRadar")
         refused = UnconfiguredLiveProvider("Demo data is disabled in production and live data is not configured",
                                            settings.timezone)
@@ -312,7 +313,7 @@ def build_container(settings: Settings, clock: Clock | None = None,
     elif vision is None:
         vision_reason = "llm_disabled"
     extractor = IntentExtractor(RuleBasedExtractor(resolver), llm, reason or ("llm_disabled" if llm is None else None))
-    audit = AuditLog()
+    audit = AuditLog(ttl_seconds=settings.session_ttl_minutes * 60)
     recommender = Recommender(provider, settings.min_transfer_minutes)
     engine = WorkflowEngine(settings, clock, audit, recommender, resolver)
     planner = PlannerService(

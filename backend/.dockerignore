@@ -17,3 +17,4 @@ data/knowledge/*.db-*
 **/*.db-shm
 **/*.db-wal
 data/knowledge/*.tmp
+data/ml/observations/

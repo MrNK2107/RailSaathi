@@ -21,10 +21,11 @@ SESSION="$(curl -fsS --max-time 15 -H 'Content-Type: application/json' -d '{"lan
   || fail "session creation failed"
 SESSION_ID="$(printf '%s' "$SESSION" | sed -n 's/.*"session_id":"\([^"]*\)".*/\1/p')"
 [ -n "$SESSION_ID" ] || fail "no session_id in response: $SESSION"
-# Planner routes need the signed token issued with the session (X-Session-Token).
+# Planner routes need the signed token issued with the session (X-Session-Token). The message call may wait for
+# the session lock and spend the whole LLM and RailRadar budget, so it gets well above the 20 s LLM deadline.
 SESSION_TOKEN="$(printf '%s' "$SESSION" | sed -n 's/.*"session_token":"\([^"]*\)".*/\1/p')"
 [ -n "$SESSION_TOKEN" ] || fail "no session_token in response"
-REPLY="$(curl -fsS --max-time 20 -H 'Content-Type: application/json' -H "X-Session-Token: $SESSION_TOKEN" \
+REPLY="$(curl -fsS --max-time 50 -H 'Content-Type: application/json' -H "X-Session-Token: $SESSION_TOKEN" \
   -d '{"message":"I need to reach Chennai before 9 AM tomorrow from Coimbatore","language":"en"}' \
   "$BASE/api/planner/sessions/$SESSION_ID/messages")" || fail "planner message failed"
 printf '%s' "$REPLY" | grep -q '"status"' || fail "unexpected planner reply: $REPLY"

@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from redis.exceptions import RedisError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.observability import REQUEST_ID_HEADER, request_id_from_scope
@@ -45,6 +46,16 @@ def register_error_handlers(app: FastAPI) -> None:
     async def session_busy(request: Request, _: SessionLockTimeout) -> JSONResponse:
         return error_response(request, 503, "session_busy", "This session is busy. Please retry shortly.",
                               headers={"Retry-After": "2"})
+
+    @app.exception_handler(RedisError)
+    async def storage_unavailable(request: Request, exc: RedisError) -> JSONResponse:
+        # Sessions, goal plans, conversations and station disruptions live in Redis: an outage is a retryable 503
+        # (never a 500), and the Redis error text stays in the server log.
+        log.warning("Redis unavailable: %s", type(exc).__name__,
+                    extra={"fields": {"request_id": request_id_from_scope(request.scope)}})
+        return error_response(request, 503, "storage_unavailable",
+                              "Saved data is temporarily unavailable. Please retry shortly.",
+                              headers={"Retry-After": "5"})
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:
