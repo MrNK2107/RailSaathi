@@ -1,0 +1,37 @@
+# Alert when the backend's p95 request latency stays above 3 s for 10 minutes.
+# Most routes answer in milliseconds; planner and ticketing turns that call Gemini take seconds and are bounded by
+# LLM_OVERALL_DEADLINE_SECONDS (20 s). A p95 above 3 s means the slow share has grown (LLM slowness, Redis latency,
+# CPU saturation at the configured concurrency). The k6 load test's threshold for ordinary routes is p95 < 1.5 s.
+# Create:
+#   gcloud alpha monitoring policies create --policy-from-file=infra/monitoring/alert-backend-p95-latency.yaml \
+#     --notification-channels=projects/PROJECT/notificationChannels/CHANNEL_ID
+# Fields map 1:1 to the AlertPolicy REST resource (monitoring.googleapis.com/v3).
+displayName: RailSaathi backend p95 latency above 3 s
+documentation:
+  mimeType: text/markdown
+  content: |-
+    p95 latency of `railsaathi-backend` above 3000 ms for 10 minutes.
+    Runbook: docs/RUNBOOK.md, "Alert: p95 latency". Check which paths are slow (`jsonPayload.latency_ms` on the
+    `request` log lines), the LLM status in `/api/health`, and instance count and CPU in the Cloud Run metrics.
+combiner: OR
+conditions:
+  - displayName: p95 request latency > 3000 ms for 10 min
+    conditionThreshold:
+      filter: >-
+        resource.type="cloud_run_revision"
+        AND resource.labels.service_name="railsaathi-backend"
+        AND metric.type="run.googleapis.com/request_latencies"
+      aggregations:
+        - alignmentPeriod: 300s
+          perSeriesAligner: ALIGN_DELTA
+          crossSeriesReducer: REDUCE_PERCENTILE_95
+          groupByFields:
+            - resource.labels.service_name
+      comparison: COMPARISON_GT
+      thresholdValue: 3000
+      duration: 600s
+      trigger:
+        count: 1
+alertStrategy:
+  autoClose: 1800s
+severity: WARNING

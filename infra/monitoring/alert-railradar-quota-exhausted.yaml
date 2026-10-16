@@ -1,0 +1,35 @@
+# Alert when RailRadar calls are refused for quota more than 30 times in 10 minutes.
+# Needs the log-based metric from log-metric-railradar-quota-exhausted.yaml (create that first). A few refusals at
+# peaks are expected with a 10 requests/minute key (boards and searches fall back to stale or unavailable, labelled);
+# a sustained count means users mostly see stale or unavailable live data, so the key's plan needs raising or caching
+# (RAILRADAR_CACHE_SECONDS, LIVE_BOARD_NEIGHBOURS, LIVE_BOARD_STATUS_LIMIT) needs tuning.
+# Create:
+#   gcloud alpha monitoring policies create --policy-from-file=infra/monitoring/alert-railradar-quota-exhausted.yaml \
+#     --notification-channels=projects/PROJECT/notificationChannels/CHANNEL_ID
+# Fields map 1:1 to the AlertPolicy REST resource (monitoring.googleapis.com/v3).
+displayName: RailSaathi RailRadar quota exhausted
+documentation:
+  mimeType: text/markdown
+  content: |-
+    More than 30 RailRadar calls were refused for quota in 10 minutes.
+    Runbook: docs/RUNBOOK.md, "Alert: RailRadar quota exhausted". Logs:
+    `jsonPayload.event="railradar_quota_exhausted"` (`served_stale` says whether a cached answer was served).
+combiner: OR
+conditions:
+  - displayName: quota refusals > 30 in 10 min
+    conditionThreshold:
+      filter: >-
+        resource.type="cloud_run_revision"
+        AND metric.type="logging.googleapis.com/user/railradar_quota_exhausted"
+      aggregations:
+        - alignmentPeriod: 600s
+          perSeriesAligner: ALIGN_SUM
+          crossSeriesReducer: REDUCE_SUM
+      comparison: COMPARISON_GT
+      thresholdValue: 30
+      duration: 0s
+      trigger:
+        count: 1
+alertStrategy:
+  autoClose: 3600s
+severity: WARNING

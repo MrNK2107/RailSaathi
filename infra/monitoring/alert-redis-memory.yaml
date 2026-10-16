@@ -1,0 +1,37 @@
+# Alert when Memorystore memory use stays above 80 % of the instance's maxmemory for 10 minutes.
+# Every key the backend writes has a TTL (sessions, plans, conversations, rate-limit windows, RailRadar cache,
+# disruptions), so growth past this means traffic outgrew the instance size or a TTL regressed. The instance id
+# assumes the "railsaathi" instance created in docs/DEPLOYMENT.md.
+# Create:
+#   gcloud alpha monitoring policies create --policy-from-file=infra/monitoring/alert-redis-memory.yaml \
+#     --notification-channels=projects/PROJECT/notificationChannels/CHANNEL_ID
+# Fields map 1:1 to the AlertPolicy REST resource (monitoring.googleapis.com/v3).
+displayName: RailSaathi Redis memory above 80%
+documentation:
+  mimeType: text/markdown
+  content: |-
+    Memorystore instance `railsaathi` memory usage ratio above 0.8 for 10 minutes.
+    Runbook: docs/RUNBOOK.md, "Alert: Redis memory". Look at key counts per prefix (`rs:*`), then scale the
+    instance (`gcloud redis instances update railsaathi --size=...`).
+combiner: OR
+conditions:
+  - displayName: memory usage ratio > 0.8 for 10 min
+    conditionThreshold:
+      filter: >-
+        resource.type="redis_instance"
+        AND resource.labels.instance_id=ends_with("/instances/railsaathi")
+        AND metric.type="redis.googleapis.com/stats/memory/usage_ratio"
+      aggregations:
+        - alignmentPeriod: 300s
+          perSeriesAligner: ALIGN_MAX
+          crossSeriesReducer: REDUCE_MAX
+          groupByFields:
+            - resource.labels.instance_id
+      comparison: COMPARISON_GT
+      thresholdValue: 0.8
+      duration: 600s
+      trigger:
+        count: 1
+alertStrategy:
+  autoClose: 3600s
+severity: WARNING

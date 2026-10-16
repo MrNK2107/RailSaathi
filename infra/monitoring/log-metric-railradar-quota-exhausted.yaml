@@ -1,0 +1,23 @@
+# Log-based counter metric: one point per refused RailRadar call (shared quota gate exhausted, or an upstream 429).
+# The backend writes the line in app/providers/railradar_client.py (QUOTA_EXHAUSTED_EVENT); keep `event` in sync.
+# Create (once per project, before the alert policy that reads it):
+#   gcloud logging metrics create railradar_quota_exhausted \
+#     --config-from-file=infra/monitoring/log-metric-railradar-quota-exhausted.yaml
+# Update: gcloud logging metrics update railradar_quota_exhausted --config-from-file=<this file>
+# Fields map 1:1 to the LogMetric REST resource. The service name assumes the default BACKEND_SERVICE.
+name: railradar_quota_exhausted
+description: RailRadar calls refused because the shared per-minute quota was spent (served stale or unavailable).
+filter: >-
+  resource.type="cloud_run_revision"
+  AND resource.labels.service_name="railsaathi-backend"
+  AND jsonPayload.event="railradar_quota_exhausted"
+metricDescriptor:
+  metricKind: DELTA
+  valueType: INT64
+  unit: "1"
+  labels:
+    - key: served_stale
+      valueType: BOOL
+      description: true when a stale cached response was served instead of an unavailable answer
+labelExtractors:
+  served_stale: EXTRACT(jsonPayload.served_stale)

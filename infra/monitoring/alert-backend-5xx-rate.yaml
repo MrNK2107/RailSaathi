@@ -1,0 +1,49 @@
+# Alert when more than 1 % of backend requests answer 5xx for 5 minutes.
+# The backend answers 5xx on purpose only with 503 for documented unavailable states (routing_unavailable,
+# session_busy, live or delay estimate not set up, disruptions_unavailable), so a sustained rate means a fault or a
+# broken dependency.
+# Create:
+#   gcloud alpha monitoring policies create --policy-from-file=infra/monitoring/alert-backend-5xx-rate.yaml \
+#     --notification-channels=projects/PROJECT/notificationChannels/CHANNEL_ID
+# Fields map 1:1 to the AlertPolicy REST resource (monitoring.googleapis.com/v3). The service name assumes the
+# default BACKEND_SERVICE.
+displayName: RailSaathi backend 5xx rate above 1%
+documentation:
+  mimeType: text/markdown
+  content: |-
+    More than 1 % of `railsaathi-backend` requests answered 5xx over 5 minutes.
+    Runbook: docs/RUNBOOK.md, "Alert: 5xx rate". Start with Cloud Logging:
+    `resource.labels.service_name="railsaathi-backend" AND jsonPayload.status>=500`, then `/readyz`.
+combiner: OR
+conditions:
+  - displayName: 5xx / all requests > 1 % for 5 min
+    conditionThreshold:
+      filter: >-
+        resource.type="cloud_run_revision"
+        AND resource.labels.service_name="railsaathi-backend"
+        AND metric.type="run.googleapis.com/request_count"
+        AND metric.labels.response_code_class="5xx"
+      aggregations:
+        - alignmentPeriod: 300s
+          perSeriesAligner: ALIGN_RATE
+          crossSeriesReducer: REDUCE_SUM
+          groupByFields:
+            - resource.labels.service_name
+      denominatorFilter: >-
+        resource.type="cloud_run_revision"
+        AND resource.labels.service_name="railsaathi-backend"
+        AND metric.type="run.googleapis.com/request_count"
+      denominatorAggregations:
+        - alignmentPeriod: 300s
+          perSeriesAligner: ALIGN_RATE
+          crossSeriesReducer: REDUCE_SUM
+          groupByFields:
+            - resource.labels.service_name
+      comparison: COMPARISON_GT
+      thresholdValue: 0.01
+      duration: 300s
+      trigger:
+        count: 1
+alertStrategy:
+  autoClose: 1800s
+severity: ERROR

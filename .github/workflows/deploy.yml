@@ -6,10 +6,16 @@ name: Deploy to Cloud Run
 #   GCP_PROJECT_ID, GCP_REGION, GCP_WIF_PROVIDER, GCP_SERVICE_ACCOUNT
 # Optional repository variables:
 #   GAR_REPOSITORY (default: railsaathi), BACKEND_SERVICE (default: railsaathi-backend),
-#   FRONTEND_SERVICE (default: railsaathi-frontend), RAILWAY_DATA_MODE (default: demo),
+#   FRONTEND_SERVICE (default: railsaathi-frontend), RAILWAY_DATA_MODE (default: railradar; demo is refused when
+#   APP_ENV=production, so a production deploy needs the RAILRADAR_API_KEY secret to become ready),
 #   LLM_PROVIDER (default: gemini), GOOGLE_CLOUD_LOCATION (Vertex AI region, default: us-central1),
 #   VPC_NETWORK / VPC_SUBNET (Direct VPC egress to Memorystore, default: default / default),
-#   BACKEND_MIN_INSTANCES (default: 2), BACKEND_MAX_INSTANCES (default: 10)
+#   BACKEND_MIN_INSTANCES (default: 2), BACKEND_MAX_INSTANCES (default: 10),
+#   STATIONS_URI (gs://bucket/prefix published by scripts/stations.py; unset = the stations baked into the image),
+#   DELAY_MODEL_URI (gs://bucket/path/model.joblib; unset = the committed artifact baked into the image),
+#   OBSERVATIONS_URI, INTERNAL_OIDC_AUDIENCE, INTERNAL_OIDC_SERVICE_ACCOUNT (the Cloud Scheduler collector and the
+#   internal disruption endpoints; unset = those endpoints answer 404),
+#   AR_GUIDANCE_ENABLED (unset = AR off in production; set only after the docs/AR_GUIDANCE.md gate passes)
 # Secret Manager secrets referenced by the backend: RAILRADAR_API_KEY, REDIS_URL, SESSION_SIGNING_KEY.
 # Optional: the Maps browser key for the virtual tour, mounted only when the MAPS_BROWSER_KEY_SECRET repository
 # variable names its secret (without it the tour links out to Google Maps and the deploy still works).
@@ -84,6 +90,24 @@ jobs:
           if [ -n "${MAPS_SECRET}" ]; then
             SECRETS="${SECRETS},GOOGLE_MAPS_BROWSER_KEY=${MAPS_SECRET}:latest"
           fi
+          ENV_VARS="APP_ENV=production,RAILWAY_DATA_MODE=${{ vars.RAILWAY_DATA_MODE || 'railradar' }},LLM_PROVIDER=${{ vars.LLM_PROVIDER || 'gemini' }},GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${{ vars.GOOGLE_CLOUD_LOCATION || 'us-central1' }},TRUSTED_PROXY_HOPS=2,CORS_ORIGINS=${{ vars.FRONTEND_ORIGIN || '' }}"
+          # Optional settings: passed only when the repository variable is set, so an empty value never overrides the
+          # application default (an empty STATIONS_URI would point the catalogue at nothing).
+          add_env() { if [ -n "$2" ]; then ENV_VARS="${ENV_VARS},$1=$2"; fi; }
+          add_env STATIONS_URI "${{ vars.STATIONS_URI || '' }}"
+          add_env DELAY_MODEL_URI "${{ vars.DELAY_MODEL_URI || '' }}"
+          add_env OBSERVATIONS_URI "${{ vars.OBSERVATIONS_URI || '' }}"
+          add_env INTERNAL_OIDC_AUDIENCE "${{ vars.INTERNAL_OIDC_AUDIENCE || '' }}"
+          add_env INTERNAL_OIDC_SERVICE_ACCOUNT "${{ vars.INTERNAL_OIDC_SERVICE_ACCOUNT || '' }}"
+          add_env AR_GUIDANCE_ENABLED "${{ vars.AR_GUIDANCE_ENABLED || '' }}"
+          # Capacity (tuning notes, docs/RUNBOOK.md "Capacity"): one uvicorn worker per 1 vCPU instance; handlers are
+          # async and push blocking work (Redis, SQLite, model inference, LLM calls) to anyio's worker pool, which has
+          # 40 threads by default, so --concurrency 40 lets every admitted request get a thread without queueing
+          # behind others. Most requests take milliseconds; planner/ticketing turns hold a thread for up to
+          # LLM_OVERALL_DEADLINE_SECONDS (20 s), so a burst of LLM turns is what saturates an instance and makes Cloud
+          # Run add instances. Min 2 keeps one warm spare (startup loads the delay model and the station catalogue)
+          # and survives one instance loss; max 10 bounds Redis connections and Gemini spend. These are starting
+          # values: confirm them with loadtest/k6/load.js against staging before raising traffic.
           gcloud run deploy "${BACKEND_SERVICE}" \
             --image "${{ steps.images.outputs.backend }}" \
             --region "${REGION}" \
@@ -97,7 +121,7 @@ jobs:
             --timeout 60 \
             --network "${{ vars.VPC_NETWORK || 'default' }}" --subnet "${{ vars.VPC_SUBNET || 'default' }}" \
             --vpc-egress private-ranges-only \
-            --set-env-vars "APP_ENV=production,RAILWAY_DATA_MODE=${{ vars.RAILWAY_DATA_MODE || 'demo' }},LLM_PROVIDER=${{ vars.LLM_PROVIDER || 'gemini' }},GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${{ vars.GOOGLE_CLOUD_LOCATION || 'us-central1' }},TRUSTED_PROXY_HOPS=2,CORS_ORIGINS=${{ vars.FRONTEND_ORIGIN || '' }}" \
+            --set-env-vars "${ENV_VARS}" \
             --set-secrets "${SECRETS}" \
             --quiet
           URL="$(gcloud run services describe "${BACKEND_SERVICE}" --region "${REGION}" --format 'value(status.url)')"
@@ -109,6 +133,8 @@ jobs:
       - name: Deploy frontend
         id: frontend
         run: |
+          # nginx serves static files and proxies /api/*; it is I/O-bound, so 80 concurrent requests per instance and
+          # scale to zero are fine (a cold start is well under a second).
           gcloud run deploy "${FRONTEND_SERVICE}" \
             --image "${{ steps.images.outputs.frontend }}" \
             --region "${REGION}" \
