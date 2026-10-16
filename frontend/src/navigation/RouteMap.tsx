@@ -20,6 +20,8 @@ export interface RouteMapLabels {
   empty: string | null
   closed: string
   closedSimulated: string
+  /** Name of the scrollable map viewport, which takes keyboard focus so it can be panned with the arrow keys. */
+  scroll: string
 }
 
 interface Props {
@@ -118,7 +120,11 @@ export function RouteMap({ station, imageUrl, route, previousGeometry, closedEdg
 
   return (
     <div className="relative overflow-hidden rounded-2xl bg-ink-100 ring-1 ring-ink-100">
-      <div ref={scroller} className="overflow-auto overscroll-contain" style={{ height: MAP_HEIGHT }} data-testid="station-map" data-zoom={ZOOMS[zoomIndex]}>
+      {/* Zoomed in, the plan is wider than the viewport: a focusable region lets keyboard users pan it (WCAG 2.1.1). */}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex */}
+      <div ref={scroller} role="region" aria-label={labels.scroll} tabIndex={0}
+        className="overflow-auto overscroll-contain focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600"
+        style={{ height: MAP_HEIGHT }} data-testid="station-map" data-zoom={ZOOMS[zoomIndex]}>
         <div className="relative" style={{ width: `${ZOOMS[zoomIndex] * 100}%` }}>
           <img src={imageUrl} alt="" width={W} height={H} className="block h-auto w-full" draggable={false} />
           <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full" role="img" aria-label={labels.map}>

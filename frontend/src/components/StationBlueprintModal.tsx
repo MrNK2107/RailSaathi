@@ -32,14 +32,15 @@ export default function StationBlueprintModal({ isOpen, onClose, client, m, stat
 
   return (
     <Modal open={isOpen} onClose={onClose} titleId={TITLE_ID} className="h-[92vh]">
-      <header className="flex items-start justify-between gap-2 border-b border-ink-100 p-4">
+      {/* A dialog title bar, not the page banner: a <header> here would be a second banner landmark. */}
+      <div className="flex items-start justify-between gap-2 border-b border-ink-100 p-4">
         <h2 id={TITLE_ID} className="text-base font-bold text-brand-900">
           {b.title}{w.details ? ` — ${w.details.station.station_name}` : ''}
         </h2>
         <button type="button" onClick={onClose} aria-label={b.close} className="rounded-full p-1.5 text-ink-700 hover:bg-ink-100">
           <CloseIcon size={20} />
         </button>
-      </header>
+      </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto p-4">
         {w.detailsError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-xs text-red-900">{m.navigation.stationFailed} {w.detailsError.message}</p>}

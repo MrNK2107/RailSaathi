@@ -15,7 +15,7 @@ export const DEFAULT_PROVENANCE_LABELS: Record<DataMode, string> = {
 }
 
 const STYLE: Record<DataMode, string> = {
-  live: 'bg-match-50 text-match-600',
+  live: 'bg-match-50 text-match-700',
   cached: 'bg-sky-50 text-sky-800',
   stale: 'bg-amber-50 text-amber-800',
   demo: 'bg-violet-50 text-violet-800',

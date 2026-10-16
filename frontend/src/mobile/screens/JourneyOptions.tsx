@@ -27,7 +27,9 @@ function OptionCard({ rec, highlighted, onChoose, disabled }: {
         <span className="ml-auto"><ProvenanceBadge provenance={o.provenance} labels={{ live: m.live }} unavailableTitle={m.dataUnavailable} /></span>
       </div>
       <button type="button" onClick={onChoose} disabled={disabled}
-        className="mt-3 flex w-full items-start gap-3 text-left disabled:opacity-60" aria-label={`${m.options.choose}: ${leg.train_no}`}>
+        className="mt-3 flex w-full items-start gap-3 text-left disabled:opacity-60">
+        {/* Named by its visible text, prefixed for screen readers ("View details: D103 …"), never by a shorter label. */}
+        <span className="sr-only">{m.options.choose}: </span>
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600"><TrainIcon size={22} /></span>
         <span className="flex-1">
           <span className="flex items-start justify-between gap-2">
@@ -88,8 +90,8 @@ export default function JourneyOptions() {
   }
 
   return (
-    <Screen>
-      <AppHeader />
+    <Screen header={<AppHeader />}>
+      <h1 className="sr-only">{m.options.title}</h1>
       {j?.origin && j.destination && (
         <section className="flex items-start gap-2 border-b border-ink-100 px-4 py-3">
           <div className="flex-1">

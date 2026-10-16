@@ -65,12 +65,18 @@ export function BottomNav() {
   )
 }
 
-/** Phone-width column: full width on phones, centred "device" on larger screens. */
-export function Screen({ children, nav = false, footer }: { children: ReactNode; nav?: boolean; footer?: ReactNode }) {
+/**
+ * Phone-width column: full width on phones, centred "device" on larger screens. Landmarks: `header` (an AppHeader or
+ * a <header>) is the banner, the content and the sticky footer actions are the page's one <main>, BottomNav is a <nav>.
+ */
+export function Screen({ children, header, nav = false, footer }: { children: ReactNode; header?: ReactNode; nav?: boolean; footer?: ReactNode }) {
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-[440px] flex-col bg-white shadow-card sm:my-4 sm:min-h-[calc(100vh-2rem)] sm:overflow-hidden sm:rounded-[28px]">
-      <div className="flex flex-1 flex-col">{children}</div>
-      {footer && <div className="sticky bottom-0 z-10 border-t border-ink-100 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{footer}</div>}
+      {header}
+      <main className="flex flex-1 flex-col">
+        <div className="flex flex-1 flex-col">{children}</div>
+        {footer && <div className="sticky bottom-0 z-10 border-t border-ink-100 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{footer}</div>}
+      </main>
       {nav && <BottomNav />}
     </div>
   )
@@ -88,9 +94,9 @@ export function SourceLine({ provenance }: { provenance: DataProvenance }) {
 }
 
 const CATEGORY_STYLE: Record<Category, { cls: string; Icon: typeof TrophyIcon }> = {
-  best_overall: { cls: 'bg-match-600 text-white', Icon: TrophyIcon },
+  best_overall: { cls: 'bg-match-700 text-white', Icon: TrophyIcon },
   lowest_cost: { cls: 'bg-cheap-600 text-white', Icon: TagIcon },
-  fastest: { cls: 'bg-fast-500 text-white', Icon: BoltIcon },
+  fastest: { cls: 'bg-fast-700 text-white', Icon: BoltIcon },
 }
 
 export function CategoryBadge({ category }: { category: Category }) {

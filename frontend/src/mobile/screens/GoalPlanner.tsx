@@ -42,8 +42,8 @@ function Option({ ev, best }: { ev: GoalEvaluation; best: boolean }) {
     <article aria-label={`${c.train_number} ${c.train_name}`}
       className={`rounded-2xl bg-white p-4 shadow-card ring-1 ${best ? 'ring-2 ring-brand-500' : 'ring-ink-100'}`}>
       <div className="flex flex-wrap items-center gap-1.5">
-        {best && <span className="rounded-md bg-match-600 px-2 py-1 text-xs font-semibold text-white">{m.goal.best}</span>}
-        <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold ${ev.is_feasible ? 'bg-match-50 text-match-600' : 'bg-red-50 text-red-700'}`}>
+        {best && <span className="rounded-md bg-match-700 px-2 py-1 text-xs font-semibold text-white">{m.goal.best}</span>}
+        <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold ${ev.is_feasible ? 'bg-match-50 text-match-700' : 'bg-red-50 text-red-700'}`}>
           {ev.is_feasible ? <CheckIcon size={13} /> : <AlertIcon size={13} />} {ev.is_feasible ? m.goal.onTime : m.goal.missesDeadline}
         </span>
         <span className="ml-auto"><ProvenanceBadge provenance={c.provenance} labels={{ live: m.live }} unavailableTitle={m.dataUnavailable} /></span>
@@ -107,8 +107,7 @@ export default function GoalPlanner() {
   const input = 'mt-1 w-full rounded-xl border border-ink-300 px-3 py-2 text-sm'
 
   return (
-    <Screen>
-      <AppHeader />
+    <Screen header={<AppHeader />}>
       <div className="space-y-4 p-4">
         <h1 className="text-2xl font-extrabold text-brand-900">{m.goal.title}</h1>
         <p className="text-sm text-ink-700">{m.goal.intro}</p>

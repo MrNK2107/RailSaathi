@@ -154,12 +154,13 @@ export default function StationNavigation() {
   ) : undefined
 
   return (
-    <Screen footer={footer}>
+    <Screen footer={footer} header={(
       <AppHeader right={(
         <button type="button" onClick={() => go('home')} aria-label={n.home} title={n.home} className="grid h-11 w-11 place-items-center rounded-full text-brand-900 hover:bg-ink-100">
           <HomeIcon size={22} />
         </button>
       )} />
+    )}>
 
       <NavBanner stationId={stationId} stationName={stationName} />
 
@@ -241,7 +242,7 @@ export default function StationNavigation() {
                   zoomIn: n.zoomIn, zoomOut: n.zoomOut, locate: n.locate, north: n.north,
                   start: m.blueprint.start, destination: m.blueprint.destination, currentStep: n.selectedStep, loading: n.calculating,
                   empty: !routed ? null : nav.sameEndpoints ? n.sameEndpoints : n.emptyMap,
-                  closed: n.closed, closedSimulated: n.closedSimulated,
+                  closed: n.closed, closedSimulated: n.closedSimulated, scroll: n.mapScroll,
                 }} />
             ) : (
               <>

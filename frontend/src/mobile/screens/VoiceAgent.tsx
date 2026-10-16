@@ -65,13 +65,14 @@ export default function VoiceAgent() {
           sending={planner.loading} inputRef={inputRef} listening={listening}
           mic={started ? { state: mic.state, onToggle: toggleMic } : undefined} />
       </div>
-    )}>
+    )} header={(
       <AppHeader right={(
         <button type="button" onClick={() => planner.restart()} disabled={planner.loading}
           className="inline-flex min-h-11 items-center gap-1 rounded-full border border-ink-300 px-3 py-1 text-xs font-semibold text-brand-700">
           <RefreshIcon size={14} /> {m.plan.newPlan}
         </button>
       )} />
+    )}>
 
       {started ? <VoiceStrip {...micProps} /> : <VoiceHero {...micProps} onMicToggle={toggleMic} />}
 

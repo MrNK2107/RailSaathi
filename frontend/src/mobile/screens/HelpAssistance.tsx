@@ -16,8 +16,7 @@ export default function HelpAssistance() {
   const [sosModalOpen, setSosModalOpen] = useState(false)
 
   return (
-    <Screen>
-      <AppHeader />
+    <Screen header={<AppHeader />}>
       <div className="space-y-4 p-4">
         <h1 className="text-2xl font-extrabold text-brand-900">{m.help.title}</h1>
 
@@ -25,7 +24,7 @@ export default function HelpAssistance() {
           <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-red-600 text-white"><PhoneIcon size={24} /></span>
           <div className="flex-1">
             <p className="font-bold text-red-700">{m.help.urgent}</p>
-            <p className="text-xs text-red-700/80">{m.help.urgentSub}</p>
+            <p className="text-xs text-red-800">{m.help.urgentSub}</p>
             <div className="mt-2 flex flex-wrap gap-2">
               <a href={`tel:${EMERGENCY_NUMBER}`} className="inline-block rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">
                 {m.help.call} {EMERGENCY_NUMBER} ({m.help.helpline})

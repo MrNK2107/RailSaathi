@@ -1,4 +1,5 @@
 import { devices, expect, test, type Route } from '@playwright/test'
+import { expectNoAxeViolations } from './axe'
 
 // AR guidance end to end: Chromium's fake camera (a generated test pattern), the real backend for stations and the
 // route, and route interception for /api/client-config (AR on for Chennai Central; the demo backend runs without a
@@ -53,11 +54,13 @@ test('camera guidance: consent, a fix from the fake camera, the arrow, and back 
   await expect(page.getByRole('heading', { name: 'Use your camera to find your way?' })).toBeVisible()
   await expect(page.getByText('Watch your step, look up at platform edges and stairs.')).toBeVisible()
   await expect(page.getByTestId('ar-approximate')).toHaveText('Approximate — confirm with station signs.')
+  await expectNoAxeViolations(page, 'AR consent')
   await page.getByRole('button', { name: 'Start camera' }).click()
 
   const arrow = page.getByTestId('ar-arrow')
   await expect(arrow).toBeVisible()
   await expect(page.getByText(/Near Concourse North Junction/)).toBeVisible()
+  await expectNoAxeViolations(page, 'AR guidance (arrow over the camera view)')
   await expect(page.getByText('Watch your step, look up at platform edges and stairs.')).toBeVisible()
   expect(uploads.length).toBeGreaterThanOrEqual(1)
   expect(uploads[0].contentType).toContain('multipart/form-data')

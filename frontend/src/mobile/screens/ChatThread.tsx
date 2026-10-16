@@ -55,10 +55,13 @@ export function ChatThread({ messages, loading, children }: { messages: ChatMess
 
   return (
     <section data-testid="chat-thread" className="flex-1 px-4 pb-4 pt-3">
-      <ol role="log" aria-live="polite" aria-label={m.plan.conversation} className="space-y-3">
-        {messages.map((msg) => <Bubble key={msg.id} msg={msg} />)}
-        {loading && <Typing label={m.plan.typing} />}
-      </ol>
+      {/* The live log wraps the list: role="log" is not allowed on <ol> and would hide the list semantics. */}
+      <div role="log" aria-live="polite" aria-label={m.plan.conversation}>
+        <ol className="space-y-3">
+          {messages.map((msg) => <Bubble key={msg.id} msg={msg} />)}
+          {loading && <Typing label={m.plan.typing} />}
+        </ol>
+      </div>
       {children}
       <div ref={endRef} />
     </section>

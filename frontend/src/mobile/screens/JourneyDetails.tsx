@@ -17,8 +17,7 @@ export default function JourneyDetails() {
 
   if (!state || !rec) {
     return (
-      <Screen>
-        <AppHeader />
+      <Screen header={<AppHeader />}>
         <div className="p-4">
           <p className="rounded-2xl bg-brand-50 p-4 text-sm text-brand-900">{m.details.missing}</p>
           <div className="mt-3"><PrimaryButton onClick={() => go('options')}>{m.options.title}</PrimaryButton></div>
@@ -51,8 +50,7 @@ export default function JourneyDetails() {
       <PrimaryButton onClick={confirm} disabled={planner.loading || state.status !== 'awaiting_confirmation' && !confirmed}>
         {m.details.confirm} <ArrowRight size={20} />
       </PrimaryButton>
-    )}>
-      <AppHeader />
+    )} header={<AppHeader />}>
       <div className="space-y-4 p-4">
         <h1 className="text-2xl font-extrabold text-brand-900">{m.details.title}</h1>
         <ErrorBanner />
@@ -103,7 +101,7 @@ export default function JourneyDetails() {
           <h2 className="text-sm font-bold text-brand-900">{m.details.requirements}</h2>
           <ul className="mt-2 space-y-1 text-sm">
             {rec.hard_constraints.map((c) => (
-              <li key={c.name} className={`flex items-start gap-2 ${c.status === 'met' ? 'text-match-600' : c.status === 'unverified' ? 'text-amber-700' : 'text-red-700'}`}>
+              <li key={c.name} className={`flex items-start gap-2 ${c.status === 'met' ? 'text-match-700' : c.status === 'unverified' ? 'text-amber-700' : 'text-red-700'}`}>
                 {c.status === 'met' ? <CheckIcon size={16} className="mt-0.5" /> : <AlertIcon size={16} className="mt-0.5" />} {c.detail}
               </li>
             ))}

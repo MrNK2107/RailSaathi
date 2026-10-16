@@ -56,20 +56,23 @@ export function ExtractedDetails({ state, t, disabled, onPatch }: Props) {
           const missing = value === null || value === undefined || value === ''
           const required = state.missing_fields.includes(field)
           return (
-            <div key={field} className="py-2">
-              <div className="flex items-center gap-2">
-                <dt className="w-24 shrink-0 text-xs font-medium text-ink-500">{label}</dt>
-                <dd className={`flex-1 text-sm ${missing ? (required ? 'font-semibold text-amber-700' : 'text-ink-300') : 'text-ink-900'}`}>
+            // A <dl> group may only hold <dt> and <dd>: the Edit button and the editor live inside <dd>s.
+            <div key={field} className="flex flex-wrap items-center gap-x-2 py-2">
+              <dt className="w-24 shrink-0 text-xs font-medium text-ink-500">{label}</dt>
+              <dd className="flex min-w-0 flex-1 items-center gap-2">
+                <span className={`flex-1 text-sm ${missing ? (required ? 'font-semibold text-amber-700' : 'text-ink-500') : 'text-ink-900'}`}>
                   {missing ? (required ? `${m.fields.notSet} *` : m.fields.notSet) : value}
-                </dd>
+                </span>
                 <button type="button" disabled={disabled} onClick={() => setEditing(editing === field ? null : field)}
                   aria-label={`${m.fields.edit} ${label}`} className="text-xs font-semibold text-brand-600 disabled:opacity-40">
                   {m.fields.edit}
                 </button>
-              </div>
+              </dd>
               {editing === field && (
-                <FieldEditor field={field} journey={j} reference={planner.reference} t={t}
-                  onSave={onPatch} onClose={() => setEditing(null)} />
+                <dd className="w-full">
+                  <FieldEditor field={field} journey={j} reference={planner.reference} t={t}
+                    onSave={onPatch} onClose={() => setEditing(null)} />
+                </dd>
               )}
             </div>
           )

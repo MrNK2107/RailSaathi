@@ -8,9 +8,10 @@ export default {
         // Mobile app palette (matched to the reference design)
         brand: { 50: '#eef4ff', 100: '#dbe7ff', 200: '#bcd2ff', 500: '#2f6bf2', 600: '#1a56db', 700: '#1645b5', 900: '#0f2a6b' },
         ink: { 900: '#0f1f45', 700: '#33405e', 500: '#64708a', 300: '#c9d1e3', 100: '#eef1f7' },
-        match: { 600: '#16a34a', 50: '#ecfdf3' },
+        // 700 shades carry white badge text (at least 4.5:1); 600 / 500 are for icons and rings.
+        match: { 700: '#15803d', 600: '#16a34a', 50: '#ecfdf3' },
         cheap: { 600: '#2563eb', 50: '#eff6ff' },
-        fast: { 500: '#f97316', 50: '#fff4ec' },
+        fast: { 700: '#c2410c', 500: '#f97316', 50: '#fff4ec' },
       },
       fontFamily: {
         sans: ['Inter', 'Noto Sans Tamil', 'system-ui', 'Segoe UI', 'Roboto', 'sans-serif'],

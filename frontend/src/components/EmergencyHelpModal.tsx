@@ -43,14 +43,15 @@ export default function EmergencyHelpModal({ isOpen, onClose, client, m, station
 
   return (
     <Modal open={isOpen} onClose={onClose} titleId={TITLE_ID}>
-      <header className="flex items-start justify-between gap-2 border-b border-ink-100 p-4">
+      {/* A dialog title bar, not the page banner: a <header> here would be a second banner landmark. */}
+      <div className="flex items-start justify-between gap-2 border-b border-ink-100 p-4">
         <h2 id={TITLE_ID} className="flex items-center gap-2 text-base font-bold text-red-700">
           <ShieldIcon size={20} /> {s.title}{stationName ? ` — ${stationName}` : ''}
         </h2>
         <button type="button" onClick={onClose} aria-label={s.close} className="rounded-full p-1.5 text-ink-700 hover:bg-ink-100">
           <CloseIcon size={20} />
         </button>
-      </header>
+      </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
         {error && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900">{s.failed}</p>}

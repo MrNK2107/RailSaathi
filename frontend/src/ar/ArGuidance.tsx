@@ -241,7 +241,7 @@ export default function ArGuidance({ client, stationId, details, route, m, onExi
 
       {!route ? <p className="text-sm text-ink-500">{m.needsRoute}</p> : ar.phase === 'consent' ? (
         <section aria-labelledby="ar-consent-title" className="space-y-2 rounded-2xl bg-white p-4 shadow-card ring-1 ring-ink-100">
-          <h3 id="ar-consent-title" className="flex items-center gap-2 text-sm font-bold text-brand-900"><CameraIcon size={18} /> {m.consentTitle}</h3>
+          <h2 id="ar-consent-title" className="flex items-center gap-2 text-sm font-bold text-brand-900"><CameraIcon size={18} /> {m.consentTitle}</h2>
           <p className="text-xs text-ink-700">{m.consentBody}</p>
           <p className="text-xs text-ink-500">{m.consentMotion}</p>
           <div className="flex gap-2 pt-1">
@@ -272,7 +272,7 @@ export default function ArGuidance({ client, stationId, details, route, m, onExi
               <GuidanceText m={m} target={target} angle={angle} nodeName={ar.active.fix.node_name} confidence={ar.active.fix.confidence} picked={ar.active.picked} />
             )}
             {ar.phase === 'arrived' && ar.active && (
-              <p className="rounded-xl bg-match-50 p-3 font-bold text-match-600">{fill(m.arrived, { place: ar.active.fix.node_name })}</p>
+              <p className="rounded-xl bg-match-50 p-3 font-bold text-match-700">{fill(m.arrived, { place: ar.active.fix.node_name })}</p>
             )}
             {ar.notice && ar.phase === 'guiding' && <p className="text-xs text-amber-900">{ar.notice === 'unavailable' && ar.message ? ar.message : m.notice[ar.notice]}</p>}
             {!ar.motion && ar.active && ar.phase === 'guiding' && <p className="text-xs text-ink-500">{m.noMotion}</p>}
@@ -281,7 +281,7 @@ export default function ArGuidance({ client, stationId, details, route, m, onExi
 
           {ar.phase === 'choosing' && (
             <section aria-labelledby="ar-choose-title" className="space-y-2 rounded-2xl bg-white p-3 ring-1 ring-ink-100">
-              <h3 id="ar-choose-title" className="text-sm font-bold text-brand-900">{m.chooseTitle}</h3>
+              <h2 id="ar-choose-title" className="text-sm font-bold text-brand-900">{m.chooseTitle}</h2>
               <p className="text-xs text-ink-500">{m.chooseHint}</p>
               <ul className="space-y-1.5">
                 {ar.candidates.map((c) => (

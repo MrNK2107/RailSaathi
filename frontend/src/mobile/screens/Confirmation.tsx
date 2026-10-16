@@ -47,10 +47,11 @@ export default function Confirmation() {
   const noDelays = planner.error && /No (delays|simulated disruption)/i.test(planner.error)
 
   return (
-    <Screen nav>
-      <div className="px-4 pt-3">
+    <Screen nav header={(
+      <header className="px-4 pt-3">
         <button type="button" onClick={back} aria-label={m.back} className="rounded-full p-1.5 text-brand-900 hover:bg-ink-100"><ArrowLeft size={22} /></button>
-      </div>
+      </header>
+    )}>
       <section className="px-6 pt-2 text-center">
         <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-match-600 text-white ring-8 ring-match-50"><CheckIcon size={40} /></span>
         <h1 className="mt-4 text-2xl font-extrabold text-brand-900">{m.confirmation.ready}</h1>
@@ -77,7 +78,7 @@ export default function Confirmation() {
             className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 disabled:opacity-60">
             <LiveIcon size={14} /> {m.confirmation.checkStatus}
           </button>
-          {noDelays ? <p role="status" className="mt-2 text-xs font-semibold text-match-600">{m.confirmation.noDelays}</p> : null}
+          {noDelays ? <p role="status" className="mt-2 text-xs font-semibold text-match-700">{m.confirmation.noDelays}</p> : null}
         </section>
 
         {!noDelays && <ErrorBanner />}

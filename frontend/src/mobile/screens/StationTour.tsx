@@ -129,8 +129,7 @@ export default function StationTour() {
   const floorUrl = tour && tour.map.url.startsWith('/api/stations/') ? `${client.baseUrl}${tour.map.url}` : ''
 
   return (
-    <Screen>
-      <AppHeader />
+    <Screen header={<AppHeader />}>
       <section className="m-4 space-y-3 rounded-2xl bg-white p-4 shadow-card ring-1 ring-ink-100">
         <h1 className="text-lg font-extrabold text-brand-900">{t.title}</h1>
         <p className="text-xs text-ink-500">{t.intro}</p>

@@ -131,8 +131,7 @@ export default function TicketingGuidance() {
   }
 
   return (
-    <Screen>
-      <AppHeader />
+    <Screen header={<AppHeader />}>
       <div className="space-y-4 p-4">
         <h1 className="text-2xl font-extrabold text-brand-900">{m.ticketing.title}</h1>
         <p className="text-sm text-ink-700">{m.ticketing.intro}</p>

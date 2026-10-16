@@ -64,14 +64,14 @@ export default function Dashboard() {
   ]
 
   return (
-    <Screen nav>
+    <Screen nav header={(
       <header className="flex items-center justify-between px-4 py-3">
         <Logo />
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => go('help')}
-            className="flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-bold text-red-600 hover:bg-red-100"
+            className="flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700 hover:bg-red-100"
             aria-label={m.dashboard.sosTitle}
             title={m.dashboard.sosTitle}
           >
@@ -87,6 +87,7 @@ export default function Dashboard() {
           </div>
         </div>
       </header>
+    )}>
 
       <div className="relative">
         <Hero hello={m.dashboard.hello} intro={m.dashboard.intro} tamil={lang === 'ta'} />

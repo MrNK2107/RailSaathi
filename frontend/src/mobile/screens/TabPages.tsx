@@ -18,8 +18,7 @@ import { Logo, Screen } from '../ui'
 
 function Page({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <Screen nav>
-      <header className="px-4 py-3"><Logo /></header>
+    <Screen nav header={<header className="px-4 py-3"><Logo /></header>}>
       <div className="space-y-3 px-4 pb-6">
         <h1 className="text-2xl font-extrabold text-brand-900">{title}</h1>
         {children}
@@ -74,7 +73,7 @@ function DelayResult({ prediction }: { prediction: DelayPrediction }) {
         <span className="text-xs font-bold text-ink-900">{d.train} {p.train_number}</span>
         {p.risk_level && (
           <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-            p.risk_level === 'LOW' ? 'bg-match-50 text-match-600'
+            p.risk_level === 'LOW' ? 'bg-match-50 text-match-700'
               : p.risk_level === 'MODERATE' ? 'bg-amber-50 text-amber-800' : 'bg-red-50 text-red-600'
           }`}>
             {d.risk[p.risk_level]}
@@ -171,7 +170,7 @@ export function Alerts() {
       {/* Delay estimate from historical records */}
       <section className="rounded-2xl bg-white p-4 shadow-card ring-1 ring-ink-100">
         <span className="rounded bg-brand-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-800">{d.badge}</span>
-        <h3 className="mt-1 text-sm font-bold text-brand-900">{d.title}</h3>
+        <h2 className="mt-1 text-sm font-bold text-brand-900">{d.title}</h2>
         <p className="text-xs text-ink-500">{d.intro}</p>
 
         <div className="mt-3 flex gap-2">

@@ -4,7 +4,7 @@ import type { RouteResult, StepFree } from '../../../api/types'
 import { useApp } from '../../PlannerContext'
 
 const TONE: Record<StepFree, string> = {
-  verified: 'bg-match-50 text-match-600',
+  verified: 'bg-match-50 text-match-700',
   reported: 'bg-amber-50 text-amber-800',
   unknown: 'bg-ink-100 text-ink-700',
 }

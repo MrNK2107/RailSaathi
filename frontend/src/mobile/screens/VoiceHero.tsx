@@ -42,7 +42,7 @@ export const TONE_CLASS: Record<Tone, string> = {
   neutral: 'text-ink-900',
   listening: 'text-brand-700',
   processing: 'text-amber-800',
-  success: 'text-match-600',
+  success: 'text-match-700',
   error: 'text-red-700',
 }
 
