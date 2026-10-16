@@ -22,7 +22,6 @@ def build_handoff(
     rec: Recommendation, replaces: str | None,
 ) -> dict[str, Any]:
     option = rec.option
-    demo = option.provenance.mode.value == "demo"
     return {
         "module": "smart_passenger_planner",
         "schema_version": HANDOFF_SCHEMA_VERSION,
@@ -60,13 +59,13 @@ def build_handoff(
             "unverified": rec.unverified + [
                 s.detail for s in rec.need_statuses if s.status == Verification.NOT_SUPPORTED
             ],
-            # Neither the demo data nor third-party feeds are authoritative IRCTC fares/schedules.
+            # Neither the bundled dataset nor third-party feeds are authoritative IRCTC fares/schedules.
             "fare_and_schedule_verified": False,
             "fare_available": rec.total_fare is not None,
             "seat_availability_checked": False,
         },
         "data_provenance": option.provenance.model_dump(mode="json"),
-        "disclaimers": DISCLAIMERS + (["Demo data: trains, timings and fares are illustrative."] if demo else []),
+        "disclaimers": list(DISCLAIMERS),
     }
 
 

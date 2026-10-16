@@ -37,7 +37,7 @@ def test_adapter_search_returns_candidates_with_set_provenance(provider, clock):
     result = ProviderJourneyAdapter(provider, "Asia/Kolkata", clock).search(["CBE"], ["MAS", "MS"], [D])
     assert result.error is None and result.candidates
     assert {c.departure.date() for c in result.candidates} == {D}
-    assert result.provenance.mode == DataMode.DEMO and "demo" in result.provenance.source.lower()
+    assert result.provenance.mode == DataMode.DEMO and result.provenance.source == "RailSaathi sample timetable"
 
 
 def test_adapter_drops_options_not_departing_on_a_requested_date(clock):
@@ -70,3 +70,17 @@ def test_provider_error_becomes_unavailable_provenance_not_an_exception(clock):
     assert result.provenance.mode == DataMode.UNAVAILABLE
     assert result.provenance.note  # a reason the UI can show
     assert result.provenance.as_of == FIXED_NOW  # stamped by the injected Clock
+
+
+def test_demo_fixture_text_shown_to_passengers_never_says_demo(provider):
+    """Train names and disruption labels reach the UI; demo data stays unlabelled there (the mode still says demo)."""
+    import json
+
+    from app.providers.demo import DATA_DIR
+    journeys = json.loads((DATA_DIR / "journeys.json").read_text(encoding="utf-8"))
+    names = {leg["name"] for s in journeys["services"] for leg in s["legs"]}
+    assert names and not [n for n in names if "demo" in n.lower()]
+    disruptions = json.loads((DATA_DIR / "disruptions.json").read_text(encoding="utf-8"))
+    assert not [e["label"] for e in disruptions["events"] if "demo" in e["label"].lower()]
+    option = provider.search(["CBE"], ["MAS"], [D])[0]
+    assert option.provenance.mode == DataMode.DEMO and "demo" not in option.provenance.source.lower()

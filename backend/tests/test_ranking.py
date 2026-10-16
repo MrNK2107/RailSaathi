@@ -150,10 +150,10 @@ def test_tamil_explanations(rec):
     assert "பரிந்துரைக்கப்படுகிறது" in result.recommendations[0].explanation
 
 
-def test_results_labelled_demo(rec):
+def test_demo_results_keep_their_mode_but_no_demo_wording(rec):
     result = rec.recommend(deadline_journey(), FIXED_NOW, Language.EN)
     assert result.provenance.mode.value == "demo"
-    assert any("Demo data" in lim for lim in result.limitations)
+    assert not any("demo" in lim.lower() for lim in result.limitations)  # demo data is not labelled in the UI
 
 
 def test_constraint_change_changes_hash(rec):

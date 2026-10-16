@@ -31,8 +31,8 @@ from app.providers.station_directory import StationDirectory, StationPoint
 
 log = logging.getLogger("railsaathi.live")
 
-DEMO_SOURCE = "RailSaathi demo dataset (simulated)"
-DEMO_NOTE = "Simulated demo trains and running status for development. Not real Indian Railways data."
+DEMO_SOURCE = "RailSaathi sample timetable"
+DEMO_NOTE = "Simulated trains and running status for development. Not real Indian Railways data."
 CATALOGUE_SOURCE = "RailSaathi station catalogue (bundled reference list)"
 
 # Passenger-safe reasons per provider failure. Provider messages can carry upstream text, so they are never shown.
@@ -356,7 +356,7 @@ class DemoLiveSource(_Base):
     def schedule(self, train_no: str) -> TrainSchedule:
         legs = [leg for leg in self._legs if leg["train_no"] == train_no]
         if not legs:
-            return self._unavailable_schedule(train_no, "This train is not in the demo dataset.")
+            return self._unavailable_schedule(train_no, "This train is not in the bundled timetable.")
         first = legs[0]
         stops = [ScheduleStop(station_code=first["from"], station_name=self._name(first["from"]),
                               departure=first["dep"], day_offset=first["dep_day"]),
@@ -368,7 +368,7 @@ class DemoLiveSource(_Base):
         event = self._events.get(train_no)
         if event is None:
             return self._unavailable_status(train_no, run_date,
-                                            "The demo dataset has no simulated running status for this train.")
+                                            "The bundled timetable has no simulated running status for this train.")
         cancelled = event["type"] == "cancellation"
         return TrainLiveStatus(train_no=train_no, run_date=run_date, cancelled=cancelled,
                                delay_minutes=None if cancelled else int(event["delay_minutes"]),

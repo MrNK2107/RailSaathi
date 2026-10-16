@@ -146,8 +146,10 @@ def _journey_answer(tool_result: dict) -> str:
         return f"I could not plan this journey: {tool_result.get('error', 'the planner failed')}"
     plan = tool_result.get("journey_plan", {})
     provenance = plan.get("provenance") or {}
-    source = (f"*Data: {provenance.get('source', 'unknown source')} ({provenance.get('mode', 'unknown')}). "
-              f"{provenance.get('note', '')}*")
+    mode = provenance.get("mode", "unknown")
+    # The demo mode is local/dev only and is not labelled in the UI; every other mode is named.
+    label = "" if mode == "demo" else f" ({mode})"
+    source = f"*Data: {provenance.get('source', 'unknown source')}{label}. {provenance.get('note', '')}*"
     if plan.get("status") in ("clarification_required", "provider_unavailable"):
         return plan.get("summary", "") + NL + NL + source
     req = plan.get("trip_requirements") or {}

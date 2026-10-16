@@ -83,7 +83,7 @@ class JourneyMerger:
                 candidates=[c.label for c in res.candidates]))
         else:
             result.issues.append(ValidationIssue(
-                field=name, code="station_not_found", message=f"\"{text}\" is not in the demo station list."))
+                field=name, code="station_not_found", message=f"\"{text}\" is not in the station list."))
 
     def _date_time(self, u: IntentUpdate, now: datetime, updates: dict, sources: dict, result: MergeResult) -> None:
         if u.date_text:

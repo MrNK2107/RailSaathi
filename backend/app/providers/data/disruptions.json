@@ -2,16 +2,16 @@
   "_notice": "SIMULATED DISRUPTION EVENTS for demonstration only. Not NTES or official railway alerts.",
   "events": [
     {"id": "SIM-DELAY-D103", "type": "delay", "train_no": "D103", "delay_minutes": 150,
-     "label": "Simulated: Demo Nilgiri Night Express (D103) running 2 h 30 min late"},
+     "label": "Simulated: Nilgiri Night Express (D103) running 2 h 30 min late"},
     {"id": "SIM-DELAY-D101", "type": "delay", "train_no": "D101", "delay_minutes": 25,
-     "label": "Simulated: Demo Kongu Night Mail (D101) running 25 min late"},
+     "label": "Simulated: Kongu Night Mail (D101) running 25 min late"},
     {"id": "SIM-CANCEL-D107", "type": "cancellation", "train_no": "D107", "delay_minutes": 0,
-     "label": "Simulated: Demo Kovai Shatabdi (D107) cancelled"},
+     "label": "Simulated: Kovai Shatabdi (D107) cancelled"},
     {"id": "SIM-DELAY-D121", "type": "delay", "train_no": "D121", "delay_minutes": 70,
-     "label": "Simulated: Demo Erode Shuttle (D121) running 1 h 10 min late"},
+     "label": "Simulated: Erode Shuttle (D121) running 1 h 10 min late"},
     {"id": "SIM-DELAY-D131", "type": "delay", "train_no": "D131", "delay_minutes": 240,
-     "label": "Simulated: Demo Uday Night Express (D131) running 4 h late"},
+     "label": "Simulated: Uday Night Express (D131) running 4 h late"},
     {"id": "SIM-CANCEL-D153", "type": "cancellation", "train_no": "D153", "delay_minutes": 0,
-     "label": "Simulated: Demo Bengaluru Night Express (D153) cancelled"}
+     "label": "Simulated: Bengaluru Night Express (D153) cancelled"}
   ]
 }

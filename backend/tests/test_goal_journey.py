@@ -189,12 +189,13 @@ def test_agent_journey_tool_uses_the_same_provider():
     assert res.status_code == 200, res.text
     answer = res.json()["answer"]
     assert "D101" in answer or "D103" in answer
-    assert "demo" in answer.lower()  # provenance is stated
+    assert "RailSaathi sample timetable" in answer  # the source is stated
+    assert "demo" not in answer.lower()  # demo data is never labelled "demo" in the UI
     sources = res.json()["sources"]
     ids = {s["source_id"] for s in sources}
     assert "SRC-JOURNEY-DEMO" in ids and "SRC-IRCTC-BOOKING" in ids
     journey = next(s for s in sources if s["source_id"] == "SRC-JOURNEY-DEMO")
-    assert journey["title"] == "RailSaathi demo dataset (simulated)" and journey["last_verified_at"]
+    assert journey["title"] == "RailSaathi sample timetable" and journey["last_verified_at"]
 
 
 def test_options_path_rejects_malformed_plan_ids(client):

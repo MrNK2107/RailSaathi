@@ -22,7 +22,6 @@ RELAXABLE = {
     "mandatory_assistance": "Consider journeys where assistance is not listed",
 }
 MAX_CARDS = 3
-DEMO_LIMITATION = "Demo data: trains, timings and fares are illustrative, not real Indian Railways data."
 BOOKING_LIMITATION = "Seat availability is not checked and no ticket is booked."
 
 
@@ -160,8 +159,8 @@ def _notes(eligible: list[Evaluation], excluded: list[Evaluation]) -> list[str]:
 
 
 def _limitations(eligible: list[Evaluation], provenance: DataProvenance) -> list[str]:
-    source = DEMO_LIMITATION if provenance.mode == DataMode.DEMO else provenance.note
-    notes = [source, BOOKING_LIMITATION]
+    # Demo data is local/dev only (production refuses it) and is not labelled in the UI, so it adds no source note.
+    notes = [BOOKING_LIMITATION] if provenance.mode == DataMode.DEMO else [provenance.note, BOOKING_LIMITATION]
     if eligible and not any(e.fully_compliant for e in eligible):
         notes.append("None of the eligible journeys could be fully verified against your mandatory "
                      "requirements; see \"Not verified\" on each option.")

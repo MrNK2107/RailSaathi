@@ -14,11 +14,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "ask_preferences": "Do you need to arrive by a particular time, or would you prefer the cheapest "
                            "or fastest journey? (Say \"no preference\" to see all options.)",
         "ambiguous_station": "I found more than one match for \"{query}\". Which one do you mean: {options}?",
-        "station_not_found": "I couldn't find \"{query}\" in the demo station list. Available places: {options}.",
+        "station_not_found": "I couldn't find \"{query}\" in the station list. Available places: {options}.",
         "field_issue": "{message}",
-        "recs_ready": "I found {eligible} eligible option(s) out of {considered} in the demo data. "
+        "recs_ready": "I found {eligible} eligible option(s) out of {considered} in the current data. "
                       "Here are my recommendations — choose one to review it.",
-        "no_options": "No option in the current demo dataset meets all of your mandatory requirements.",
+        "no_options": "No option in the current data meets all of your mandatory requirements.",
         "no_options_live": "No train in the live RailRadar results meets all of your mandatory requirements.",
         "recs_ready_live": "I found {eligible} eligible option(s) out of {considered} in live RailRadar data. "
                            "Here are my recommendations — choose one to review it. Timings can change; "
@@ -55,11 +55,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "ask_preferences": "குறிப்பிட்ட நேரத்திற்குள் சேர வேண்டுமா, அல்லது மலிவான / விரைவான பயணம் வேண்டுமா? "
                            "(எல்லா விருப்பங்களையும் பார்க்க \"no preference\" என்று சொல்லுங்கள்.)",
         "ambiguous_station": "\"{query}\" க்கு பல பொருத்தங்கள் உள்ளன. எதைக் குறிப்பிடுகிறீர்கள்: {options}?",
-        "station_not_found": "\"{query}\" டெமோ நிலையப் பட்டியலில் இல்லை. கிடைப்பவை: {options}.",
+        "station_not_found": "\"{query}\" நிலையப் பட்டியலில் இல்லை. கிடைப்பவை: {options}.",
         "field_issue": "{message}",
-        "recs_ready": "டெமோ தரவில் {considered} விருப்பங்களில் {eligible} தகுதியானவை. "
+        "recs_ready": "தற்போதைய தரவில் {considered} விருப்பங்களில் {eligible} தகுதியானவை. "
                       "என் பரிந்துரைகள் இதோ — ஒன்றைத் தேர்ந்தெடுங்கள்.",
-        "no_options": "உங்கள் கட்டாயத் தேவைகள் அனைத்தையும் பூர்த்தி செய்யும் விருப்பம் தற்போதைய டெமோ தரவில் இல்லை.",
+        "no_options": "உங்கள் கட்டாயத் தேவைகள் அனைத்தையும் பூர்த்தி செய்யும் விருப்பம் தற்போதைய தரவில் இல்லை.",
         "no_options_live": "உங்கள் கட்டாயத் தேவைகளைப் பூர்த்தி செய்யும் ரயில் RailRadar நேரடி தரவில் இல்லை.",
         "recs_ready_live": "RailRadar நேரடி தரவில் {considered} இல் {eligible} தகுதியானவை. என் பரிந்துரைகள் இதோ. "
                            "நேரங்கள் மாறலாம்; கட்டணம் இல்லாமல் இருக்கலாம்.",

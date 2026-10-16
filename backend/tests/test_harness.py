@@ -109,6 +109,8 @@ def test_select_and_confirm_produces_handoff(planner):
     assert handoff["journey"]["passenger_count"] == 2
     assert "No ticket has been booked" in handoff["disclaimers"][0]
     assert handoff["data_provenance"]["mode"] == "demo"
+    assert not any("demo" in d.lower() for d in handoff["disclaimers"])  # the plumbing keeps the mode, the UI text does not
+    assert "demo" not in r.assistant_message.lower()
     assert "No ticket has been booked" in r.assistant_message
 
 
@@ -160,7 +162,7 @@ def test_scenario_g_no_feasible_and_relax(planner):
     sid = start(planner)
     r = say(planner, sid, "from Coimbatore to Chennai tomorrow, must reach before 4 am, 1 passenger")
     assert r.state.status is S.NO_FEASIBLE_OPTIONS
-    assert "No option in the current demo dataset" in r.assistant_message
+    assert "No option in the current data" in r.assistant_message
     assert "Allow arrival after your deadline" in r.assistant_message
     r = say(planner, sid, "remove the deadline")
     assert r.state.journey.arrival_deadline is None

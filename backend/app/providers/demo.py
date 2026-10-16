@@ -10,7 +10,7 @@ from app.domain.options import DataProvenance, JourneyOption, Leg
 from app.providers.base import CityRecord, DisruptionEvent, StationRecord
 
 DATA_DIR = Path(__file__).parent / "data"
-DEMO_SOURCE = "RailSaathi demo dataset (simulated)"
+DEMO_SOURCE = "RailSaathi sample timetable"
 
 
 def _load(name: str) -> dict:
@@ -42,7 +42,7 @@ class DemoJourneyProvider:
             mode=DataMode.DEMO,
             source=DEMO_SOURCE,
             as_of=self._as_of,
-            note="Illustrative demo journeys and fares. Not real Indian Railways schedules, "
+            note="Illustrative journeys and fares. Not real Indian Railways schedules, "
             "fares or availability.",
         )
 
@@ -109,7 +109,7 @@ class DemoDisruptionSource:
             mode=DataMode.DEMO,
             source="RailSaathi simulated disruption feed",
             as_of=datetime.fromisoformat("2026-10-01T00:00:00+05:30"),
-            note="Simulated events for demonstration. Not NTES or official railway alerts.",
+            note="Simulated events. Not NTES or official railway alerts.",
         )
         self._events = {
             e["id"]: DisruptionEvent(**e, simulated=True, provenance=prov) for e in doc["events"]

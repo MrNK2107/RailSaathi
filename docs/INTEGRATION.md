@@ -41,7 +41,7 @@ Sessions expire after `SESSION_TTL_MINUTES` (120) without activity. Expect 410 `
   },
   "selected_option": {
     "option_id": "CBE-MAS-D103@2026-10-10",
-    "legs": [{"train_no": "D103", "train_name": "Demo Nilgiri Night Express", "from_code": "CBE", "to_code": "MAS",
+    "legs": [{"train_no": "D103", "train_name": "Nilgiri Night Express", "from_code": "CBE", "to_code": "MAS",
               "departure": "2026-10-10T22:30:00+05:30", "arrival": "2026-10-11T06:45:00+05:30", "...": "..."}],
     "departure": "...", "arrival": "...", "duration_minutes": 495, "transfers": 0,
     "travel_class": "SL", "listed_fare_per_passenger": 295, "listed_total_fare": 590, "currency": "INR",

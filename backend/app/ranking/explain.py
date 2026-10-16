@@ -14,7 +14,7 @@ from app.ranking.scoring import departure_score, effective_window
 T = {
     "en": {
         "best_overall": "it is the strongest overall match for your priorities",
-        "lowest_cost": "it has the lowest listed demo fare among eligible options (₹{fare} for {pax})",
+        "lowest_cost": "it has the lowest listed fare among eligible options (₹{fare} for {pax})",
         "fastest": "it is the quickest eligible journey ({dur})",
         "recommended": "Recommended because {reasons}.",
         "deadline_met": "It arrives at {arr}, before your {deadline} deadline.",
@@ -31,7 +31,7 @@ T = {
     },
     "ta": {
         "best_overall": "இது உங்கள் முன்னுரிமைகளுக்கு மிகச் சிறந்த பொருத்தம்",
-        "lowest_cost": "தகுதியான விருப்பங்களில் இதுவே குறைந்த டெமோ கட்டணம் (₹{fare}, {pax} பேருக்கு)",
+        "lowest_cost": "தகுதியான விருப்பங்களில் இதுவே குறைந்த கட்டணம் (₹{fare}, {pax} பேருக்கு)",
         "fastest": "இதுவே மிக விரைவான பயணம் ({dur})",
         "recommended": "பரிந்துரைக்கப்படுகிறது: {reasons}.",
         "deadline_met": "{arr} மணிக்கு வந்தடையும் — உங்கள் {deadline} காலக்கெடுவிற்கு முன்.",
