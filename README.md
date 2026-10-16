@@ -47,9 +47,10 @@ its deterministic rule-based extractor.
 
 ```bash
 cd backend  && uv run pytest --cov=app        # unit + API tests (Bedrock mocked)
-cd frontend && npm test                       # Vitest component and client tests
-cd frontend && npm run typecheck && npm run build
-cd frontend && npm run e2e                    # Playwright with local Chrome; starts both servers if needed
+cd frontend && npm test                       # Vitest with v8 coverage (fails below 70 % of lines)
+cd frontend && npm run typecheck && npm run build   # build fails over a gzip bundle budget (scripts/check-budget.mjs)
+cd frontend && npm run e2e                    # Playwright + axe on every screen; starts both servers if needed
+cd frontend && npm run e2e:dist               # production build behind the nginx headers: CSP, service worker
 ```
 
 ## Optional: live train data (RailRadar)

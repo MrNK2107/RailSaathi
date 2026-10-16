@@ -10,6 +10,7 @@
     "test": "vitest run --coverage",
     "typecheck": "tsc -b --noEmit",
     "e2e": "playwright test",
+    "e2e:dist": "npm run build && playwright test -c playwright.dist.config.ts",
     "lint": "eslint ."
   },
   "dependencies": {

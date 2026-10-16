@@ -28,7 +28,7 @@ jobs:
       - run: uv run pytest --cov=app --cov-report=term-missing
 
   frontend:
-    name: Frontend (lint + typecheck + vitest + build)
+    name: Frontend (lint + typecheck + vitest coverage + build budgets + nginx image)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -43,8 +43,13 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      # vitest with v8 coverage; fails below 70 % of lines (vite.config.ts test.coverage.thresholds).
       - run: npm test
+      # vite build, then scripts/check-budget.mjs: fails when a gzip bundle budget is exceeded.
       - run: npm run build
+      # The image builds (and re-checks the budgets) and its rendered nginx config is valid.
+      - run: docker build -t railsaathi-frontend .
+      - run: docker run --rm railsaathi-frontend nginx -t
 
   e2e:
     name: Playwright end to end
@@ -71,6 +76,9 @@ jobs:
       - run: npx playwright install --with-deps chromium
         working-directory: frontend
       - run: npm run e2e
+        working-directory: frontend
+      # The production build behind nginx's security headers: CSP in the browser, the service worker, stale chunks.
+      - run: npm run e2e:dist
         working-directory: frontend
       - uses: actions/upload-artifact@v4
         if: failure()
