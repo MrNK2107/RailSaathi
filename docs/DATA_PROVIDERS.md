@@ -109,7 +109,12 @@ was told this and chose it, with no RailRadar key. RailRadar stays available as 
   own default stays `demo`, so tests and the Playwright suite stay deterministic. The deploy workflow defaults to
   `ntes` too and mounts the RailRadar key only in RailRadar mode.
 - **Label:** every answer says `source: "NTES (unofficial client)"`, with `mode` `live`, `cached` or `stale` and the
-  real fetch time as `as_of`. The UI shows the source next to the LIVE chip on every option.
+  real fetch time as `as_of`. The UI shows the source next to the LIVE chip on every option, in the UI language.
+- **Notes in the passenger's language:** `provenance.note` stays English for API clients; `provenance.note_codes`
+  (`ntes`, `ntes_cached`, `ntes_stale`, `ntes_partial` with `note_params.missed`, `ntes_board`, `ntes_not_found`,
+  `ntes_no_status`, `ntes_status_unclear`, `live_<error kind>`) let the app render the note in English or Tamil
+  (`frontend/src/mobile/strings.ts` `notes`); an unknown code falls back to the English note. Live disruption
+  events carry `labels` per language.
 - **Calls used:** only the train-enquiry calls `trains_between`, `schedule`, `station_live` and `live_status` (the
   package also offers `search`, `train_info` and `exceptions`, which are allowed but not needed). **Never**
   `pnr_status` (it solves a captcha) or the IRCTC chart helpers; a test fails if the app's code mentions them.
@@ -152,7 +157,7 @@ was told this and chose it, with no RailRadar key. RailRadar stays available as 
 | `Cancel`, `DepCancelFlag` | `Departure.cancelled` | |
 | `Destination`, `DestinationName` | `Departure.towards` | the train's terminus |
 | `live_status`: `LDEL` | `TrainLiveStatus.delay_minutes` | minutes late at the last reported station |
-| `CPOS` / `LUPDFULL` mentioning a cancellation, or a cancellation alert | `cancelled = true` | |
+| `CPOS` / `LUPDFULL` or an alert stating an unambiguous full cancellation | `cancelled = true` | any other mention of "cancel" (partial, short-terminated, diverted, negated, "details") gives `cancelled = null` and the note code `ntes_status_unclear`; only `true` creates a cancellation disruption event |
 
 ## RailRadar specifics (alternative mode)
 

@@ -72,3 +72,20 @@ describe('ProvenanceBadge', () => {
     expect(screen.getByTestId('provenance-badge')).toHaveAttribute('data-mode', 'unknown')
   })
 })
+
+describe('noteText and sourceName', () => {
+  it('render coded notes with params, and fall back to the English note', async () => {
+    const { noteText, sourceName } = await import('../components/ProvenanceBadge')
+    const { MOBILE_STRINGS } = await import('../mobile/strings')
+    const ta = MOBILE_STRINGS.ta
+    const p = { note: 'PARTIAL: ... MS to SBC', note_codes: ['ntes_partial', 'ntes'], note_params: { missed: 'MS→SBC' } }
+    expect(noteText(p, ta)).toContain('பகுதி:')
+    expect(noteText(p, ta)).toContain('MS→SBC')
+    expect(noteText(p, ta)).not.toContain('unofficial')
+    expect(noteText(p)).toBe(p.note)  // outside the app: English
+    expect(noteText({ note: 'x', note_codes: [] }, ta)).toBe('x')
+    expect(sourceName('NTES (unofficial client)', ta)).toBe('NTES (அதிகாரப்பூர்வமற்ற கிளையன்ட்)')
+    expect(sourceName('NTES (unofficial client)', MOBILE_STRINGS.en)).toBe('NTES (unofficial client)')
+    expect(sourceName('Other feed', ta)).toBe('Other feed')
+  })
+})

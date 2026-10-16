@@ -33,16 +33,33 @@ _ERROR_PRIORITY = [ProviderErrorKind.RATE_LIMITED, ProviderErrorKind.NOT_CONFIGU
                    ProviderErrorKind.BAD_REQUEST, ProviderErrorKind.NOT_FOUND]
 
 
+# Note codes (DataProvenance.note_codes): the UI renders each in the passenger's language. Keep in step with
+# frontend/src/mobile/strings.ts `notes`.
+NOTE_CODE = "ntes"
+STALE_CODE = "ntes_stale"
+CACHED_CODE = "ntes_cached"
+PARTIAL_CODE = "ntes_partial"
+
+
 def note_for(mode: DataMode, base: str = NOTE) -> str:
     if mode is DataMode.STALE:
         return STALE_NOTE + base
     return CACHED_NOTE + base if mode is DataMode.CACHED else base
 
 
+def codes_for(mode: DataMode, base: list[str] | None = None) -> list[str]:
+    prefix = [STALE_CODE] if mode is DataMode.STALE else [CACHED_CODE] if mode is DataMode.CACHED else []
+    return prefix + (base or [NOTE_CODE])
+
+
 def _partial_note(missed: list[tuple[str, str]]) -> str:
     listed = ", ".join(f"{o} to {d}" for o, d in missed)
     return (f"PARTIAL: not every station search ran (RailSaathi's NTES request budget or an error), so trains from "
             f"these searches may be missing: {listed}. ")
+
+
+def _missed_param(missed: list[tuple[str, str]]) -> str:
+    return ", ".join(f"{o}→{d}" for o, d in missed)
 
 
 class NtesJourneyProvider:
@@ -67,7 +84,7 @@ class NtesJourneyProvider:
     def provenance(self, fetched_at: datetime | None = None, mode: DataMode = DataMode.LIVE) -> DataProvenance:
         """as_of is when NTES was actually asked (cached responses keep their original time)."""
         as_of = (fetched_at or datetime.now(self._tz)).astimezone(self._tz)
-        return DataProvenance(mode=mode, source=SOURCE, as_of=as_of, note=note_for(mode))
+        return DataProvenance(mode=mode, source=SOURCE, as_of=as_of, note=note_for(mode), note_codes=codes_for(mode))
 
     def cities(self) -> list[CityRecord]:
         return list(self._cities)
@@ -140,8 +157,10 @@ class NtesJourneyProvider:
                 raise min(errors, key=lambda e: _ERROR_PRIORITY.index(e.kind))
             raise ProviderError(ProviderErrorKind.RATE_LIMITED, "RailSaathi's NTES request budget is used up")
         prefix = _partial_note(sorted(missed))
-        return [o.model_copy(update={"provenance": o.provenance.model_copy(
-            update={"note": prefix + o.provenance.note})}) for o in options]
+        params = {"missed": _missed_param(sorted(missed))}
+        return [o.model_copy(update={"provenance": o.provenance.model_copy(update={
+            "note": prefix + o.provenance.note, "note_codes": [PARTIAL_CODE, *o.provenance.note_codes],
+            "note_params": {**o.provenance.note_params, **params}})}) for o in options]
 
     async def _search_pair(self, origin: str, dest: str, days: list[date], origins: set[str],
                            dests: set[str]) -> list[JourneyOption]:
@@ -204,9 +223,10 @@ class NtesDisruptionSource:
         try:
             fetched = await self._client.live_status(train_no, day)
         except NtesAlert as alert:
-            # A cancellation alert is a real answer; any other alert means NTES has no status for this run.
-            return (None, True, datetime.now(self._tz), DataMode.LIVE) if alert.cancelled else None
-        delay, cancelled = map_live(fetched.data)
+            # Only an unambiguous full-cancellation alert is an answer; an ambiguous one (partial, short-terminated,
+            # ...) or any other alert gives no event, so nothing is re-planned on a guess.
+            return (None, True, datetime.now(self._tz), DataMode.LIVE) if alert.cancelled is True else None
+        delay, cancelled, _unclear = map_live(fetched.data)
         return delay, cancelled, fetched.fetched_at, fetched.mode
 
     async def _events_for_trains(self, trains: list[tuple[str, date]]) -> list[DisruptionEvent]:
@@ -217,8 +237,9 @@ class NtesDisruptionSource:
             if status is None:
                 continue
             delay, cancelled, fetched_at, mode = status
-            if not cancelled and not delay:
+            if cancelled is not True and not delay:
                 continue
+            cancelled = cancelled is True
             events.append(DisruptionEvent(
                 id=f"LIVE-{train_no}-{day.isoformat()}",
                 type="cancellation" if cancelled else "delay",
@@ -226,9 +247,17 @@ class NtesDisruptionSource:
                 delay_minutes=0 if cancelled else int(delay or 0),
                 label=(f"Live (NTES, unofficial client): train {train_no} reported cancelled" if cancelled
                        else f"Live (NTES, unofficial client): train {train_no} running {delay} min late"),
+                labels={
+                    "en": (f"Live (NTES, unofficial client): train {train_no} reported cancelled" if cancelled
+                           else f"Live (NTES, unofficial client): train {train_no} running {delay} min late"),
+                    "ta": (f"நேரடி (NTES, அதிகாரப்பூர்வமற்ற கிளையன்ட்): ரயில் {train_no} ரத்து செய்யப்பட்டதாகத் "
+                           f"தெரிவிக்கப்பட்டுள்ளது" if cancelled
+                           else f"நேரடி (NTES, அதிகாரப்பூர்வமற்ற கிளையன்ட்): ரயில் {train_no} {delay} நிமிடம் "
+                                f"தாமதமாக இயங்குகிறது"),
+                },
                 simulated=False,
                 provenance=DataProvenance(mode=mode, source=SOURCE, as_of=fetched_at.astimezone(self._tz),
-                                          note=note_for(mode)),
+                                          note=note_for(mode), note_codes=codes_for(mode)),
             ))
         with self._lock:
             self._events.update({e.id: e for e in events})

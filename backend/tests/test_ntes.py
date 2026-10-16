@@ -428,3 +428,125 @@ def test_planner_reply_names_ntes_as_the_source(monkeypatch):
     recs = body["state"]["recommendations"]["recommendations"]
     assert recs and all(r["option"]["provenance"]["source"] == SOURCE for r in recs)
     assert all(r["total_fare"] is None for r in recs)
+
+
+# --- review fix 1: coded notes the UI renders in the passenger's language ------------------------------------------
+
+def test_notes_carry_stable_codes_with_the_english_note_kept():
+    clock, quota = Clock(), Quota(free=20)
+    p = provider(FakeNTES({"trains_between": between_for_pair}), quota=quota, clock=clock)
+    live_prov = p.search(["MAS"], ["SBC"], [SUNDAY])[0].provenance
+    assert live_prov.note_codes == ["ntes"] and live_prov.note.startswith("Live data from NTES")
+    assert p.search(["MAS"], ["SBC"], [SUNDAY])[0].provenance.note_codes == ["ntes_cached", "ntes"]
+    clock.t += 301
+    quota.free = 0
+    assert p.search(["MAS"], ["SBC"], [SUNDAY])[0].provenance.note_codes == ["ntes_stale", "ntes"]
+
+
+def test_partial_note_has_a_code_and_neutral_params():
+    options = provider(FakeNTES({"trains_between": between_for_pair}), quota=Quota(free=1)).search(
+        CHENNAI, BENGALURU, [SUNDAY])
+    prov = options[0].provenance
+    assert prov.note_codes == ["ntes_partial", "ntes"]
+    assert "MS→SBC" in prov.note_params["missed"] and " to " not in prov.note_params["missed"]
+
+
+def test_board_schedule_and_unavailable_answers_carry_codes():
+    assert live(FakeNTES({"station_live": MAS_BOARD})).departures("MAS", 4).provenance.note_codes == [
+        "ntes_board", "ntes"]
+    assert live(FakeNTES({"schedule": SCHEDULE_12658})).schedule("12658").provenance.note_codes == ["ntes"]
+    down = live(FakeNTES({"station_live": UPSTREAM_DOWN})).departures("MAS", 2)
+    assert down.provenance.note_codes == ["live_unavailable"]
+    assert live(FakeNTES({})).schedule("99999").provenance.note_codes == ["ntes_not_found"]
+    assert live(FakeNTES({})).live_status("12658", SUNDAY).provenance.note_codes == ["ntes_no_status"]
+
+
+def test_disruption_labels_are_given_in_english_and_tamil():
+    src = NtesDisruptionSource(gateway(FakeNTES({"live_status": LIVE_LATE})))
+    event = src.events_for_trains([("12657", SUNDAY)])[0]
+    assert event.labels["en"] == event.label and "25" in event.labels["ta"]
+    assert "தாமதமாக" in event.labels["ta"] and "unofficial" not in event.labels["ta"]
+    assert event.provenance.note_codes == ["ntes"]
+
+
+def test_tamil_planner_reply_names_the_source_in_tamil(monkeypatch):
+    fake = FakeNTES({"trains_between": between_for_pair})
+    monkeypatch.setattr(ntes_client, "default_factory", lambda timeout: (lambda: fake))
+    api = make(RAILWAY_DATA_MODE="ntes")
+    created = api.post("/api/planner/sessions", json={"language": "ta"}).json()
+    api.headers["X-Session-Token"] = created["session_token"]
+    body = api.post(f"/api/planner/sessions/{created['session_id']}/messages",
+                    json={"message": "from Chennai to Bengaluru on 2026-10-11, 1 passenger, fastest"}).json()
+    assert "NTES (அதிகாரப்பூர்வமற்ற கிளையன்ட்)" in body["assistant_message"]
+    assert "unofficial client" not in body["assistant_message"]
+
+
+def test_source_name_falls_back_per_language():
+    from app.domain.enums import Language
+    from app.harness.i18n import source_name
+    assert source_name(Language.TA, None) == "நேரடி தரவு மூலம்"
+    assert source_name(Language.EN, None) == "the live data source"
+    assert source_name(Language.TA, "Some Feed") == "Some Feed"
+
+
+# --- review fix 2: a cancellation is claimed only when it is unambiguous -------------------------------------------
+
+@pytest.mark.parametrize("text, verdict", [
+    ("Train 12658 is Cancelled for 16-Oct-2026", True),
+    ("request failed: Train Cancelled", True),
+    ("Train No. 12658 Cancelled", True),
+    ("Cancelled", True),
+    ("Train has been fully cancelled", True),
+    ("Train 12658 is Partially Cancelled between SBC and KPD", None),
+    ("Partially cancelled", None),
+    ("Train short terminated at KPD; cancelled beyond", None),
+    ("Cancellation details not available", None),
+    ("Train is not cancelled", None),
+    ("No cancellation reported", None),
+    ("No train cancelled today", None),
+    ("Cancelled from AJJ to MAS", None),
+    ("Train diverted; cancelled via JTJ", None),
+    ("Departed from MAHENDRAVADI(MDVE) at 02:37 17-Oct", False),
+    ("", False),
+])
+def test_cancellation_classification(text, verdict):
+    from app.providers.ntes_mapper import classify_cancellation
+    assert classify_cancellation(text) is verdict
+
+
+@pytest.mark.parametrize("cpos, expected", [
+    ("Cancelled", (None, True, False)),
+    ("Train is Partially Cancelled", (3, None, True)),
+    ("Short terminated at KPD (Cancelled beyond)", (3, None, True)),
+    ("Departed from MAHENDRAVADI(MDVE) at 02:37 17-Oct", (3, False, False)),
+])
+def test_map_live_claims_only_full_cancellations(cpos, expected):
+    from app.providers.ntes_mapper import map_live
+    assert map_live({**LIVE_12658, "CPOS": cpos, "LUPDFULL": ""}) == expected
+
+
+def test_ambiguous_cancellation_alert_is_status_unclear_not_cancelled():
+    alert = NTESError("request failed: Train 12658 is Partially Cancelled between SBC and KPD")
+    assert map_error(alert).cancelled is None
+    status = live(FakeNTES({"live_status": alert})).live_status("12658", date(2026, 10, 16))
+    assert status.cancelled is None and status.provenance.mode is DataMode.UNAVAILABLE
+    assert status.provenance.note_codes == ["ntes_status_unclear"] and "Check NTES or the station" in status.reason
+
+
+def test_ambiguous_position_text_keeps_the_delay_and_flags_unclear():
+    data = {**LIVE_12658, "CPOS": "Train short terminated at KPD (cancelled beyond)", "LUPDFULL": ""}
+    status = live(FakeNTES({"live_status": data})).live_status("12658", date(2026, 10, 16))
+    assert status.cancelled is None and status.delay_minutes == 3
+    assert status.provenance.note_codes[0] == "ntes_status_unclear"
+
+
+def test_a_cancellation_event_is_created_only_for_an_unambiguous_cancellation():
+    responses = {
+        "11111": NTESError("request failed: Train 11111 is Cancelled for 11-Oct-2026"),
+        "22222": NTESError("request failed: Train 22222 is Partially Cancelled between SBC and KPD"),
+        "33333": {**LIVE_12658, "CPOS": "Short terminated at KPD; cancelled beyond", "LUPDFULL": "", "LDEL": "0"},
+        "44444": NTESError("request failed: Cancellation details not available"),
+    }
+    src = NtesDisruptionSource(gateway(FakeNTES({"live_status": lambda no, day: responses[no]})))
+    events = src.events_for_trains([(no, SUNDAY) for no in responses])
+    assert [(e.train_no, e.type) for e in events] == [("11111", "cancellation")]

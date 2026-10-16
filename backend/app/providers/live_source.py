@@ -26,6 +26,7 @@ from app.infra.async_bridge import run_sync
 from app.providers.demo import DATA_DIR
 from app.providers.errors import ProviderError, ProviderErrorKind
 from app.providers.ntes import NOTE as NTES_NOTE
+from app.providers.ntes import codes_for as ntes_codes_for
 from app.providers.ntes import note_for as ntes_note_for
 from app.providers.ntes_client import SOURCE as NTES_SOURCE
 from app.providers.ntes_client import NtesAlert, NtesClient
@@ -63,6 +64,11 @@ SCHEDULE_UNSUPPORTED = "Train schedules are not supported by the live data provi
 
 def reason_for(err: ProviderError) -> str:
     return REASONS.get(err.kind, "Live data is unavailable.")
+
+
+def reason_code_for(err: ProviderError) -> str:
+    """Stable code for REASONS[err.kind] (DataProvenance.note_codes), e.g. "live_rate_limited"."""
+    return f"live_{err.kind.value}"
 
 
 class UnknownStation(LookupError):
@@ -174,21 +180,23 @@ class _Base:
         midnight = datetime.combine(now.date() + timedelta(days=1), time(0), tzinfo=self._tz)
         return now, min(now + timedelta(hours=hours), midnight)
 
-    def _unavailable(self, reason: str) -> DataProvenance:
-        return DataProvenance(mode=DataMode.UNAVAILABLE, source=self.source, as_of=self._now(), note=reason)
+    def _unavailable(self, reason: str, code: str | None = None) -> DataProvenance:
+        return DataProvenance(mode=DataMode.UNAVAILABLE, source=self.source, as_of=self._now(), note=reason,
+                              note_codes=[code] if code else [])
 
     def _unavailable_board(self, origin: StationPoint, hours: int, reason: str,
-                           neighbours: list[StationPoint] | None = None) -> DepartureBoard:
+                           neighbours: list[StationPoint] | None = None, code: str | None = None) -> DepartureBoard:
         start, end = self._window(hours)
         return DepartureBoard(station=_ref(origin), window_start=start, window_end=end,
                               neighbours_checked=[_ref(n) for n in neighbours or []], complete=False,
-                              provenance=self._unavailable(reason), reason=reason)
+                              provenance=self._unavailable(reason, code), reason=reason)
 
-    def _unavailable_schedule(self, train_no: str, reason: str) -> TrainSchedule:
-        return TrainSchedule(train_no=train_no, provenance=self._unavailable(reason), reason=reason)
+    def _unavailable_schedule(self, train_no: str, reason: str, code: str | None = None) -> TrainSchedule:
+        return TrainSchedule(train_no=train_no, provenance=self._unavailable(reason, code), reason=reason)
 
-    def _unavailable_status(self, train_no: str, run_date: date, reason: str) -> TrainLiveStatus:
-        return TrainLiveStatus(train_no=train_no, run_date=run_date, provenance=self._unavailable(reason),
+    def _unavailable_status(self, train_no: str, run_date: date, reason: str,
+                            code: str | None = None) -> TrainLiveStatus:
+        return TrainLiveStatus(train_no=train_no, run_date=run_date, provenance=self._unavailable(reason, code),
                                reason=reason)
 
 
@@ -218,7 +226,7 @@ class RailRadarLiveSource(_Base):
             return run_sync(self._board(origin, neighbours, hours), self._timeout)
         except ProviderError as err:
             log.warning("Live board for %s unavailable (%s)", origin.code, err.kind.value)
-            return self._unavailable_board(origin, hours, reason_for(err), neighbours)
+            return self._unavailable_board(origin, hours, reason_for(err), neighbours, reason_code_for(err))
 
     async def _board(self, origin: StationPoint, neighbours: list[StationPoint], hours: int) -> DepartureBoard:
         start, end = self._window(hours)
@@ -304,7 +312,7 @@ class RailRadarLiveSource(_Base):
             fetched = run_sync(self._client.live_status(train_no, run_date), self._timeout)
         except ProviderError as err:
             log.warning("Live status for %s unavailable (%s)", train_no, err.kind.value)
-            return self._unavailable_status(train_no, run_date, reason_for(err))
+            return self._unavailable_status(train_no, run_date, reason_for(err), reason_code_for(err))
         if not fetched.data:
             return self._unavailable_status(train_no, run_date,
                                             "The live data provider returned no running status for this train "
@@ -320,6 +328,11 @@ class RailRadarLiveSource(_Base):
 NTES_BOARD_NOTE = ("Station board as published by NTES for the next hours (trains that end here are left out). "
                    + NTES_NOTE)
 NTES_NOT_FOUND = "NTES has no data for this request."
+NTES_NO_STATUS = "NTES has no running status for this train and date."
+NTES_STATUS_UNCLEAR = ("NTES reports a change to this train that RailSaathi cannot read reliably (it may be partly "
+                       "cancelled, short-terminated or diverted). Check NTES or the station before you travel.")
+# Note codes for the texts above (frontend/src/mobile/strings.ts `notes`).
+NTES_BOARD_CODES = ["ntes_board", "ntes"]
 
 
 class NtesLiveSource(_Base):
@@ -340,12 +353,18 @@ class NtesLiveSource(_Base):
         return point.name if point else station_label(code, ntes_name, {})
 
     @staticmethod
-    def _reason(err: ProviderError) -> str:
-        return NTES_NOT_FOUND if isinstance(err, NtesAlert) else reason_for(err)
+    def _reason(err: ProviderError) -> tuple[str, str]:
+        """(English reason, note code)."""
+        return (NTES_NOT_FOUND, "ntes_not_found") if isinstance(err, NtesAlert) else (reason_for(err),
+                                                                                     reason_code_for(err))
 
-    def _provenance(self, fetched, note: str) -> DataProvenance:
+    def _provenance(self, fetched, note: str, codes: list[str] | None = None,
+                    extra: list[str] | None = None) -> DataProvenance:
         return DataProvenance(mode=fetched.mode, source=NTES_SOURCE,
-                              as_of=fetched.fetched_at.astimezone(self._tz), note=ntes_note_for(fetched.mode, note))
+                              as_of=fetched.fetched_at.astimezone(self._tz),
+                              note=" ".join(x for x in (NTES_STATUS_UNCLEAR if extra else "",
+                                                        ntes_note_for(fetched.mode, note)) if x),
+                              note_codes=(extra or []) + ntes_codes_for(fetched.mode, codes))
 
     def departures(self, station_code: str, hours: int) -> DepartureBoard:
         origin = self._origin(station_code)
@@ -355,7 +374,8 @@ class NtesLiveSource(_Base):
             fetched = run_sync(self._client.station_live(origin.code, 2 if hours <= 2 else 4), self._timeout)
         except ProviderError as err:
             log.warning("NTES board for %s unavailable (%s)", origin.code, err.kind.value)
-            return self._unavailable_board(origin, hours, self._reason(err))
+            reason, code = self._reason(err)
+            return self._unavailable_board(origin, hours, reason, code=code)
         found: dict[str, Departure] = {}
         as_of = fetched.fetched_at.astimezone(self._tz)
         for raw in fetched.data.get("TrainsAtStation") or []:
@@ -374,17 +394,18 @@ class NtesLiveSource(_Base):
                 delay_minutes=entry["delay_minutes"], cancelled=entry["cancelled"], status_as_of=as_of)
         departures = sorted(found.values(), key=lambda d: (d.scheduled_departure, d.train_no))
         return DepartureBoard(station=_ref(origin), window_start=start, window_end=end, complete=True,
-                              departures=departures, provenance=self._provenance(fetched, NTES_BOARD_NOTE))
+                              departures=departures,
+                              provenance=self._provenance(fetched, NTES_BOARD_NOTE, NTES_BOARD_CODES))
 
     def schedule(self, train_no: str) -> TrainSchedule:
         try:
             fetched = run_sync(self._client.schedule(train_no), self._timeout)
         except ProviderError as err:
             log.warning("NTES schedule for %s unavailable (%s)", train_no, err.kind.value)
-            return self._unavailable_schedule(train_no, self._reason(err))
+            return self._unavailable_schedule(train_no, *self._reason(err))
         name, stops = map_schedule(fetched.data, {})
         if not stops:
-            return self._unavailable_schedule(train_no, NTES_NOT_FOUND)
+            return self._unavailable_schedule(train_no, NTES_NOT_FOUND, "ntes_not_found")
         return TrainSchedule(
             train_no=train_no, train_name=name,
             stops=[ScheduleStop(**{**stop, "station_name": self._label(stop["station_code"], stop["station_name"])})
@@ -396,21 +417,23 @@ class NtesLiveSource(_Base):
         try:
             fetched = run_sync(self._client.live_status(train_no, run_date), self._timeout)
         except NtesAlert as alert:
-            if alert.cancelled:
+            if alert.cancelled is True:  # an unambiguous full-cancellation alert
                 return TrainLiveStatus(train_no=train_no, run_date=run_date, cancelled=True,
                                        provenance=DataProvenance(mode=DataMode.LIVE, source=NTES_SOURCE,
-                                                                 as_of=self._now(), note=NTES_NOTE))
-            return self._unavailable_status(train_no, run_date,
-                                            "NTES has no running status for this train and date.")
+                                                                 as_of=self._now(), note=NTES_NOTE,
+                                                                 note_codes=["ntes"]))
+            if alert.cancelled is None:  # mentions a cancellation ambiguously: never claimed, never denied
+                return self._unavailable_status(train_no, run_date, NTES_STATUS_UNCLEAR, "ntes_status_unclear")
+            return self._unavailable_status(train_no, run_date, NTES_NO_STATUS, "ntes_no_status")
         except ProviderError as err:
             log.warning("NTES live status for %s unavailable (%s)", train_no, err.kind.value)
-            return self._unavailable_status(train_no, run_date, reason_for(err))
-        delay, cancelled = map_live(fetched.data)
-        if delay is None and cancelled is None:
-            return self._unavailable_status(train_no, run_date,
-                                            "NTES returned no running status for this train and date.")
+            return self._unavailable_status(train_no, run_date, reason_for(err), reason_code_for(err))
+        delay, cancelled, unclear = map_live(fetched.data)
+        if delay is None and cancelled is None and not unclear:
+            return self._unavailable_status(train_no, run_date, NTES_NO_STATUS, "ntes_no_status")
         return TrainLiveStatus(train_no=train_no, run_date=run_date, delay_minutes=delay, cancelled=cancelled,
-                               provenance=self._provenance(fetched, NTES_NOTE))
+                               provenance=self._provenance(fetched, NTES_NOTE,
+                                                           extra=["ntes_status_unclear"] if unclear else None))
 
 
 class DemoLiveSource(_Base):

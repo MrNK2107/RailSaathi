@@ -37,7 +37,10 @@ or beacon positioning, and languages other than English and Tamil.
   - NTES identifies a run by the date it left its origin. Running status and live disruptions use the date you
     ask for (the boarding date for a plan) as that date, so for a train boarded after midnight on its second day
     the status can belong to the previous day's run;
-  - cancellations are recognised from NTES's position text or alert message (not verified against a cancelled run).
+  - a full cancellation is claimed only for an unambiguous NTES alert or position text ("Train … is Cancelled");
+    any other mention (partial, short-terminated, diverted, "cancellation details not available", a stretch of the
+    route) is shown as "status unclear, check NTES or the station" and never triggers a re-plan. These patterns are
+    not yet verified against a real cancelled run.
 - **RailRadar** (alternative mode) is a third-party service, not an official Indian Railways source:
   - it returns no fares or classes, so a strict budget or class becomes *unverified* (not passed, and not
     excluded);

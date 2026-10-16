@@ -82,6 +82,8 @@ class DisruptionService:
         event_id: str | None, now: datetime, lang: Language,
     ) -> tuple[RecommendationSet, Reassessment]:
         event = self.pick_event(event_id, current, selected_id)
+        if event.labels.get(lang.value):  # the live source's label in the passenger's language
+            event = event.model_copy(update={"label": event.labels[lang.value]})
         new_set = self._recommender.recommend(journey, now, lang, transform=lambda opts: apply_event(opts, event))
         affected = [r.option.option_id for r in current.recommendations if _uses(r.option, event.train_no)]
         previous = next((r for r in current.recommendations if r.option.option_id == selected_id), None)

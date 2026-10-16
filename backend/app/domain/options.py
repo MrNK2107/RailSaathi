@@ -18,7 +18,11 @@ class DataProvenance(BaseModel):
     mode: DataMode
     source: str
     as_of: datetime
-    note: str
+    note: str  # English, for API clients
+    # Stable codes for the parts of `note`, in order (e.g. ["ntes_cached", "ntes"]), so the UI can show the note in
+    # the passenger's language; it falls back to `note` when a code is unknown or there are none.
+    note_codes: list[str] = Field(default_factory=list)
+    note_params: dict[str, str] = Field(default_factory=dict)  # values for {placeholders} in the coded texts
 
 
 class Leg(BaseModel):

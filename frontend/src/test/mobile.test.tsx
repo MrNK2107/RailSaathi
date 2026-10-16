@@ -348,6 +348,9 @@ describe('Journey Options', () => {
     const taCard = await screen.findByRole('article', { name: /22640/ })
     expect(within(taCard).getByText('கட்டணம்: IRCTC-யில் பார்க்கவும்')).toBeInTheDocument()
     expect(within(taCard).getByText('நேரடி')).toBeInTheDocument()
+    expect(within(taCard).getByTestId('provenance-source')).toHaveTextContent('NTES (அதிகாரப்பூர்வமற்ற கிளையன்ட்)')
+    expect(taCard.textContent).not.toContain('unofficial client')
+    expect(screen.getByTestId('source-line')).toHaveTextContent('NTES (அதிகாரப்பூர்வமற்ற கிளையன்ட்)')
   })
 
   it('shows demo journeys without any demo label, source line or disclaimer on options and details', async () => {

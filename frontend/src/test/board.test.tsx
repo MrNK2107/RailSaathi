@@ -96,3 +96,51 @@ describe('Departure board provenance', () => {
     expect(screen.queryByText('Kovai Express')).not.toBeInTheDocument()
   })
 })
+
+describe('Departure board in Tamil (review fix: coded NTES notes)', () => {
+  const ntes = (over: Partial<DepartureBoard['provenance']> = {}) => ({
+    mode: 'cached' as const, source: 'NTES (unofficial client)', as_of: '2026-10-10T09:55:00+05:30',
+    note: 'CACHED: a recent NTES response reused from cache (fetched at the time shown). Live data from NTES ...',
+    note_codes: ['ntes_cached', 'ntes_board', 'ntes'], ...over,
+  })
+
+  async function openTa(b: DepartureBoard) {
+    window.sessionStorage.setItem('railsaathi.session.v1', JSON.stringify({ language: 'ta', session: null }))
+    window.location.hash = '/alerts'
+    const c = {
+      baseUrl: 'http://test',
+      departures: vi.fn(() => Promise.resolve(b)),
+      health: vi.fn().mockResolvedValue({ status: 'ok', api_version: '1', data_mode: 'live', data_provider: { requested: 'ntes', active: 'ntes', reason: null }, ai: {} }),
+      reference: vi.fn().mockResolvedValue({ places: [], classes: [], passenger_needs: [], budget_priorities: [], transfer_preferences: [], disruption_events: [], data_notice: '' }),
+      createSession: vi.fn().mockResolvedValue(response({ language: 'ta' }, 'வணக்கம்')),
+    } as unknown as ApiClient
+    render(<App client={c} />)
+    return c
+  }
+
+  afterEach(() => window.sessionStorage.clear())
+
+  it('renders the NTES note and source in Tamil, with no English paragraph', async () => {
+    await openTa(board({ neighbours_checked: [], provenance: ntes() }))
+    expect(await screen.findByText('Kovai Express')).toBeInTheDocument()
+    const badge = screen.getByTestId('provenance-badge')
+    expect(badge).toHaveTextContent('சேமித்தது: சமீபத்திய NTES பதில்')
+    expect(badge).toHaveTextContent('NTES (அதிகாரப்பூர்வமற்ற கிளையன்ட்)')
+    expect(badge.textContent).not.toMatch(/unofficial client|Live data from NTES|CACHED: a recent/)
+    expect(badge.getAttribute('title')).not.toMatch(/unofficial client/)
+  })
+
+  it('renders an unavailable board reason from its code in Tamil', async () => {
+    await openTa(board({ departures: [], complete: false, reason: 'The live data provider could not be reached.',
+      provenance: ntes({ mode: 'unavailable', note: 'The live data provider could not be reached.', note_codes: ['live_unavailable'] }) }))
+    const el = await screen.findByRole('status')
+    expect(el).toHaveTextContent('நேரடி தரவு வழங்குநரை அணுக முடியவில்லை.')
+    expect(el.textContent).not.toMatch(/could not be reached|unofficial client/)
+  })
+
+  it('falls back to the English note for an unknown code', async () => {
+    await openTa(board({ neighbours_checked: [], provenance: ntes({ note: 'Some new English note.', note_codes: ['ntes_future_code'] }) }))
+    expect(await screen.findByText('Kovai Express')).toBeInTheDocument()
+    expect(screen.getByTestId('provenance-badge')).toHaveTextContent('Some new English note.')
+  })
+})

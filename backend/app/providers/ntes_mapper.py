@@ -149,13 +149,40 @@ def map_board_entry(raw: dict, now: datetime) -> dict | None:
             "delay_minutes": None if cancelled else parse_delay(raw.get("DelayDep")), "cancelled": cancelled}
 
 
-def map_live(raw: dict) -> tuple[int | None, bool | None]:
-    """(delay minutes, cancelled) from a live_status payload. LDEL is the delay at the last reported station."""
-    position = " ".join(str(raw.get(k) or "") for k in ("CPOS", "LUPDFULL")).upper()
-    if "CANCEL" in position:
-        return None, True
+# A mention of "cancel" counts as a FULL cancellation only in one of these unambiguous forms.
+_FULL_CANCEL = (re.compile(r"\b(?:IS|HAS BEEN|STANDS|STAND)\s+(?:FULLY\s+)?CANCELL?ED\b"),
+                re.compile(r"\bTRAIN(?:\s+NO\.?)?(?:\s+\d{4,5})?\s+(?:FULLY\s+)?CANCELL?ED\b"),
+                re.compile(r"^(?:REQUEST FAILED:\s*)?(?:FULLY\s+)?CANCELL?ED\b"),
+                re.compile(r"\bFULLY\s+CANCELL?ED\b"))
+# Any of these makes a cancellation mention ambiguous: partly cancelled, short-terminated, diverted, a negation,
+# "cancellation details ...", or a cancellation limited to a stretch of the route.
+_NOT_FULL = re.compile(r"PARTIAL|SHORT|TERMINAT|DIVERT|DETAILS|BETWEEN|\bNOT\b|\bNO\b(?!\.)|\bUPTO\b|\bUP TO\b|"
+                       r"\bTILL\b|\bFROM\b|\bAT\b")
+
+
+def classify_cancellation(text: object) -> bool | None:
+    """True only for an unambiguous full cancellation; None when a cancellation is mentioned in any other way (the
+    status is unclear, never claimed); False when no cancellation is mentioned."""
+    t = " ".join(str(text or "").upper().split())
+    if "CANCEL" not in t:
+        return False
+    if _NOT_FULL.search(t):
+        return None
+    return True if any(p.search(t) for p in _FULL_CANCEL) else None
+
+
+def map_live(raw: dict) -> tuple[int | None, bool | None, bool]:
+    """(delay minutes, cancelled, unclear) from a live_status payload. LDEL is the delay at the last reported
+    station. `cancelled` is True only for an unambiguous full cancellation; `unclear` is True when the position text
+    mentions a cancellation in an ambiguous way (partial, short-terminated, ...), and then `cancelled` is None."""
+    position = " ".join(" ".join(str(raw.get(k) or "") for k in ("CPOS", "LUPDFULL")).split())
+    verdict = classify_cancellation(position)
+    if verdict is True:
+        return None, True, False
     delay = parse_delay(raw.get("LDEL"))
-    if delay is None and not position.strip():
-        return None, None  # no running information at all
-    return delay, False if position.strip() else None
+    if verdict is None:
+        return delay, None, True
+    if delay is None and not position:
+        return None, None, False  # no running information at all
+    return delay, (False if position else None), False
 

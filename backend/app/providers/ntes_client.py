@@ -75,10 +75,11 @@ def default_factory(timeout_seconds: float) -> Callable[[], Any]:
 
 
 class NtesAlert(ProviderError):
-    """NTES answered with an alert message instead of data (unknown train, no data, ...). `cancelled` is set when
-    the alert reports a cancellation; the alert text itself is never kept."""
+    """NTES answered with an alert message instead of data (unknown train, no data, ...). `cancelled` is True only
+    when the alert reports an unambiguous full cancellation, None when it mentions a cancellation ambiguously
+    (partial, short-terminated, "details not available", ...), else False. The alert text itself is never kept."""
 
-    def __init__(self, cancelled: bool) -> None:
+    def __init__(self, cancelled: bool | None) -> None:
         super().__init__(ProviderErrorKind.NOT_FOUND, "NTES has no data for this request")
         self.cancelled = cancelled
 
@@ -101,10 +102,10 @@ def map_error(exc: BaseException) -> ProviderError:
                  "http error", "chunked", "reset by peer")
     if any(marker in text for marker in transport):
         return ProviderError(ProviderErrorKind.UNAVAILABLE, "Could not reach NTES")
-    if "cancel" in text:
-        return NtesAlert(cancelled=True)
-    # Anything else is a server alert ("No Exceptional Details found", "invalid train number", ...).
-    return NtesAlert(cancelled=False)
+    # Anything else is a server alert ("No Exceptional Details found", "invalid train number", "Train Cancelled").
+    from app.providers.ntes_mapper import classify_cancellation
+
+    return NtesAlert(cancelled=classify_cancellation(str(exc)))
 
 
 def _require(data: Any, key: str) -> Any:

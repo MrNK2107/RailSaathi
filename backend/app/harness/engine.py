@@ -9,7 +9,7 @@ from app.domain.enums import CheckStatus, DataMode, Language, Verification, Work
 from app.domain.journey import REQUIRED_FIELDS
 from app.domain.state import SessionState, ValidationIssue
 from app.domain.transitions import ensure_transition
-from app.harness.i18n import msg, provider_reason
+from app.harness.i18n import msg, provider_reason, source_name
 from app.providers.errors import ProviderError
 from app.ranking.recommender import Recommender
 from app.stations.resolver import StationResolver
@@ -136,9 +136,9 @@ class WorkflowEngine:
 
 
 def _source(state: SessionState) -> str:
-    """The live data source named in the reply (e.g. "NTES (unofficial client)")."""
+    """The live data source named in the reply, in the session's language (e.g. "NTES (unofficial client)")."""
     rs = state.recommendations
-    return rs.provenance.source if rs is not None and rs.provenance is not None else "the live data source"
+    return source_name(state.language, rs.provenance.source if rs is not None and rs.provenance is not None else None)
 
 
 def _keyed(key: str, state: SessionState) -> str:

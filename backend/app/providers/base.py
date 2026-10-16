@@ -7,7 +7,7 @@ protocols; the planner, ranking and disruption services depend only on them.
 from datetime import date
 from typing import Protocol
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.domain.enums import DataMode, PassengerNeed, Verification
 from app.domain.options import DataProvenance, JourneyOption
@@ -33,8 +33,9 @@ class DisruptionEvent(BaseModel):
     type: str  # "delay" | "cancellation"
     train_no: str
     delay_minutes: int
-    label: str
+    label: str  # English
     simulated: bool
+    labels: dict[str, str] = Field(default_factory=dict)  # the label per language code ("en", "ta"), when known
     provenance: DataProvenance
 
 

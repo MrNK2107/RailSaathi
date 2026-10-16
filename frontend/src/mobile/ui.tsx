@@ -6,6 +6,7 @@ import {
   AlertIcon, ArrowLeft, BellIcon, BoltIcon, HomeIcon, RefreshIcon, TagIcon, TrainIcon, TripsIcon,
   TrophyIcon, UserIcon,
 } from './icons'
+import { sourceName } from '../components/ProvenanceBadge'
 import { useApp } from './PlannerContext'
 import type { Route } from './router'
 
@@ -89,7 +90,7 @@ export function SourceLine({ provenance }: { provenance: DataProvenance }) {
   const when = provenance.mode === 'live' ? m.options.retrieved : m.options.datasetAsOf
   return (
     <p className="text-[11px] text-ink-500" data-testid="source-line">
-      {m.options.source}: {provenance.source} · {when} {formatDay(provenance.as_of)} {formatTime(provenance.as_of)} IST
+      {m.options.source}: {sourceName(provenance.source, m)} · {when} {formatDay(provenance.as_of)} {formatTime(provenance.as_of)} IST
     </p>
   )
 }

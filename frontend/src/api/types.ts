@@ -69,7 +69,12 @@ export interface Provenance {
   source: string
   /** ISO-8601 timestamp of when the data was obtained */
   as_of: string
+  /** English; the UI prefers note_codes rendered in the passenger's language. */
   note: string
+  /** Stable codes for the parts of `note`, in order (e.g. ["ntes_cached", "ntes"]). */
+  note_codes?: string[]
+  /** Values for {placeholders} in the coded texts. */
+  note_params?: Record<string, string>
 }
 
 export type DataProvenance = Provenance

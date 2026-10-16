@@ -128,6 +128,20 @@ _TA_PROVIDER_REASONS = {
 }
 
 
+# Known data-source names per language (DataProvenance.source is English). Unknown sources are shown as given.
+SOURCE_NAMES = {
+    "NTES (unofficial client)": {"en": "NTES (unofficial client)", "ta": "NTES (அதிகாரப்பூர்வமற்ற கிளையன்ட்)"},
+    "RailRadar live API (third-party)": {"en": "RailRadar (third-party)", "ta": "RailRadar (மூன்றாம் தரப்பு)"},
+}
+UNKNOWN_SOURCE = {"en": "the live data source", "ta": "நேரடி தரவு மூலம்"}
+
+
+def source_name(lang: Language, source: str | None) -> str:
+    if not source:
+        return UNKNOWN_SOURCE[lang.value]
+    return SOURCE_NAMES.get(source, {}).get(lang.value, source)
+
+
 def provider_reason(lang: Language, err: ProviderError) -> str:
     """Fixed reason text for a provider failure, keyed on its kind (never err.message), without a final full stop
     so it reads inside the "({reason})" templates."""
