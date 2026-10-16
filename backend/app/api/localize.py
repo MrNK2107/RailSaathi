@@ -219,6 +219,14 @@ async def localize(request: Request) -> dict:
     return _body(c, station, token, started, result)
 
 
+def ar_capable_stations(c: Container) -> list[str]:
+    """Stations whose data opts in to AR (`station.ar_enabled`), whatever the flags or the vision service. The app
+    shows these with a disabled AR tab and the reason, so AR stays discoverable where it is not switched on."""
+    if c.stations is None:
+        return []
+    return [sid for sid in c.stations.ids() if c.stations.get(sid).station.ar_enabled]
+
+
 def ar_guidance_stations(c: Container) -> list[str]:
     """Stations where AR guidance is offered: data opts in, the per-station flag is on and a localizer exists."""
     if c.vision is None or c.stations is None:

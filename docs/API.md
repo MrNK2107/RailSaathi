@@ -273,7 +273,7 @@ simulator only when that flag is true.
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/client-config` | What the browser needs at start-up: `google_maps_browser_key` (the public, referrer-restricted key, or `null` so the tour links out to Google Maps), `features.ar_guidance_stations` (station ids) and `features.simulate_closures` (boolean) |
+| GET | `/api/client-config` | What the browser needs at start-up: `google_maps_browser_key` (the public, referrer-restricted key, or `null` so the tour links out to Google Maps), `features.ar_guidance_stations` (station ids where camera guidance works now), `features.ar_capable_stations` (station ids whose data opts in to AR, whatever the flags; the app shows a disabled AR tab with the reason) and `features.simulate_closures` (boolean) |
 | GET | `/api/health` | Service status, version, `data_mode`, `data_provider` (requested, active, configured, reason), AI status and the Redis, model and LLM status. No secrets |
 | GET | `/healthz` | Liveness. No I/O |
 | GET | `/readyz` | Readiness. Returns 503 `not_ready` unless all of the following hold: Redis (reachable when configured; in production it must also be configured), an active railway data provider (`data_provider`: production refuses demo data, which leaves none), the station catalogue, the RailRadar key (in production), the delay model (or `DELAY_HISTORY_ONLY=true`) and at least one navigation station. LLM and knowledge-base problems are listed under `degraded` and never fail readiness |

@@ -85,7 +85,8 @@ def test_tour_of_unknown_station_is_404():
 def test_client_config_without_key_or_localizer():
     body = make().get("/api/client-config").json()
     assert body == {"google_maps_browser_key": None,
-                    "features": {"ar_guidance_stations": [], "simulate_closures": True}}
+                    "features": {"ar_guidance_stations": [], "ar_capable_stations": ["chennai_central"],
+                                 "simulate_closures": True}}
 
 
 def test_client_config_returns_only_the_browser_key_and_flags():
@@ -93,7 +94,8 @@ def test_client_config_returns_only_the_browser_key_and_flags():
                   session_signing_key="s" * 32, railradar_api_key="rr-secret", gemini_api_key="gm-secret")
     res = client.get("/api/client-config")
     assert res.json() == {"google_maps_browser_key": "AIza-browser",
-                          "features": {"ar_guidance_stations": ["chennai_central"], "simulate_closures": True}}
+                          "features": {"ar_guidance_stations": ["chennai_central"],
+                                       "ar_capable_stations": ["chennai_central"], "simulate_closures": True}}
     for secret in ("s" * 32, "rr-secret", "gm-secret"):
         assert secret not in res.text
 
@@ -101,6 +103,21 @@ def test_client_config_returns_only_the_browser_key_and_flags():
 def test_client_config_respects_the_per_station_flag():
     client = make(vision=MockVisionLocalizer([]), ar_guidance_enabled="ksr_bengaluru")
     assert client.get("/api/client-config").json()["features"]["ar_guidance_stations"] == []
+
+
+def test_client_config_lists_ar_capable_stations_whatever_the_flags(tmp_path):
+    """`ar_capable_stations` follows the station data only: AR flag off, no vision service, or production."""
+    for client in (make(), make(vision=MockVisionLocalizer([]), ar_guidance_enabled="ksr_bengaluru")):
+        features = client.get("/api/client-config").json()["features"]
+        assert features["ar_guidance_stations"] == [] and features["ar_capable_stations"] == ["chennai_central"]
+    # Production keeps AR off unless AR_GUIDANCE_ENABLED names the station (the gate is unchanged), but the station
+    # is still listed as capable.
+    prod = make(vision=MockVisionLocalizer([]), app_env="production", session_signing_key="s" * 32,
+                railradar_api_key="rr", data_provider="railradar")
+    features = prod.get("/api/client-config").json()["features"]
+    assert features["ar_guidance_stations"] == [] and features["ar_capable_stations"] == ["chennai_central"]
+    # A station whose data does not opt in is never listed.
+    assert make(station_root(tmp_path)).get("/api/client-config").json()["features"]["ar_capable_stations"] == []
 
 
 def test_client_config_simulate_closures_follows_the_route_gate():

@@ -19,6 +19,10 @@ The tab is offered only when all of these are true:
 - the page is a secure context;
 - the device has a camera.
 
+When the station data opts in (`features.ar_capable_stations`) but the flag or the vision model is missing, the tab
+is shown disabled with the reason instead of being hidden. This is a discovery hint only: the localise endpoint keeps
+its own gate, and production keeps AR off until the gate below passes.
+
 Today only Chennai Central opts in.
 
 ## Method
