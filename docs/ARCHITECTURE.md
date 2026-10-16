@@ -1,5 +1,35 @@
 # Architecture
 
+RailSaathi AI is one FastAPI backend and one React PWA. The backend has six capabilities:
+
+- the conversational planner;
+- the goal planner;
+- ticketing guidance;
+- live station information;
+- the delay estimate;
+- station navigation, with AR and the virtual tour.
+
+They all share one composition root (`app/container.py`), one provenance model, one error envelope, and Redis for
+every piece of state that must outlive a request. The [README](../README.md) has the deployment picture and
+[API.md](API.md) has the contract. This page covers how the parts fit together, starting with the planner, which
+has the most logic.
+
+## Platform
+
+| Concern | How | Code |
+|---|---|---|
+| Composition | `build_container(settings)` wires every adapter once at startup (`create_app` factory, nothing built at import) | `app/container.py`, `app/main.py` |
+| Shared state | Redis when `REDIS_URL` is set (sessions with `SET NX PX` locks, goal plans, chat history, rate-limit windows, RailRadar quota and cache, station closures, seen trains), every key with a TTL. In-memory twins for tests and single-process development | `sessions/`, `journey/plan_store.py`, `agent/conversation_store.py`, `security/rate_limit.py`, `providers/railradar_shared.py`, `navigation/services/disruption_store.py` |
+| Middleware (outermost first) | Observability (request id, trace, JSON access log), then CORS, the rate limit (per IP and per session; LLM tier) and the body-size limit (streaming) | `api/observability.py`, `api/middleware.py` |
+| Errors | One `{error:{code,message,details}, request_id}` envelope; no exception text in responses | `api/errors.py` |
+| Blocking work | Handlers are async. Redis, SQLite, model inference and LLM calls run in the worker pool via `offload` | `api/deps.py` |
+| LLMs | `ChatLLM` (Gemini on Vertex AI, or the rule-based `KeywordChatLLM`) for the ticketing agent; `IntentLLM` (Gemini, or Bedrock) for planner extraction, always backed by the rule-based extractor; `VisionLocalizer` (Gemini) for AR. Turn deadline `LLM_OVERALL_DEADLINE_SECONDS` | `llm/`, `intent/`, `agent/` |
+| Provenance | `DataProvenance` + `DataMode` (`live`, `cached`, `stale`, `unavailable`, `demo`, `fallback`) on every data response; demo sources are refused in production | `domain/options.py`, `domain/enums.py` |
+| Health | `/healthz` (no I/O), `/readyz` (blocking checks vs `degraded`), `/api/health` | `api/health.py` |
+| Frontend | nginx serves the hashed build and proxies `/api/*` with security headers; an app-shell service worker that never caches the API; hash-routed lazy screens; English and Tamil strings | `frontend/nginx/`, `frontend/sw/`, `frontend/src/mobile/` |
+
+## The planner
+
 Think of the planner as a railway enquiry counter with a strict clerk. The
 passenger can speak however they like. An interpreter (the LLM or the rule-based
 extractor) writes down what they *seem* to want. The clerk (deterministic
@@ -12,7 +42,7 @@ offered, and nothing is final until the passenger signs.
 Passenger text / voice transcript
         │
         ▼
-IntentExtractor ── Bedrock (optional) ──► IntentUpdate (raw text values, schema-validated)
+IntentExtractor ── Gemini or Bedrock (optional) ──► IntentUpdate (raw text values, schema-validated)
         │  └─ on any failure ─► RuleBasedExtractor
         ▼
 JourneyMerger ── StationResolver / date & time parsers (deterministic, injected clock)
@@ -36,12 +66,12 @@ DisruptionService (on request) ─► re-rank with event applied ─► passenge
 | `intent/` | Interpret text into `IntentUpdate`; LLM adapter interface (`IntentLLM`) | `stations` (rules only) |
 | `validation/` | Parse dates/times/classes; validate a `JourneyDetails` | nothing external |
 | `stations/` | Resolve names, aliases and Tamil script to `Place`s; never auto-substitutes | `JourneyProvider` |
-| `providers/` | `JourneyProvider` and `DisruptionSource` protocols + demo implementation | — |
+| `providers/` | `JourneyProvider`, `DisruptionSource` and `LiveSource` protocols; RailRadar (shared quota and cache) and demo implementations | — |
 | `ranking/` | Hard-constraint evaluation, need verification, scoring, explanations | `JourneyProvider` |
 | `disruption/` | Apply events, reassess, describe changes | `ranking`, `DisruptionSource` |
 | `harness/` | State machine, clarification, merge, confirmation, handoff, i18n templates | all of the above |
-| `sessions/` | `SessionStore` protocol + in-memory TTL store with per-session locks | — |
-| `audit/` | Append-only event log separate from state | — |
+| `sessions/` | `SessionStore` protocol, Redis store (TTL, `SET NX PX` lock) and in-memory store | — |
+| `audit/` | Audit events as structured log lines (statuses and field names, no message text) | — |
 | `api/` | HTTP schemas, routes, middleware | `harness` |
 
 The LLM never touches validation, ranking, fares, timetables or confirmation.
@@ -100,28 +130,30 @@ See `app/domain/state.py`. Key fields: `status`, `language`, `journey`
 The weights are prototype heuristics. **They have not been tuned or evaluated**
 against real passenger outcomes.
 
-## LLM provider (`intent/`)
+## LLM providers for intent extraction (`intent/`)
 
-`IntentLLM` is a one-method protocol. `BedrockIntentProvider` calls the Bedrock
-Runtime **Converse API** with a forced tool (`toolChoice: {tool: record_journey_intent}`)
-whose input schema is the Pydantic `IntentUpdate` schema with `$refs` inlined.
-The tool input is then validated by Pydantic. On failure, `IntentExtractor`
-falls back to the rule-based extractor.
+`IntentLLM` is a one-method protocol (`extract_intent(message, context) -> IntentUpdate`), and `build_llm()` in
+`container.py` picks the provider from `LLM_PROVIDER`:
 
-When Claude succeeds, the rule-based result is still computed and used two ways:
+- **`gemini`** (production default): `GeminiIntentProvider` on Vertex AI with structured output.
+- **`bedrock`** (optional): `BedrockIntentProvider`, Claude through the Converse API with a forced tool
+  (`record_journey_intent`). See [BEDROCK_SETUP.md](BEDROCK_SETUP.md).
+- **`none`**: the deterministic rule-based extractor only.
 
-- **Backfill:** core fields Claude left empty (places, date, deadline, passenger count) are filled from the rules. Claude's values are never overridden.
-- **Rule-owned policy fields:** fields such as `date_anchor` (a stated arrival deadline means the date is the arrival day) always come from the rules.
+Every LLM output is validated by Pydantic. On any failure or timeout, `IntentExtractor` falls back to the
+rule-based extractor.
 
-The `extraction.source` value is then `bedrock+rules`. This was added after live testing showed Claude sometimes writing "9 AM tomorrow" into the time field and leaving the date empty. Persistent failures (credentials,
-access denied, not configured) pause Bedrock for 5 minutes. Transient ones
-(throttling, timeout, model error) do not. To swap vendors, implement
-`extract_intent(message, context) -> IntentUpdate` and wire it in
-`container.build_llm`.
+When the LLM succeeds, the rule-based result is still computed and used in two ways:
 
-## Security posture (prototype level)
+- **Backfill:** core fields the LLM left empty (places, date, deadline, passenger count) are filled from the rules.
+  The LLM's values are never overridden.
+- **Rule-owned policy fields:** fields such as `date_anchor` always come from the rules. For example, a stated
+  arrival deadline means the date is the arrival day.
 
-- Secrets come only from backend environment / the AWS credential chain; the frontend bundle holds only the API base URL.
-- CORS allow-list, body-size limit, per-IP rate limit, strict request schemas (`extra=forbid`), message length cap, Bedrock timeouts and retries.
-- Structured errors without stack traces. Access logs record method, path, status and latency only; audit records contain field names, never message text.
-- This is **not** a production security review or regulatory compliance claim.
+`extraction.source` is then `<provider>`, or `<provider>+rules` when the rules filled something in, or `rules`
+on fallback. Persistent failures (credentials, access denied, not configured)
+pause the provider for 5 minutes. Transient ones (throttling, timeout, model error) do not.
+
+## Security
+
+Threat model, controls and open risks: [SECURITY.md](SECURITY.md).

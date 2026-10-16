@@ -33,13 +33,23 @@ Two containers, both on Cloud Run:
   backoff); the session lock TTL (`SESSION_LOCK_TTL_MS`, default 45 s) is validated to outlive it. Other work in a
   turn (RailRadar searches) has its own timeouts. The browser's planner timeout (45 s) and the Cloud Run request
   timeout (60 s) sit above that budget; `backend/tests/test_timeout_budget.py` keeps them consistent.
-- Demo data mode (`RAILWAY_DATA_MODE=demo`) is the default. Set the `RAILWAY_DATA_MODE=railradar` repository
-  variable and the `RAILRADAR_API_KEY` secret for live train data.
+- **Production needs RailRadar.** The workflow deploys with `APP_ENV=production`, and production refuses demo data.
+  `RAILWAY_DATA_MODE` defaults to `railradar`, and the `RAILRADAR_API_KEY` secret must hold a real key. Otherwise
+  live searches and boards answer `unavailable`, `/readyz` is 503 and the post-deploy smoke test fails. Demo data
+  is for development and staging (`APP_ENV` other than `production`).
+- **Memorystore must run Redis 7 or later.** The station-closure store uses `EXPIRE … NX`/`GT`, which Redis 6
+  rejects. The setup below creates `redis_7_2`.
 - The ticketing knowledge base (`data/knowledge/railsaathi.db`) is not committed: the Dockerfile builds it from
   `app/knowledge/seed_data.py` (`python -m app.knowledge.ingest`) and the service opens it read-only. Outside
   production a missing or stale file is rebuilt at startup.
-- The backend data directory is **not** served. The only station assets exposed are
-  `GET /api/stations/{id}/map` and `GET /api/stations/{id}/info`.
+- The backend data directory is **not** served. Station assets are exposed only through the allowlisted routes
+  `GET /api/stations/{id}`, `/map`, `/info` and `/tour`.
+- **Station catalogue:** set the `STATIONS_URI` repository variable to `gs://<bucket>/stations`, published with
+  `scripts/stations.py publish` (grant the runtime service account `roles/storage.objectViewer` on the bucket).
+  When it is unset, the service reads the stations baked into the image. Navigation details:
+  [STATION_NAVIGATION.md](STATION_NAVIGATION.md).
+- **AR guidance** is off in production while `AR_GUIDANCE_ENABLED` is unset. Set that repository variable only
+  after the evaluation gate in [AR_GUIDANCE.md](AR_GUIDANCE.md) passes.
 
 ## Delay model and observation collection
 
@@ -144,13 +154,20 @@ Then add these **repository variables** in GitHub (Settings, Secrets and variabl
 | `GCP_REGION` | e.g. `asia-south1` |
 | `GCP_WIF_PROVIDER` | printed by the script above |
 | `GCP_SERVICE_ACCOUNT` | printed by the script above |
-| `RAILWAY_DATA_MODE` | `demo` (default) or `railradar` |
+| `RAILWAY_DATA_MODE` | `railradar` (default; production refuses `demo`) |
 | `FRONTEND_ORIGIN` | optional; leave empty, the nginx proxy makes API calls same-origin |
 | `LLM_PROVIDER` | `gemini` (default), `bedrock` (intent extraction only) or `none` |
 | `GOOGLE_CLOUD_LOCATION` | Vertex AI region for Gemini, default `us-central1` |
 | `VPC_NETWORK` / `VPC_SUBNET` | network and subnet (in `GCP_REGION`) used for Direct VPC egress to Memorystore; default `default` / `default` |
 | `BACKEND_MIN_INSTANCES` / `BACKEND_MAX_INSTANCES` | backend scaling bounds, default `2` / `10` |
 | `MAPS_BROWSER_KEY_SECRET` | optional; name of the Secret Manager secret holding the Maps browser key (e.g. `GOOGLE_MAPS_BROWSER_KEY`). Unset: no key is mounted and the tour links out to Google Maps |
+| `STATIONS_URI` | `gs://<bucket>/stations` for production; unset uses the stations in the image |
+| `DELAY_MODEL_URI` | optional `gs://<bucket>/<path>/model.joblib`; unset uses the committed artifact in the image |
+| `OBSERVATIONS_URI`, `INTERNAL_OIDC_AUDIENCE`, `INTERNAL_OIDC_SERVICE_ACCOUNT` | the observation collector and the internal closure endpoints (see above); unset means `/internal/*` answers 404 |
+| `AR_GUIDANCE_ENABLED` | leave unset (AR off) until the AR evaluation gate passes; then e.g. `chennai_central` |
+
+Optional variables are passed to the service only when they are set, so an empty variable never overrides an
+application default.
 
 Push to `main` or run the workflow manually. The job prints both service URLs at the end.
 
@@ -166,9 +183,8 @@ docker run --rm -d -p 8082:8080 -e BACKEND_URL=http://host.docker.internal:8081 
 curl -fsS http://127.0.0.1:8082/api/health
 ```
 
-## Operations notes
+## Operations
 
-- Logs: Cloud Logging, filter `resource.labels.service_name="railsaathi-backend"`. Access lines are
-  JSON with `request_id`; pass `X-Request-Id` from a client to correlate.
-- Rollback: `gcloud run services update-traffic railsaathi-backend --to-revisions <rev>=100 --region $REGION`.
-- Health: `GET /api/health` on the backend, `GET /healthz` on the frontend container.
+Day-two operations are in [RUNBOOK.md](RUNBOOK.md): the production checklist, health and logs, the Cloud
+Monitoring alerts (`infra/monitoring/`), rollback, the staging load test (`loadtest/k6/`), capacity tuning and
+routine tasks. The threat-model checklist and its open risks are in [SECURITY.md](SECURITY.md).

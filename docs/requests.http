@@ -1,69 +1,120 @@
-### RailSaathi Smart Passenger Planner — sample requests (VS Code REST Client / JetBrains HTTP client)
+### RailSaathi AI sample requests (VS Code REST Client / JetBrains HTTP client). Contract: docs/API.md
+# Local development backend; through the deployed frontend use https://<frontend-url>/api instead.
 @base = http://localhost:8000/api
 
-### Health
+### Health and readiness
 GET {{base}}/health
 
-### Start a session
+### Client configuration (Maps key or null, AR stations, closure simulator flag)
+GET {{base}}/client-config
+
+### ---- 1. Conversational planner ----------------------------------------------------------------------------------
+### Start a session (returns session_id and the signed session_token)
 # @name session
 POST {{base}}/planner/sessions
 Content-Type: application/json
 
 {"language": "en"}
 
-### Use the session id from the response
+###
 @sid = {{session.response.body.session_id}}
+@token = {{session.response.body.session_token}}
 
 ### Scenario A: natural-language request
 POST {{base}}/planner/sessions/{{sid}}/messages
 Content-Type: application/json
+X-Session-Token: {{token}}
 
 {"message": "I need to reach Chennai before 9 AM tomorrow."}
 
 ### Answer the clarification
 POST {{base}}/planner/sessions/{{sid}}/messages
 Content-Type: application/json
+X-Session-Token: {{token}}
 
 {"message": "Coimbatore"}
 
 ### Passenger count and priority
 POST {{base}}/planner/sessions/{{sid}}/messages
 Content-Type: application/json
+X-Session-Token: {{token}}
 
 {"message": "2 passengers, cheapest please"}
 
 ### Manual correction through the form
 PATCH {{base}}/planner/sessions/{{sid}}/journey
 Content-Type: application/json
+X-Session-Token: {{token}}
 
 {"passenger_count": 3, "class_preference": "SL", "class_strict": false}
 
 ### Recompute recommendations
 POST {{base}}/planner/sessions/{{sid}}/recommendations
+X-Session-Token: {{token}}
 
-### Select an option (copy an option_id from the recommendations)
+### Select an option (copy an option_id from the recommendations; demo ids look like CBE-MAS-D103@<date>)
 POST {{base}}/planner/sessions/{{sid}}/select
 Content-Type: application/json
+X-Session-Token: {{token}}
 
 {"option_id": "CBE-MAS-D103@2026-10-10"}
 
 ### Confirm for handoff (does NOT book a ticket)
 POST {{base}}/planner/sessions/{{sid}}/confirm
 Content-Type: application/json
+X-Session-Token: {{token}}
 
 {}
 
 ### Handoff payload
 GET {{base}}/planner/sessions/{{sid}}/handoff
+X-Session-Token: {{token}}
 
-### Scenario E: simulated disruption
+### Scenario E: simulated disruption (demo mode)
 POST {{base}}/planner/sessions/{{sid}}/reassess
 Content-Type: application/json
+X-Session-Token: {{token}}
 
 {"event_id": "SIM-DELAY-D103"}
 
-### Cancel
-POST {{base}}/planner/sessions/{{sid}}/cancel
-
 ### Audit trail
 GET {{base}}/planner/sessions/{{sid}}/audit
+X-Session-Token: {{token}}
+
+### Cancel
+POST {{base}}/planner/sessions/{{sid}}/cancel
+X-Session-Token: {{token}}
+
+### ---- 2. Goal planner (same session token) --------------------------------------------------------------------------
+POST {{base}}/journey/plan
+Content-Type: application/json
+X-Session-Token: {{token}}
+
+{"origin": "Coimbatore", "destination_station": "Chennai", "meeting_date": "2026-10-20", "meeting_time": "11:00"}
+
+### ---- 3. Ticketing guidance ----------------------------------------------------------------------------------------
+POST {{base}}/chat
+Content-Type: application/json
+
+{"message": "When does Tatkal booking open for AC classes?"}
+
+### Knowledge sources
+GET {{base}}/sources
+
+### ---- 4. Live station information -----------------------------------------------------------------------------------
+GET {{base}}/live/stations/MAS/departures?hours=2
+
+### ---- 5. Delay estimate ---------------------------------------------------------------------------------------------
+GET {{base}}/predict/delay?train_number=12623&destination=MAS
+
+### ---- 6. Station navigation -----------------------------------------------------------------------------------------
+GET {{base}}/stations
+
+###
+POST {{base}}/navigation/route
+Content-Type: application/json
+
+{"station_id": "chennai_central", "source": "ent_wall_tax", "destination": "platform_9", "preferences": {"avoid_stairs": true}}
+
+### Active closures
+GET {{base}}/disruptions/chennai_central

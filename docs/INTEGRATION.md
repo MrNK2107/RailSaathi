@@ -1,16 +1,25 @@
-# Integration handoff: main RailSaathi AI app ↔ Smart Passenger Planner
+# Integration: embedding the planner and consuming its result
 
-The planner is self-contained. It does **not** book tickets, take payments,
-track PNRs or navigate stations. Those belong to other modules. The main app
-talks to it only through the HTTP API.
+RailSaathi AI is one app with six capabilities ([README](../README.md)). This page is for a host application that
+wants only the **conversational journey planner** and its confirmed result, for example a booking module.
+
+The planner does **not** book tickets, take payments or track PNRs. The host talks to it only through the HTTP API
+in [API.md](API.md), and every planner route needs the signed session token.
 
 ## Embedding flow
 
-1. **Open the planner**: `POST /api/planner/sessions {"language": "ta"}`.
-2. **Pass an initial request** (optional): `POST /api/planner/sessions/{id}/messages {"message": "<what the passenger said>"}`.
-3. **Show the planner UI** (this frontend, or your own UI using the same endpoints) until `status == "confirmed"`.
-4. **Receive the result**: the confirm response contains `handoff`, which you can also fetch from `GET /api/planner/sessions/{id}/handoff`.
-5. **Watch for changes**: after a reassessment, a new confirmation sets `replaces_confirmation_id`. Treat the newest confirmation as current.
+1. **Open a session:** `POST /api/planner/sessions {"language": "ta"}`. Keep `session_id` and `session_token`.
+   Send the token as `X-Session-Token` on every later call for that session.
+2. **Pass an initial request** (optional): `POST /api/planner/sessions/{session_id}/messages {"message": "<what the passenger said>"}`.
+3. **Show a planner UI** until `status == "confirmed"`. Use RailSaathi's mobile app, or your own UI on the same
+   endpoints.
+4. **Receive the result:** the confirm response contains `handoff`. You can also fetch it from
+   `GET /api/planner/sessions/{session_id}/handoff`. Before confirmation that route answers 409 `not_ready`.
+5. **Watch for changes:** after a reassessment, a new confirmation sets `replaces_confirmation_id`. Treat the
+   newest confirmation as current.
+
+Sessions expire after `SESSION_TTL_MINUTES` (120) without activity. Expect 410 `session_expired` or 404
+`session_not_found` after that, and start a new session.
 
 ## Handoff payload (schema_version 1.0)
 
@@ -67,15 +76,29 @@ talks to it only through the HTTP API.
 
 ### Rules for consumers
 
-- `confirmed_by_passenger` lists what the passenger approved. Everything under `verification.unverified`, and anything where `fare_and_schedule_verified` is false, **must be re-verified** by the booking module against an authoritative source before it is shown as bookable.
-- When `data_provenance.mode` is `demo`, the option IDs and trains are fictional. Do not send them to a real booking system.
-- The payload contains no names, phone numbers or other personal details; the planner never collects them.
-- A TypeScript type for the payload can be generated from `GET /openapi.json`, or copied from `frontend/src/api/types.ts`.
+- `confirmed_by_passenger` lists what the passenger approved. Anything under `verification.unverified`, and
+  anything where `fare_and_schedule_verified` is false, **must be re-verified** against an authoritative source by
+  the booking module before it is shown as bookable. `fare_and_schedule_verified` is always false: the data is
+  demo or third-party.
+- Check `data_provenance.mode`:
+  - `demo` means the trains and option ids are fictional. Never send them to a real booking system. Demo data is
+    served only outside production.
+  - `live`, `cached` and `stale` mean the trains came from RailRadar (third party, not official).
+    - `stale` is an older cached answer.
+    - RailRadar supplies no fares, so `fare_available` is usually false.
+    - It has no station facility data, so passenger-need statuses are `unknown`.
+- The payload holds no names, phone numbers or other personal details. The planner never collects them.
+- A TypeScript type for the payload can be generated from `GET /openapi.json`, or copied from
+  `frontend/src/api/types.ts`.
 
-## CORS and deployment
+## Deployment notes for a host
 
-Add the main app's origin to `CORS_ORIGINS`. To deploy behind the main app's
-gateway, expose the planner under `/api/planner/*` and put rate limiting at the
-gateway, because the built-in limiter is per process. Swap
-`InMemorySessionStore` for a shared store (the `SessionStore` protocol) when
-running more than one worker.
+- **Same origin:** the simplest setup proxies `/api/*` from the host's origin to the backend, as RailSaathi's own
+  nginx does. Then the browser needs no CORS.
+- **Cross origin:** otherwise add the host's origin to `CORS_ORIGINS`. The backend exposes `X-Request-Id` to
+  browsers.
+- **Rate limiting** is shared across replicas through Redis (`REDIS_URL`). It is keyed per client IP, taken from
+  `X-Forwarded-For` with `TRUSTED_PROXY_HOPS` trusted proxies, and per session token. A host proxy must
+  **overwrite** `X-Forwarded-For` with the real client IP, never append to it, and `TRUSTED_PROXY_HOPS` must match
+  the proxy chain. Otherwise clients can choose their own rate-limit bucket. See [SECURITY.md](SECURITY.md).
+- **Sessions** live in Redis when `REDIS_URL` is set, so any number of backend replicas can serve one session.

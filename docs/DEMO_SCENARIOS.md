@@ -1,5 +1,8 @@
 # Demo scenarios
 
+Development and staging only. These run on the bundled demo dataset, which the service refuses when
+`APP_ENV=production`.
+
 Start both servers (see the README) and open http://localhost:5173. "Tomorrow"
 is computed in Asia/Kolkata time, and all trains are fictional demo services.
 These scenarios also run automatically in `backend/tests/test_harness.py` and

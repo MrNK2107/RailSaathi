@@ -2,10 +2,14 @@
 
 The planner can use live train data from [RailRadar](https://railradar.in/docs),
 a **third-party** service. It is not an official Indian Railways or IRCTC
-source, so every live result is labelled "LIVE · RailRadar" and the passenger
-is told to verify on IRCTC/NTES.
+source, and RailSaathi has no NTES integration. Every result carries its
+provenance (`live`, `cached`, `stale` or `unavailable`, source RailRadar), and
+the passenger is told to verify on official Indian Railways channels before
+travelling.
 
-`RAILWAY_DATA_MODE=demo` (default) uses the clearly labelled demo data.
+`RAILWAY_DATA_MODE=demo` (the application default) uses the clearly labelled
+demo data, and only outside production: with `APP_ENV=production`, demo data is
+refused and the deploy workflow defaults to `railradar`.
 `RAILWAY_DATA_MODE=railradar` uses RailRadar only. If the key is missing or
 RailRadar fails, the planner reports that live data is unavailable. It **never**
 falls back to demo or fictional journeys in live mode.
@@ -26,7 +30,7 @@ falls back to demo or fictional journeys in live mode.
    ```
 4. Restart the backend. `GET /api/health` should show
    `"data_mode": "live"` and `"data_provider": {"active": "railradar", ...}`.
-   The UI banner turns green: "LIVE DATA from RailRadar".
+   Journey options and boards in the app then carry a live (or cached or stale) RailRadar provenance badge.
 
 ## What is used
 
@@ -84,7 +88,19 @@ never reaches the browser and is never logged (it is a `SecretStr` in config).
 | `data.count == 0` / empty `trains` | "No train in the live RailRadar results meets…" |
 
 Network and 5xx errors are retried once. Search responses are cached for 5
-minutes by default; live status is never cached. Each result shows its real
+minutes by default (`RAILRADAR_CACHE_SECONDS`), in Redis when `REDIS_URL` is set,
+so every replica shares the cache. The planner's live-status check is never
+cached, but departure boards opt in to the cache.
+
+The quota (`RAILRADAR_REQUESTS_PER_MINUTE`, 10) is enforced before a request is
+sent, by one Redis sliding window shared across replicas. When it is spent:
+
+- a cached answer up to `RAILRADAR_STALE_SECONDS` (6 h) old is served and
+  labelled `stale`;
+- otherwise the answer is `unavailable`.
+
+Each refusal logs one `railradar_quota_exhausted` event, which the Cloud
+Monitoring alert counts (`infra/monitoring/`, [RUNBOOK.md](RUNBOOK.md)). Each result shows its real
 retrieval time ("retrieved 10:00 IST"), including when it came from the cache.
 
 ## Field mapping (verify with a real key)

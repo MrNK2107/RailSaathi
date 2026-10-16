@@ -1,7 +1,10 @@
 # Connecting Claude on AWS Bedrock
 
-Bedrock is **optional**. The app starts, the tests pass, and every demo scenario
-works without it, using the deterministic rule-based extractor. With Bedrock,
+Bedrock is **optional**, and it covers **planner intent extraction only**. The production default is Gemini on
+Vertex AI (`LLM_PROVIDER=gemini`, see [DEPLOYMENT.md](DEPLOYMENT.md)). The ticketing agent and AR guidance use
+Gemini, or their non-LLM fallbacks, whatever this page configures.
+
+The app starts, the tests pass, and every demo scenario works without Bedrock, using the deterministic rule-based extractor. With Bedrock,
 Claude interprets free text (especially varied Tamil, Tanglish or long
 sentences) more flexibly. Its output is still validated and resolved by the same
 deterministic code.
