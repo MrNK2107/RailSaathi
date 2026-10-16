@@ -88,6 +88,14 @@ describe('Dashboard', () => {
     expect(await screen.findByText('Plan with AI')).toBeInTheDocument()
   })
 
+  it('names the station tile "Station Guide & AR" in both languages, matching Confirmation', async () => {
+    const { user } = await open('home')
+    expect(screen.getByRole('button', { name: /Station Guide & AR/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Station Navigation$/ })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'தமிழ்' }))
+    expect(screen.getByRole('button', { name: /நிலைய வழிகாட்டி & AR/ })).toBeInTheDocument()
+  })
+
   it('switches language to Tamil', async () => {
     const { user } = await open('home')
     await user.click(screen.getByRole('button', { name: 'தமிழ்' }))

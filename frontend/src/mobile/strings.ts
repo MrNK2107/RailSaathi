@@ -62,7 +62,7 @@ const en = {
     planTitle: 'Plan Your Journey',
     planBody: 'Tell us where you want to go. Our AI will handle the rest.',
     liveUpdates: 'Live Train Updates',
-    stationNav: 'Station Navigation',
+    stationNav: 'Station Guide & AR',
     goalPlanner: 'Reach a Meeting',
     ticketing: 'Ticketing Guidance',
     accessible: 'Accessible Travel',
@@ -467,6 +467,7 @@ const en = {
   },
   ar: {
     tab: 'Camera (AR)',
+    notSwitchedOn: 'Camera guidance (AR) is not switched on for this server yet. It needs the Gemini vision service.',
     title: 'Camera guidance',
     safety: 'Watch your step, look up at platform edges and stairs.',
     approximate: 'Approximate — confirm with station signs.',
@@ -612,7 +613,7 @@ const ta: MobileStrings = {
     planTitle: 'பயணத்தைத் திட்டமிடுங்கள்',
     planBody: 'எங்கு செல்ல வேண்டும் என்று சொல்லுங்கள். மீதியை AI பார்த்துக்கொள்ளும்.',
     liveUpdates: 'நேரடி ரயில் தகவல்',
-    stationNav: 'நிலைய வழிகாட்டி',
+    stationNav: 'நிலைய வழிகாட்டி & AR',
     goalPlanner: 'கூட்டத்திற்குச் செல்ல',
     ticketing: 'டிக்கெட் வழிகாட்டி',
     accessible: 'அணுகக்கூடிய பயணம்',
@@ -1060,6 +1061,7 @@ const ta: MobileStrings = {
   },
   ar: {
     tab: 'கேமரா (AR)',
+    notSwitchedOn: 'கேமரா வழிகாட்டல் (AR) இந்தச் சேவையகத்தில் இன்னும் இயக்கப்படவில்லை. இதற்கு Gemini பார்வைச் சேவை தேவை.',
     title: 'கேமரா வழிகாட்டல்',
     safety: 'கவனமாக நடங்கள்; நடைமேடை ஓரங்களையும் படிக்கட்டுகளையும் நிமிர்ந்து பாருங்கள்.',
     approximate: 'தோராயமானது — நிலையப் பலகைகளுடன் சரிபாருங்கள்.',

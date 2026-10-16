@@ -4,6 +4,8 @@
 // routing-unavailable notice only: no pickers and no route requests.
 // The camera (AR) tab is offered only for a traced station that client-config lists for AR, in a secure context with
 // a camera; its code (camera, motion, WebXR) is a lazy chunk under src/ar/. Leaving AR always lands on the steps.
+// A station whose data supports AR but where the server has it switched off (no Gemini vision service, or the
+// AR_GUIDANCE_ENABLED flag) shows the AR tab disabled, with the reason, so the feature stays discoverable.
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { errorText } from '../../api/errorText'
 import type { RoutePreferencesBody, StationSummary } from '../../api/types'
@@ -42,6 +44,7 @@ export default function StationNavigation() {
   const [view, setView] = useState<View>('map')
   const [blueprintOpen, setBlueprintOpen] = useState(false)
   const [arStations, setArStations] = useState<string[]>([])
+  const [arCapableStations, setArCapableStations] = useState<string[]>([])
   const [canSimulate, setCanSimulate] = useState(false)
   const [arCapable, setArCapable] = useState(false)
   const [arExit, setArExit] = useState<{ reason: FallbackReason; message: string | null } | null>(null)
@@ -50,8 +53,12 @@ export default function StationNavigation() {
   useEffect(() => {
     const ctl = new AbortController()
     Promise.resolve().then(() => client.clientConfig({ signal: ctl.signal })).then(
-      (cfg) => { setArStations(cfg?.features?.ar_guidance_stations ?? []); setCanSimulate(cfg?.features?.simulate_closures === true) },
-      () => { setArStations([]); setCanSimulate(false) },
+      (cfg) => {
+        setArStations(cfg?.features?.ar_guidance_stations ?? [])
+        setArCapableStations(cfg?.features?.ar_capable_stations ?? [])
+        setCanSimulate(cfg?.features?.simulate_closures === true)
+      },
+      () => { setArStations([]); setArCapableStations([]); setCanSimulate(false) },
     )
     return () => ctl.abort()
   }, [client])
@@ -121,6 +128,8 @@ export default function StationNavigation() {
     return () => { live = false }
   }, [arStation])
   const arOffered = arStation && arCapable
+  // AR-capable station data, but the server has camera guidance switched off: a disabled tab that says why.
+  const arSwitchedOff = routed && !arStation && arCapableStations.includes(stationId)
   useEffect(() => {
     if (!arOffered && view === 'ar') setView('steps')
   }, [arOffered, view])
@@ -135,7 +144,7 @@ export default function StationNavigation() {
   ]
   const stationName = details?.station.station_name ?? stations.find((s) => s.station_id === stationId)?.station_name ?? null
   const views: [View, string, typeof MapIcon][] = [['map', n.mapView, MapIcon], ['steps', n.steps, StepsIcon],
-    ...(arOffered ? [['ar', m.ar.tab, CameraIcon] as [View, string, typeof MapIcon]] : [])]
+    ...(arOffered || arSwitchedOff ? [['ar', m.ar.tab, CameraIcon] as [View, string, typeof MapIcon]] : [])]
 
   const footer = routed ? (
     navigating ? (
@@ -196,6 +205,19 @@ export default function StationNavigation() {
         {details && !routed && (
           <p role="alert" data-code="routing_unavailable" className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900">{n.routingUnavailable}</p>
         )}
+        {/* The 3D tour and the blueprint sit with the station picker, so they are seen before the route tools. */}
+        {details && (
+          <div className="grid grid-cols-2 gap-2" data-testid="station-explore">
+            <a href={routeHref('tour', { station: stationId })}
+              className="flex min-h-[44px] min-w-0 items-center justify-center gap-1.5 rounded-xl bg-brand-600 px-2 py-2.5 text-center text-xs font-bold text-white hover:bg-brand-700">
+              <CompassIcon size={16} className="shrink-0" /> {n.openTour}
+            </a>
+            <button type="button" onClick={() => setBlueprintOpen(true)}
+              className="flex min-h-[44px] min-w-0 items-center justify-center gap-1.5 rounded-xl border border-brand-200 bg-brand-50 px-2 py-2.5 text-center text-xs font-bold text-brand-800 hover:bg-brand-100">
+              <MapIcon size={16} className="shrink-0" /> {n.openBlueprint}
+            </button>
+          </div>
+        )}
       </section>
 
       {details && (
@@ -217,14 +239,25 @@ export default function StationNavigation() {
 
           {/* Guidance modes: Map, Step-by-Step and, where offered, Camera (AR). */}
           <div role="tablist" aria-label={n.title} className={`grid gap-2 ${views.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-            {views.map(([key, text, Icon]) => (
-              <button key={key} type="button" role="tab" aria-selected={view === key}
-                onClick={() => { setView(key); if (key === 'ar') setArExit(null) }}
-                className={`flex min-h-[44px] min-w-0 items-center justify-center gap-1.5 rounded-full px-2 py-2 text-sm font-bold ring-2 ${view === key ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-brand-700 ring-brand-600'}`}>
-                <Icon size={18} /> <span className="truncate">{text}</span>
-              </button>
-            ))}
+            {views.map(([key, text, Icon]) => {
+              const off = key === 'ar' && arSwitchedOff
+              return (
+                <button key={key} type="button" role="tab" aria-selected={view === key}
+                  aria-disabled={off || undefined} aria-describedby={off ? 'ar-off-reason' : undefined}
+                  onClick={() => { if (off) return; setView(key); if (key === 'ar') setArExit(null) }}
+                  className={`flex min-h-[44px] min-w-0 items-center justify-center gap-1.5 rounded-full px-2 py-2 text-sm font-bold ring-2 ${
+                    off ? 'cursor-not-allowed bg-ink-100 text-ink-500 ring-ink-300'
+                      : view === key ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-brand-700 ring-brand-600'}`}>
+                  <Icon size={18} /> <span className="truncate">{text}</span>
+                </button>
+              )
+            })}
           </div>
+          {arSwitchedOff && (
+            <p id="ar-off-reason" data-code="ar_not_switched_on" className="flex items-start gap-2 rounded-xl bg-ink-100 p-3 text-xs text-ink-700">
+              <CameraIcon size={16} className="mt-0.5 shrink-0" /> {m.ar.notSwitchedOn}
+            </p>
+          )}
 
           <section role="tabpanel" aria-label={views.find(([key]) => key === view)?.[1]} className="space-y-3">
             {view === 'ar' ? (
@@ -329,14 +362,6 @@ export default function StationNavigation() {
               onClose={nav.closePathway} onReopenAll={nav.reopenAll} />
           )}
 
-          <button type="button" onClick={() => setBlueprintOpen(true)}
-            className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5 text-xs font-bold text-brand-800 hover:bg-brand-100">
-            <MapIcon size={16} /> {n.openBlueprint}
-          </button>
-          <a href={routeHref('tour', { station: stationId })}
-            className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-brand-200 bg-white px-4 py-2.5 text-xs font-bold text-brand-800 hover:bg-brand-50">
-            <CompassIcon size={16} /> {n.openTour}
-          </a>
         </div>
       )}
 

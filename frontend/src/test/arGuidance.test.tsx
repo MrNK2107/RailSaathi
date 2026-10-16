@@ -425,4 +425,42 @@ describe('AR tab in the wayfinder', () => {
     await waitFor(() => expect(dev.checkArSupport).toHaveBeenCalled())
     expect(screen.queryByRole('tab', { name: a.tab })).not.toBeInTheDocument()
   })
+
+  it('an AR-capable station with AR switched off on the server shows the tab disabled, with the reason', async () => {
+    const off = client({ clientConfig: vi.fn().mockResolvedValue({ google_maps_browser_key: null,
+      features: { ar_guidance_stations: [], ar_capable_stations: ['chennai_central'] } }) })
+    const user = await open(off)
+    const tab = await screen.findByRole('tab', { name: a.tab })
+    expect(tab).toHaveAttribute('aria-disabled', 'true')
+    const reason = screen.getByText(a.notSwitchedOn)
+    expect(reason).toHaveTextContent('Camera guidance (AR) is not switched on for this server yet. It needs the Gemini vision service.')
+    expect(tab).toHaveAttribute('aria-describedby', reason.id)
+    await user.selectOptions(screen.getByLabelText(m.navigation.pickTo), 'platform_10')
+    await user.click(tab)
+    expect(tab).toHaveAttribute('aria-selected', 'false')
+    expect(screen.queryByRole('button', { name: a.accept })).not.toBeInTheDocument()
+    expect(dev.checkArSupport).not.toHaveBeenCalled()  // no camera probing where AR cannot run
+  })
+
+  it('an available AR station keeps the enabled tab and shows no switched-off reason', async () => {
+    await open(client({ clientConfig: vi.fn().mockResolvedValue({ google_maps_browser_key: null,
+      features: { ar_guidance_stations: ['chennai_central'], ar_capable_stations: ['chennai_central'] } }) }))
+    const tab = await screen.findByRole('tab', { name: a.tab })
+    expect(tab).not.toHaveAttribute('aria-disabled')
+    expect(screen.queryByText(a.notSwitchedOn)).not.toBeInTheDocument()
+  })
+
+  it('the 3D tour and blueprint buttons come before the route tools, near the station picker', async () => {
+    await open(client())
+    const tour = screen.getByRole('link', { name: m.navigation.openTour })
+    const blueprint = screen.getByRole('button', { name: m.navigation.openBlueprint })
+    const picker = screen.getByLabelText(m.navigation.pickTo)
+    const tabs = screen.getByRole('tablist', { name: m.navigation.title })
+    for (const later of [picker, tabs]) {
+      expect(tour.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(blueprint.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
+    expect(tour).toHaveAttribute('href', '#/tour?station=chennai_central')
+    expect(screen.getAllByRole('link', { name: m.navigation.openTour })).toHaveLength(1)
+  })
 })

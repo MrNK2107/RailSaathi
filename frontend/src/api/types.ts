@@ -783,7 +783,10 @@ export interface ClientConfig {
   /** The public, referrer-restricted Maps JavaScript key; null when not configured. */
   google_maps_browser_key: string | null
   features: {
+    /** Stations where camera guidance (AR) works now: data opts in, the flag is on and a vision service exists. */
     ar_guidance_stations: string[]
+    /** Stations whose data opts in to AR whatever the flags; the app shows a disabled AR tab with the reason. */
+    ar_capable_stations?: string[]
     /** Whether POST /api/navigation/route accepts `simulate_closures` (the what-if closure tool). */
     simulate_closures?: boolean
   }
