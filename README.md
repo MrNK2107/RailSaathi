@@ -55,6 +55,8 @@ python run.py                                      # https://localhost:5173, als
 python run.py --no-https                           # plain http://localhost:5173
 python run.py --skip-install                       # skip uv sync / npm install
 python run.py --backend-port 8000 --frontend-port 5174
+python run.py --public                             # a public https link for any phone (needs cloudflared)
+python run.py --warm-llm                           # load the local Ollama model before the demo
 ```
 
 - **HTTPS by default.** The frontend is served over HTTPS with a self-signed local test certificate, because phones
@@ -70,6 +72,20 @@ python run.py --backend-port 8000 --frontend-port 5174
   microphone and motion sensors.
 - **`--skip-install`** skips `uv sync` and `npm install`, for a faster restart when the dependencies have not
   changed.
+- **`--public`** builds the frontend once (`npx vite build`; `--skip-build` reuses `frontend/dist`), serves it with
+  `vite preview` and opens a free Cloudflare quick tunnel, then prints a public `https://...trycloudflare.com` link
+  and a QR code for it. Phones need no certificate warning, and camera, microphone and AR work. Install
+  [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) first
+  (`winget install Cloudflare.cloudflared` on Windows, `brew install cloudflared` on macOS). Anyone with the link can
+  use the app while it runs, and the link changes every run. It implies `--no-https` (the tunnel supplies HTTPS),
+  runs the backend without `--reload`, and sets `PUBLIC_TUNNEL=1` so rate limits count each visitor separately.
+  Why `vite preview` and not the dev server: the production build is minified and split into chunks, so the first
+  load over a mobile connection is much smaller, and a tunnel makes the dev server's many small module requests
+  slow. (Chosen by design, not measured.)
+- **`--warm-llm`** sends Ollama an empty prompt so the local model (`OLLAMA_MODEL`, default `gemma4:latest`) is
+  loaded before the first visitor, and prints how long that took. It needs Ollama as `LLM_PROVIDER` or
+  `LLM_FALLBACK`. With Ollama in use, `run.py` also warns when under 10 GB of RAM is free (try
+  `OLLAMA_MODEL=llama3.2:3b`) or when more than one model is loaded.
 - **Live NTES data.** `run.py` sets `RAILWAY_DATA_MODE=ntes` unless you set it yourself (see below).
 
 Or start the two servers yourself:

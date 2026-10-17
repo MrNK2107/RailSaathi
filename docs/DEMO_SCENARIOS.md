@@ -8,6 +8,10 @@ it, see the README) and open the app. "Tomorrow" is computed in Asia/Kolkata tim
 demo services. The scenarios run automatically in `backend/tests/test_harness.py`; the mobile flow (plan, options,
 details, confirm) runs in `frontend/e2e/mobile.spec.ts`.
 
+To demo on phones that are not on your Wi-Fi, run `python run.py --public` (needs cloudflared, see the README) and
+share the printed link or QR code. With a local model as the fallback, run `python run.py --warm-llm` a few minutes
+before the demo so the first answer is not slow, and close other apps (about 10 GB of free RAM is needed).
+
 Type each request in the AI planner (*Plan Your Journey* on the home screen).
 
 | # | Type in the chat | Expected |

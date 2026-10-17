@@ -7,6 +7,13 @@ import { serviceWorker } from './scripts/serviceWorkerPlugin'
 
 const BACKEND = process.env.BACKEND_URL ?? 'http://127.0.0.1:8000'
 const PROXIED = ['/api']
+const proxy = Object.fromEntries(PROXIED.map((p) => [p, { target: BACKEND, changeOrigin: true }]))
+// VITE_ALLOWED_HOSTS is a comma list (run.py --public sets .trycloudflare.com). Unset: Vite's default host check stays.
+const hosts = (process.env.VITE_ALLOWED_HOSTS ?? '')
+  .split(',')
+  .map((h) => h.trim())
+  .filter(Boolean)
+const allowedHosts = hosts.length > 0 ? { allowedHosts: hosts } : {}
 
 // HTTPS (needed for microphone access from other devices on the LAN) is opt-in: VITE_HTTPS=1 npm run dev
 export default defineConfig(async () => {
@@ -39,8 +46,11 @@ export default defineConfig(async () => {
     server: {
       host: '0.0.0.0',
       port: 5173,
-      proxy: Object.fromEntries(PROXIED.map((p) => [p, { target: BACKEND, changeOrigin: true }])),
+      proxy,
+      ...allowedHosts,
     },
+    // `run.py --public` serves the production build with `vite preview`, which needs the same /api proxy.
+    preview: { proxy, ...allowedHosts },
     test: {
       environment: 'jsdom',
       globals: true,
