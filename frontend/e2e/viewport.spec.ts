@@ -100,7 +100,8 @@ test.describe('320 px width', () => {
       const fit = await box.evaluate((el) => {
         const s = getComputedStyle(el)
         const line = parseFloat(s.lineHeight) || parseFloat(s.fontSize) * 1.5
-        return { oneLine: el.clientHeight < line * 2, noScroll: el.scrollHeight <= el.clientHeight + 1, overflow: s.overflowY, wrap: s.whiteSpace }
+        const content = el.clientHeight - parseFloat(s.paddingTop) - parseFloat(s.paddingBottom)
+        return { oneLine: content < line * 2, noScroll: el.scrollHeight <= el.clientHeight + 1, overflow: s.overflowY, wrap: s.whiteSpace }
       })
       expect(fit).toEqual({ oneLine: true, noScroll: true, overflow: 'hidden', wrap: 'nowrap' })
       // The send button sits inside the box, and the text area (where the placeholder and its ellipsis are drawn)
@@ -112,6 +113,15 @@ test.describe('320 px width', () => {
       expect(send!.x).toBeGreaterThanOrEqual(frame!.x)
       expect(send!.x + send!.width).toBeLessThanOrEqual(frame!.x + frame!.width)
       expect(textRight).toBeLessThanOrEqual(send!.x)
+    })
+
+    test(`the composer grows to show long text pasted into the empty box (${lang})`, async ({ page }) => {
+      await openPlan(page, lang)
+      await page.goto('/#/plan')
+      const box = page.locator('#voice-input')
+      await box.fill('Coimbatore to Chennai before 9 AM tomorrow, 2 passengers, window seats please, an AC chair car train')
+      const fit = await box.evaluate((el) => ({ grown: el.clientHeight > 60, noScroll: el.scrollHeight <= el.clientHeight + 1 }))
+      expect(fit).toEqual({ grown: true, noScroll: true })
     })
 
     test(`the Map / Steps / AR guidance tabs fit without truncation (${lang})`, async ({ page }) => {

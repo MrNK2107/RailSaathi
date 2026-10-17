@@ -1,4 +1,4 @@
-import { useEffect, type FormEvent, type RefObject } from 'react'
+import { useLayoutEffect, type FormEvent, type RefObject } from 'react'
 import type { MicState } from '../../hooks/useSpeech'
 import { ArrowRight, StopIcon } from '../icons'
 import { useApp } from '../PlannerContext'
@@ -29,16 +29,17 @@ export function Composer({ draft, onDraft, onSubmit, sending, inputRef, listenin
     if (canSend) onSubmit()
   }
 
-  const grow = (el: HTMLTextAreaElement) => {
-    el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, MAX_ROWS_PX)}px`
-  }
   const empty = draft.length === 0
 
-  // Back to one line once the box is cleared (after Send, or a new plan), so the placeholder never sits in a tall box.
-  useEffect(() => {
-    if (empty && inputRef.current) inputRef.current.style.height = ''
-  }, [empty, inputRef])
+  // Size the box to its text after every render, so typing, pasting and voice transcripts all grow it. Measuring after
+  // render matters: the empty box's one-line (nowrap) styling must be gone before the wrapped height is read.
+  useLayoutEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    if (!empty) el.style.height = `${Math.min(el.scrollHeight, MAX_ROWS_PX)}px`
+    else el.style.height = ''
+  }, [draft, empty, inputRef])
 
   return (
     <form onSubmit={submit} aria-label={m.plan.composer} className="flex items-end gap-2">
@@ -53,21 +54,21 @@ export function Composer({ draft, onDraft, onSubmit, sending, inputRef, listenin
           )}
         </button>
       )}
-      {/* The send button sits inside the box; pr-14 reserves its width, so text and placeholder (cut with an ellipsis)
-          always end before it, even at 320 px. */}
+      {/* The send button sits inside the box as a flex sibling of the text, so text and placeholder (cut with an
+          ellipsis) always end before it, even at 320 px. p-1 insets it evenly; it stays at the bottom as the box grows. */}
       <div data-testid="composer-box"
-        className="relative flex min-h-12 min-w-0 flex-1 items-center rounded-3xl border border-ink-300 bg-white py-0.5 pl-3 pr-14 shadow-card focus-within:border-brand-500">
+        className="flex min-w-0 flex-1 items-end gap-1 rounded-3xl border border-ink-300 bg-white p-1 pl-4 shadow-card focus-within:border-brand-500">
         {/* While empty the box is exactly one line: the placeholder is cut with an ellipsis, never wrapped or scrolled. */}
         <label htmlFor="voice-input" className="sr-only">{m.plan.inputLabel}</label>
         <textarea id="voice-input" ref={inputRef} rows={1} maxLength={1000} value={draft}
-          onChange={(e) => { onDraft(e.target.value); grow(e.target) }}
+          onChange={(e) => onDraft(e.target.value)}
           placeholder={m.plan.inputPlaceholder}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (canSend) onSubmit() } }}
           data-empty={empty || undefined}
-          className={`max-h-32 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-sm text-ink-900 outline-none placeholder:text-ink-500 ${
+          className={`block max-h-32 min-w-0 flex-1 resize-none bg-transparent py-2.5 text-sm leading-5 text-ink-900 outline-none placeholder:text-ink-500 ${
             empty ? 'overflow-hidden text-ellipsis whitespace-nowrap placeholder:text-ellipsis placeholder:whitespace-nowrap' : ''}`} />
         <button type="submit" disabled={!canSend} aria-label={m.plan.send}
-          className="absolute bottom-0.5 right-0.5 grid h-11 w-11 place-items-center rounded-full bg-brand-600 text-white transition hover:bg-brand-700 disabled:opacity-40">
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-600 text-white transition hover:bg-brand-700 disabled:opacity-40">
           <ArrowRight size={18} className="-rotate-90" />
         </button>
       </div>
