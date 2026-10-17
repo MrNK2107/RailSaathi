@@ -148,8 +148,16 @@ class Settings(BaseSettings):
     observation_seen_ttl_seconds: int = Field(default=86_400, ge=60)  # "recently seen" window for trains
     observation_max_trains: int = Field(default=6, ge=1, le=50)  # live-status samples per collector run
 
-    # LLM (optional). "gemini", "bedrock" or "none".
+    # LLM (optional). "gemini", "bedrock", "ollama" (development only) or "none".
     llm_provider: str = "none"
+    # Local model served by Ollama (development only; never used when APP_ENV=production). LLM_FALLBACK=ollama
+    # lets a failing Gemini call fall back to it.
+    ollama_url: str = "http://127.0.0.1:11434"
+    ollama_model: str = "gemma4:latest"
+    ollama_num_ctx: int = Field(default=8192, ge=1024, le=32768)
+    ollama_keep_alive: str = "10m"  # how long Ollama keeps the model loaded after a call
+    ollama_timeout_seconds: float = Field(default=18.0, gt=0)  # per call; clipped to the turn deadline
+    llm_fallback: str = "none"  # "ollama" or "none"
     aws_region: str | None = None
     bedrock_model_id: str | None = None
     aws_profile: str | None = None
@@ -222,6 +230,12 @@ class Settings(BaseSettings):
         if self.llm_provider.lower() != "gemini":
             return False
         return bool(self.gcp_project) or (bool(self.gemini_api_key) and not self.is_production)
+
+    @property
+    def ollama_configured(self) -> bool:
+        """Dev only: a local Ollama model is the provider or the Gemini fallback. Always False in production."""
+        wanted = self.llm_provider.lower() == "ollama" or self.llm_fallback.lower() == "ollama"
+        return wanted and not self.is_production
 
     @property
     def llm_configured(self) -> bool:
