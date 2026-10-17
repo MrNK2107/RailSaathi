@@ -4,9 +4,13 @@ import json
 import time
 
 import httpx
+import pytest
 
 from app.config import Settings
 from app.llm.base import ChatMessage, Deadline, LLMError, LLMErrorKind, ToolCall, ToolResult, ToolSpec
+from app.intent.llm import ExtractionContext
+from app.intent.ollama import OllamaIntentProvider
+from app.intent.prompt import TOOL_SCHEMA
 from app.llm.ollama import OllamaChatLLM
 
 SETTINGS = Settings(_env_file=None, llm_provider="ollama")
@@ -119,3 +123,51 @@ def test_ollama_configured_false_in_production():
     assert Settings(_env_file=None, llm_provider="ollama").ollama_configured is True
     assert Settings(_env_file=None, llm_provider="gemini", llm_fallback="ollama").ollama_configured is True
     assert Settings(_env_file=None).ollama_configured is False
+
+
+CTX = ExtractionContext(language="en", today_iso="2026-10-18", pending_field=None, captured_fields=[])
+
+
+def _intent(handler) -> OllamaIntentProvider:
+    return OllamaIntentProvider(SETTINGS, transport=httpx.MockTransport(handler))
+
+
+def test_intent_uses_json_schema_format():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"message": {"role": "assistant", "content": '{"intent":"other"}'}})
+
+    provider = _intent(handler)
+    provider.extract_intent("hello", CTX)
+    body = seen["body"]
+    assert body["format"] == TOOL_SCHEMA
+    assert body["options"] == {"num_ctx": 8192, "temperature": 0, "num_predict": 800}
+    assert body["messages"][0]["role"] == "system"
+    assert provider.name == OllamaChatLLM(SETTINGS).name == "gemma4"
+
+
+def test_intent_parses_reply():
+    content = '{"intent":"provide_details","origin_text":"Chennai"}'
+    update = _intent(_reply({"role": "assistant", "content": content})).extract_intent("from Chennai", CTX)
+    assert update.origin_text == "Chennai"
+
+
+def test_intent_invalid_json_is_invalid_output():
+    with pytest.raises(LLMError) as err:
+        _intent(_reply({"role": "assistant", "content": "not json"})).extract_intent("hi", CTX)
+    assert err.value.kind == LLMErrorKind.INVALID_OUTPUT
+
+
+def test_caller_merges_request_options_with_num_ctx():
+    from app.llm.ollama import OllamaCaller
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"message": {"content": "ok"}})
+
+    OllamaCaller(SETTINGS, httpx.MockTransport(handler)).chat(
+        {"messages": [], "options": {"temperature": 0}}, Deadline(10))
+    assert seen["body"]["options"] == {"temperature": 0, "num_ctx": 8192}

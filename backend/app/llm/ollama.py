@@ -36,6 +36,11 @@ _LOCK = threading.Lock()  # one request at a time against the local model
 _EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="ollama")
 
 
+def provider_name(settings: Settings) -> str:
+    """Short model name used as the provider label (`gemma4:latest` -> `gemma4`)."""
+    return settings.ollama_model.split(":")[0]
+
+
 def classify(exc: BaseException) -> tuple[LLMError, bool]:
     """Map a transport/HTTP exception to (sanitised LLMError, retryable). A refused connection or a missing model
     means Ollama is not set up (not retried); 429, 5xx and timeouts are."""
@@ -74,7 +79,8 @@ class OllamaCaller:
 
     def _post(self, payload: dict[str, Any], timeout: float) -> dict[str, Any]:
         body = {**payload, "model": self.model, "stream": False, "think": False,
-                "keep_alive": self._keep_alive, "options": {"num_ctx": self._num_ctx}}
+                "keep_alive": self._keep_alive,
+                "options": {**(payload.get("options") or {}), "num_ctx": self._num_ctx}}
         with _LOCK, httpx.Client(transport=self._transport, timeout=timeout) as client:
             response = client.post(f"{self._url}/api/chat", json=body)
             response.raise_for_status()
@@ -139,7 +145,7 @@ class OllamaChatLLM:
 
     def __init__(self, settings: Settings, transport: httpx.BaseTransport | None = None,
                  system_instruction: str | None = None) -> None:
-        self.name = settings.ollama_model.split(":")[0]
+        self.name = provider_name(settings)
         self._caller = OllamaCaller(settings, transport)
         self._system = system_instruction
 
