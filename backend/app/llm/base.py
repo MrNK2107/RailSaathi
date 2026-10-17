@@ -113,6 +113,9 @@ class LLMTurn:
     text: str = ""
     tool_calls: tuple[ToolCall, ...] = ()
     provider_state: Any = field(default=None, compare=False, repr=False)
+    # The model that produced this turn, as shown in provenance ("gemini", "gemma4 (local)"); None for scripted
+    # and rule-based turns.
+    model: str | None = field(default=None, compare=False)
 
     @property
     def is_tool_call(self) -> bool:

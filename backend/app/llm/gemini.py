@@ -140,7 +140,7 @@ def to_contents(messages: Sequence[ChatMessage]) -> list[Any]:
 def to_turn(response: Any) -> LLMTurn:
     candidates = getattr(response, "candidates", None) or []
     if not candidates or candidates[0].content is None:
-        return LLMTurn()
+        return LLMTurn(model="gemini")
     content = candidates[0].content
     texts, calls = [], []
     for part in content.parts or []:
@@ -151,7 +151,7 @@ def to_turn(response: Any) -> LLMTurn:
             calls.append(ToolCall(name=fc.name or "", args=dict(fc.args or {}), id=getattr(fc, "id", None)))
         elif part.text and not getattr(part, "thought", False):
             texts.append(part.text)
-    return LLMTurn(text="\n".join(texts), tool_calls=tuple(calls), provider_state=content)
+    return LLMTurn(text="\n".join(texts), tool_calls=tuple(calls), provider_state=content, model="gemini")
 
 
 class GeminiChatLLM:

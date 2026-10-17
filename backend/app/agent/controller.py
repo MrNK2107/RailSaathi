@@ -143,6 +143,7 @@ class AgentController:
         self._deadline_clock = deadline_clock
         self.trace: list[TraceEntry] = []
         self.step_counter = 0
+        self._answered_by: str | None = None  # `LLMTurn.model` of the latest turn (the model that answered)
 
     @property
     def _rule_based(self) -> bool:
@@ -154,6 +155,7 @@ class AgentController:
         deadline = Deadline(self.deadline_seconds, clock=self._deadline_clock)
         self.trace = []
         self.step_counter = 0
+        self._answered_by = None
 
         if not message or not message.strip():
             return AgentResponse(answer="Please provide a question about Indian Railways ticketing.",
@@ -202,6 +204,7 @@ class AgentController:
             self._add_trace("error", detail=f"LLM call failed: {kind}")
             raise _TurnFailed(kind) from e
         self._add_trace("llm_call", duration_ms=(time.time() - t0) * 1000, detail=f"Round {round_no}")
+        self._answered_by = getattr(response, "model", None)
         return response
 
     def _run_tool_call(self, call, state: dict) -> ToolResult:
@@ -261,7 +264,8 @@ class AgentController:
         as_of = _oldest_as_of(sources or []) or date.fromisoformat(KNOWLEDGE_AS_OF)
         curated = f"curated {KNOWLEDGE_AS_OF}"
         source = (f"RailSaathi rule-based guidance over the RailSaathi knowledge base ({curated})" if self._rule_based
-                  else f"{getattr(self.llm, 'name', 'LLM')} over the RailSaathi knowledge base ({curated})")
+                  else f"{self._answered_by or getattr(self.llm, 'name', 'LLM')} over the RailSaathi knowledge base "
+                       f"({curated})")
         return DataProvenance(mode=mode, source=source, as_of=datetime(as_of.year, as_of.month, as_of.day,
                                                                        tzinfo=timezone.utc),
                               note=note).model_dump(mode="json")

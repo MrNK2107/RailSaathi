@@ -77,22 +77,30 @@ class OllamaCaller:
         self._backoff = backoff_seconds
         self._max_retries = max_retries
 
-    def _post(self, payload: dict[str, Any], timeout: float) -> dict[str, Any]:
+    def _post(self, payload: dict[str, Any], budget: Deadline) -> dict[str, Any]:
+        """One attempt within `budget` (the per-call timeout clipped to the turn deadline). Waiting for the model
+        lock counts against it: a request queued behind another gives up instead of running past its turn."""
         body = {**payload, "model": self.model, "stream": False, "think": False,
                 "keep_alive": self._keep_alive,
                 "options": {**(payload.get("options") or {}), "num_ctx": self._num_ctx}}
-        with _LOCK, httpx.Client(transport=self._transport, timeout=timeout) as client:
-            response = client.post(f"{self._url}/api/chat", json=body)
-            response.raise_for_status()
-            return response.json()
+        if not _LOCK.acquire(timeout=budget.remaining()):
+            raise LLMError(LLMErrorKind.TIMEOUT)
+        try:
+            timeout = max(budget.remaining(), 0.001)  # what is left after the lock wait
+            with httpx.Client(transport=self._transport, timeout=timeout) as client:
+                response = client.post(f"{self._url}/api/chat", json=body)
+                response.raise_for_status()
+                return response.json()
+        finally:
+            _LOCK.release()
 
     def chat(self, payload: dict[str, Any], deadline: Deadline) -> dict[str, Any]:
         if deadline.expired:
             raise LLMError(LLMErrorKind.TIMEOUT)
 
         async def attempt() -> dict[str, Any]:
-            timeout = max(deadline.clip(self._per_call_timeout), 0.001)
-            return await asyncio.get_running_loop().run_in_executor(_EXECUTOR, self._post, payload, timeout)
+            budget = Deadline(deadline.clip(self._per_call_timeout))
+            return await asyncio.get_running_loop().run_in_executor(_EXECUTOR, self._post, payload, budget)
 
         coro = call_with_retries(attempt, deadline=deadline, per_call_timeout=self._per_call_timeout,
                                  max_retries=self._max_retries, classify=classify,
@@ -125,7 +133,7 @@ def to_tools(tools: Sequence[ToolSpec]) -> list[dict[str, Any]]:
         "parameters": t.parameters or {"type": "object", "properties": {}}}} for t in tools]
 
 
-def to_turn(data: dict[str, Any]) -> LLMTurn:
+def to_turn(data: dict[str, Any], model: str | None = None) -> LLMTurn:
     message = data.get("message") or {}
     calls = []
     for raw in message.get("tool_calls") or []:
@@ -137,7 +145,7 @@ def to_turn(data: dict[str, Any]) -> LLMTurn:
             except ValueError:
                 args = {}
         calls.append(ToolCall(name=fn.get("name") or "", args=dict(args) if isinstance(args, dict) else {}))
-    return LLMTurn(text=message.get("content") or "", tool_calls=tuple(calls))
+    return LLMTurn(text=message.get("content") or "", tool_calls=tuple(calls), model=model)
 
 
 class OllamaChatLLM:
@@ -153,4 +161,4 @@ class OllamaChatLLM:
         payload: dict[str, Any] = {"messages": to_messages(messages, self._system)}
         if tools:
             payload["tools"] = to_tools(tools)
-        return to_turn(self._caller.chat(payload, deadline))
+        return to_turn(self._caller.chat(payload, deadline), model=f"{self.name} (local)")

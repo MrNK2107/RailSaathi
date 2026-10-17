@@ -86,8 +86,9 @@ class Container:
 
     @property
     def chat_llm_status(self) -> dict:
-        return {"provider": self.agent_llm.name, "llm": self.chat_llm is not None,
-                "reason": self.chat_llm_reason}
+        status = {"provider": self.agent_llm.name, "llm": self.chat_llm is not None, "reason": self.chat_llm_reason}
+        fallback = getattr(self.chat_llm, "status", None)  # FallbackChatLLM: the model answering now, cooldown
+        return {**status, **fallback()} if callable(fallback) else status
 
 
 def build_clock(settings: Settings) -> Clock:
@@ -103,21 +104,45 @@ def build_clock(settings: Settings) -> Clock:
     return FixedClock(fixed)
 
 
+def _ollama_fallback(settings: Settings) -> bool:
+    """LLM_FALLBACK=ollama outside production (`ollama_configured` is always False in production)."""
+    return settings.llm_fallback.lower() == "ollama" and settings.ollama_configured
+
+
 def build_llm(settings: Settings) -> tuple[IntentLLM | None, str | None]:
-    """Planner intent extraction LLM: (provider, reason_if_unavailable). Never contacts AWS or Google here;
-    any failure degrades to rule-based extraction."""
+    """Planner intent extraction LLM: (provider, reason_if_unavailable). Never contacts AWS, Google or Ollama
+    here; any failure degrades to rule-based extraction. With LLM_FALLBACK=ollama (development only) Gemini is
+    wrapped with the local model, or replaced by it when Gemini is not configured."""
     choice = settings.llm_provider.lower()
+    if choice == "ollama":
+        if not settings.ollama_configured:
+            return None, "llm_disabled"
+        from app.intent.ollama import OllamaIntentProvider
+
+        return OllamaIntentProvider(settings), None
     if choice == "gemini":
         if not settings.gemini_configured:
+            if _ollama_fallback(settings):
+                from app.intent.ollama import OllamaIntentProvider
+
+                log.warning("LLM_PROVIDER=gemini but GOOGLE_CLOUD_PROJECT is missing; using the local model")
+                return OllamaIntentProvider(settings), "gemini_not_configured_using_ollama"
             log.warning("LLM_PROVIDER=gemini but GOOGLE_CLOUD_PROJECT is missing; using rule-based extraction")
             return None, "gemini_not_configured"
         try:
             from app.intent.gemini import GeminiIntentProvider
 
-            return GeminiIntentProvider(settings), None
+            gemini = GeminiIntentProvider(settings)
         except LLMError as err:
             log.warning("Gemini unavailable (%s); using rule-based extraction", err.kind.value)
             return None, f"gemini_{err.kind.value}"
+        if _ollama_fallback(settings):
+            from app.intent.ollama import OllamaIntentProvider
+            from app.llm.fallback import FallbackIntentLLM
+
+            return FallbackIntentLLM(gemini, OllamaIntentProvider(settings),
+                                     deadline_seconds=settings.llm_overall_deadline_seconds), None
+        return gemini, None
     if choice != "bedrock":
         return None, "llm_disabled"
     if not settings.bedrock_configured:
@@ -133,23 +158,41 @@ def build_llm(settings: Settings) -> tuple[IntentLLM | None, str | None]:
 
 
 def build_chat_llm(settings: Settings) -> tuple[ChatLLM | None, str | None]:
-    """Ticketing agent LLM: (llm, reason_if_unavailable). Only Gemini has a chat adapter; anything else (or a
-    construction failure) returns None and the agent uses the rule-based KeywordChatLLM. Never contacts Google."""
+    """Ticketing agent LLM: (llm, reason_if_unavailable). Gemini, or the local Ollama model in development
+    (alone, or as Gemini's fallback with LLM_FALLBACK=ollama); anything else (or a construction failure) returns None
+    and the agent uses the rule-based KeywordChatLLM. Never contacts Google or Ollama."""
+    from app.agent.prompt import SYSTEM_INSTRUCTION
+
     choice = settings.llm_provider.lower()
     if choice == "bedrock":
         return None, "chat_bedrock_not_supported"
+    if choice == "ollama":
+        if not settings.ollama_configured:
+            return None, "llm_disabled"
+        from app.llm.ollama import OllamaChatLLM
+
+        return OllamaChatLLM(settings, system_instruction=SYSTEM_INSTRUCTION), None
     if choice != "gemini":
         return None, "llm_disabled"
     if not settings.gemini_configured:
+        if _ollama_fallback(settings):
+            from app.llm.ollama import OllamaChatLLM
+
+            return OllamaChatLLM(settings, system_instruction=SYSTEM_INSTRUCTION), "gemini_not_configured_using_ollama"
         return None, "gemini_not_configured"
     try:
-        from app.agent.prompt import SYSTEM_INSTRUCTION
         from app.llm.gemini import GeminiChatLLM
 
-        return GeminiChatLLM(settings, system_instruction=SYSTEM_INSTRUCTION), None
+        gemini = GeminiChatLLM(settings, system_instruction=SYSTEM_INSTRUCTION)
     except Exception as exc:  # noqa: BLE001 - degrade, never fail startup
         log.warning("Gemini chat unavailable (%s); using the rule-based agent", type(exc).__name__)
         return None, "gemini_unavailable"
+    if _ollama_fallback(settings):
+        from app.llm.fallback import FallbackChatLLM
+        from app.llm.ollama import OllamaChatLLM
+
+        return FallbackChatLLM(gemini, OllamaChatLLM(settings, system_instruction=SYSTEM_INSTRUCTION)), None
+    return gemini, None
 
 
 def build_vision_localizer(settings: Settings) -> tuple[VisionLocalizer | None, str | None]:
