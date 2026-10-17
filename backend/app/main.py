@@ -53,7 +53,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
                        path_limits={LOCALIZE_PATH: settings.localize_max_body_bytes})
     app.add_middleware(RateLimitMiddleware, limiter=limiter, per_minute=settings.rate_limit_per_minute,
                        llm_per_minute=settings.rate_limit_llm_per_minute, signer=c.signer,
-                       trusted_hops=settings.trusted_proxy_hops)
+                       trusted_hops=settings.trusted_proxy_hops, trust_cf=settings.trust_cf_connecting_ip)
     origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
     app.add_middleware(
         CORSMiddleware,

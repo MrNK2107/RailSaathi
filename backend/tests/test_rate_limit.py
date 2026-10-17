@@ -148,3 +148,27 @@ def test_slow_limiter_fails_open():
     from starlette.testclient import TestClient as TC
     mw = RateLimitMiddleware(app, Slow(), 1, 1, limiter_timeout=0.05)
     assert TC(mw).get("/x").status_code == 200
+
+
+def cf(ip):
+    return {"CF-Connecting-IP": ip}
+
+
+def test_cf_header_keys_buckets_in_public_mode(client_factory):
+    c = client_factory(rate_limit_per_minute=60, public_tunnel=True, trusted_proxy_hops=0)
+    assert all(c.get(REF, headers=cf("1.1.1.1")).status_code == 200 for _ in range(60))
+    assert c.get(REF, headers=cf("1.1.1.1")).status_code == 429
+    assert c.get(REF, headers=cf("2.2.2.2")).status_code == 200
+
+
+def test_cf_header_ignored_without_public_mode(client_factory):
+    c = client_factory(rate_limit_per_minute=1, trusted_proxy_hops=0)
+    assert c.get(REF, headers=cf("1.1.1.1")).status_code == 200
+    assert c.get(REF, headers=cf("2.2.2.2")).status_code == 429
+
+
+def test_cf_header_ignored_in_production(client_factory):
+    c = client_factory(rate_limit_per_minute=1, trusted_proxy_hops=0, app_env="production", public_tunnel=True,
+                       session_signing_key="k" * 32)
+    assert c.get(REF, headers=cf("1.1.1.1")).status_code == 200
+    assert c.get(REF, headers=cf("2.2.2.2")).status_code == 429

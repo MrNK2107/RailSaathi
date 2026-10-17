@@ -71,7 +71,7 @@ async def _enforce_rate_limit(request: Request, c: Container, session_id: str) -
     if limiter is None:
         return
     s = c.settings
-    ip = client_ip(request.headers, request.scope, s.trusted_proxy_hops)
+    ip = client_ip(request.headers, request.scope, s.trusted_proxy_hops, s.trust_cf_connecting_ip)
     for key, limit in ((f"loc:sid:{session_id}", s.localize_rate_limit), (f"loc:ip:{ip}", s.localize_ip_rate_limit)):
         decision = await hit_with_timeout(limiter, key, limit, s.localize_rate_window_seconds)  # 1 s, fail open
         if not decision.allowed:

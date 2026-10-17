@@ -100,6 +100,10 @@ class Settings(BaseSettings):
     # GFE -> backend. nginx overwrites the header with the real client IP and the backend's GFE appends nginx's
     # egress IP, so the client is the 2nd entry from the right: 2.
     trusted_proxy_hops: int = Field(default=0, ge=0, le=10)
+    # Local demo behind a Cloudflare quick tunnel (run.py --public sets PUBLIC_TUNNEL=1): every visitor reaches the
+    # backend from 127.0.0.1, so the rate limiter keys on Cloudflare's CF-Connecting-IP instead. Ignored in
+    # production (see trust_cf_connecting_ip), where the header would be client-controlled.
+    public_tunnel: bool = False
     # HMAC key for session tokens. Required when APP_ENV=production; a random per-process key is used otherwise.
     session_signing_key: SecretStr | None = None
 
@@ -198,6 +202,10 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.app_env.lower() == "production"
+
+    @property
+    def trust_cf_connecting_ip(self) -> bool:
+        return self.public_tunnel and not self.is_production
 
     @property
     def disruption_simulation_enabled(self) -> bool:

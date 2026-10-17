@@ -34,9 +34,14 @@ def is_llm_route(method: str, path: str) -> bool:
             or path.endswith("/messages"))
 
 
-def client_ip(headers: Headers, scope: Scope, trusted_hops: int = 0) -> str:
+def client_ip(headers: Headers, scope: Scope, trusted_hops: int = 0, trust_cf: bool = False) -> str:
     """Client IP from X-Forwarded-For, taking the Nth entry from the right (entries added by trusted proxies;
-    anything to the left is client-controlled). 0 hops, or too few entries, means the socket peer."""
+    anything to the left is client-controlled). 0 hops, or too few entries, means the socket peer.
+    With `trust_cf` (the local demo tunnel only) the Cloudflare-set CF-Connecting-IP header is the visitor."""
+    if trust_cf:
+        cf = headers.get("cf-connecting-ip", "").strip()
+        if cf:
+            return cf[:64]
     if trusted_hops > 0:
         parts = [p.strip() for p in headers.get("x-forwarded-for", "").split(",") if p.strip()]
         if len(parts) >= trusted_hops:
@@ -111,13 +116,14 @@ class RateLimitMiddleware:
 
     def __init__(self, app: ASGIApp, limiter: RateLimiter, per_minute: int, llm_per_minute: int,
                  signer: SessionTokenSigner | None = None, trusted_hops: int = 0,
-                 limiter_timeout: float = LIMITER_TIMEOUT_SECONDS) -> None:
+                 trust_cf: bool = False, limiter_timeout: float = LIMITER_TIMEOUT_SECONDS) -> None:
         self.app = app
         self._limiter = limiter
         self._limit = per_minute
         self._llm_limit = llm_per_minute
         self._signer = signer
         self._hops = trusted_hops
+        self._trust_cf = trust_cf
         self._timeout = limiter_timeout
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -127,7 +133,7 @@ class RateLimitMiddleware:
             return
         headers = Headers(scope=scope)
         tier, limit = ("llm", self._llm_limit) if is_llm_route(scope["method"], path) else ("std", self._limit)
-        keys = [f"{tier}:ip:{client_ip(headers, scope, self._hops)}"]
+        keys = [f"{tier}:ip:{client_ip(headers, scope, self._hops, self._trust_cf)}"]
         session_id = self._session_of(headers.get(TOKEN_HEADER.lower()))
         if session_id:
             keys.append(f"{tier}:sid:{session_id}")
