@@ -5,8 +5,14 @@
 // World frame (three.js, y up): the plan lies on the x/z plane, centred on the origin. Plan x (right) is world +x,
 // plan y (down the plan) is world +z, so plan-up is world -z. Units are metres when the station has a map scale;
 // otherwise "plan units" (the plan width is PLAN_UNITS_WIDTH), and the screen says so.
+//
+// With an OpenStreetMap world (tour.world with an alignment, and a map scale) the frame is the world's instead:
+// x = east, z = -north, metres from the osm.json origin. Pins and pathways go through the station's alignment
+// (worldSpec.planToWorld), the plan image is not laid as a floor, the traced boxes give way to the OSM buildings and
+// platforms, and the camera frames the complex.
 import { FACILITY_TYPES } from '../components/WayfinderParts'
 import type { AreaKind, Point, StepFree, StationTour, TourNode } from '../api/types'
+import { buildWorldSpec, frameBounds, planToWorld, type WorldSpec } from './worldSpec'
 
 export type Vec3 = [number, number, number]
 /** A point on the floor plane: [world x, world z]. */
@@ -93,6 +99,8 @@ export interface SceneSpec {
   /** Half the plan diagonal: used to place the default camera and its far plane. */
   radius: number
   camera: { position: Vec3; target: Vec3 }
+  /** The OpenStreetMap world the plan is placed in, or null (then the plan image is the floor). */
+  world: WorldSpec | null
 }
 
 const AREA_STYLE: Record<AreaKind, { color: string; opacity: number }> = {
@@ -118,6 +126,22 @@ export function toFloor(frame: SceneFrame, normalised: Point, metres?: Point | n
   const x = metres && frame.units === 'metres' ? metres[0] : normalised[0] * frame.width
   const z = metres && frame.units === 'metres' ? metres[1] : normalised[1] * frame.depth
   return [round(x - frame.width / 2), round(z - frame.depth / 2)]
+}
+
+/** Maps a plan point (normalised, with the backend metres when present) to the floor plane of this tour's scene. */
+export type FloorMapper = (normalised: Point, metres?: Point | null) => Vec2
+
+/**
+ * The plan → floor mapping buildSceneSpec uses: the alignment into the world frame when the tour has a world it can
+ * be placed in, otherwise toFloor().
+ */
+export function floorMapper(tour: StationTour, frame: SceneFrame = sceneFrame(tour)): FloorMapper {
+  const alignment = tour.world?.alignment
+  if (!alignment || !tour.scale || frame.units !== 'metres') return (n, m) => toFloor(frame, n, m)
+  return (n, m) => {
+    const [x, z] = planToWorld(alignment, m ?? [n[0] * frame.width, n[1] * frame.depth])
+    return [round(x), round(z)]
+  }
 }
 
 /** Levels in ascending order with their heights. Stated elevations win; others stack by DEFAULT_LEVEL_GAP. */
@@ -163,20 +187,22 @@ export function liftPolyline(points: Vec2[], y0: number, y1: number): Vec3[] {
 
 export function buildSceneSpec(tour: StationTour): SceneSpec {
   const frame = sceneFrame(tour)
+  const world = tour.scale ? buildWorldSpec(tour.world) : null
+  const floorAt = floorMapper(tour, frame)
   const levels = sceneLevels(tour)
   const traced = tour.routing_enabled
   const panoNodes = new Set(tour.panoramas.map((p) => p.node_id))
   const nodeLevel = new Map(tour.nodes.map((n) => [n.id, n.level]))
   const baseLevel = levels.some((l) => l.level === 0) ? 0 : levels[0].level
 
-  const areas: SceneArea[] = tour.areas.map((a) => ({
+  const areas: SceneArea[] = world ? [] : tour.areas.map((a) => ({
     id: a.id, kind: a.kind, name: a.name, level: a.level, y: levelY(levels, a.level), height: a.height_m,
     outline: openRing(a.polygon.map((p, i) => toFloor(frame, p, a.polygon_m?.[i]))),
     ...AREA_STYLE[a.kind],
   }))
 
   const pins: ScenePin[] = traced ? tour.nodes.map((n) => {
-    const [x, z] = toFloor(frame, n.position, n.position_m)
+    const [x, z] = floorAt(n.position, n.position_m)
     return {
       id: n.id, name: n.name, type: n.type, level: n.level, position: [x, round(levelY(levels, n.level) + PIN_HEIGHT), z],
       stepFree: n.step_free, status: n.status, isFacility: FACILITY_TYPES.includes(n.type), hasPanorama: panoNodes.has(n.id),
@@ -186,18 +212,23 @@ export function buildSceneSpec(tour: StationTour): SceneSpec {
   const edges: SceneEdge[] = traced ? tour.edges.map((e) => {
     const from = nodeLevel.get(e.from) ?? baseLevel
     const to = nodeLevel.get(e.to) ?? from
-    const floor = e.geometry.map((p, i) => toFloor(frame, p, e.geometry_m?.[i]))
+    const floor = e.geometry.map((p, i) => floorAt(p, e.geometry_m?.[i]))
     return {
       id: e.id, level: from, pathType: e.path_type, stepFree: e.step_free,
       points: liftPolyline(floor, levelY(levels, from) + PATH_LIFT, levelY(levels, to) + PATH_LIFT),
     }
   }) : []
 
+  const floor = { url: tour.map.url, level: baseLevel, y: levelY(levels, baseLevel), width: frame.width, depth: frame.depth }
+  if (world) {
+    const { minX, maxX, minZ, maxZ } = world.bounds
+    const radius = round(Math.hypot(maxX - minX, maxZ - minZ) / 2)
+    return { stationId: tour.station_id, frame, traced, levels, areas, pins, edges, radius, floor, camera: frameBounds(world.bounds, 1), world }
+  }
   const radius = round(Math.hypot(frame.width, frame.depth) / 2)
   return {
-    stationId: tour.station_id, frame, traced, levels, areas, pins, edges, radius,
-    floor: { url: tour.map.url, level: baseLevel, y: levelY(levels, baseLevel), width: frame.width, depth: frame.depth },
-    camera: { position: [0, round(radius * 0.7), round(radius * 0.6)], target: [0, 0, 0] },
+    stationId: tour.station_id, frame, traced, levels, areas, pins, edges, radius, floor,
+    camera: { position: [0, round(radius * 0.7), round(radius * 0.6)], target: [0, 0, 0] }, world: null,
   }
 }
 

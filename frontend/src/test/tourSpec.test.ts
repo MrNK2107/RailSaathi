@@ -11,6 +11,8 @@ import {
 } from '../tour/sceneSpec'
 import routeJson from './data/chennai_central_route.json'
 import tourJson from './data/chennai_central_tour.json'
+import { chennaiWorld } from './worldFixture'
+import { planToWorld } from '../tour/worldSpec'
 
 const chennai = tourJson as unknown as StationTour
 const chennaiRoute = routeJson as unknown as RouteResult
@@ -273,6 +275,37 @@ describe('Google Maps link-outs', () => {
     expect(placeLink(chennai)).toEqual({ url: 'https://www.google.com/maps/search/?api=1&query=13.0825%2C80.275', approximate_m: 50 })
     expect(placeLink(twoLevel())).toEqual({ url: 'https://www.google.com/maps/search/?api=1&query=Test+Station+railway+station', approximate_m: null })
     expect(link).not.toMatch(/key=/)
+  })
+})
+
+describe('with an OpenStreetMap world', () => {
+  const withWorld: StationTour = { ...chennai, world: chennaiWorld() }
+
+  it('with world, route points are in world frame', () => {
+    const spec = buildSceneSpec(withWorld)
+    expect(spec.world).not.toBeNull()
+    const path = routeToPath(chennaiRoute, withWorld, spec)
+    const start = chennai.nodes.find((n) => n.id === 'ent_wall_tax')!
+    const [x, z] = planToWorld(withWorld.world!.alignment!, start.position_m!)
+    expect(path[0][0]).toBeCloseTo(x, 1)
+    expect(path[0][1]).toBe(PATH_LIFT)
+    expect(path[0][2]).toBeCloseTo(z, 1)
+    // The traced entrance lands just north-east of the heritage frontage (backend: (10.94, 1.96) east/north).
+    expect(x).toBeCloseTo(10.94, 1)
+    expect(z).toBeCloseTo(-1.96, 1)
+  })
+
+  it('pins and pathways move into the world frame; no plan floor areas; the camera frames the world bounds', () => {
+    const spec = buildSceneSpec(withWorld)
+    const wallTax = spec.pins.find((p) => p.id === 'ent_wall_tax')!
+    const [x, z] = planToWorld(withWorld.world!.alignment!, chennai.nodes.find((n) => n.id === 'ent_wall_tax')!.position_m!)
+    expect(wallTax.position[0]).toBeCloseTo(x, 2)
+    expect(wallTax.position[2]).toBeCloseTo(z, 2)
+    expect(spec.areas).toEqual([]) // the OSM buildings and platforms replace the traced boxes
+    const { bounds } = spec.world!
+    expect(spec.camera.target[0]).toBeCloseTo((bounds.minX + bounds.maxX) / 2, 3)
+    expect(spec.camera.target[2]).toBeCloseTo((bounds.minZ + bounds.maxZ) / 2, 3)
+    expect(spec.camera.position[2]).toBeGreaterThan(spec.camera.target[2]) // from the south
   })
 })
 

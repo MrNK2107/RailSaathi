@@ -127,6 +127,8 @@ export default function StationTour() {
     setStreetView(i >= 0 ? { stops: routeStops, index: i } : { stops: [p], index: 0 })
   }
   const floorUrl = tour && tour.map.url.startsWith('/api/stations/') ? `${client.baseUrl}${tour.map.url}` : ''
+  const modelPath = spec?.world?.heritage?.modelUrl ?? null
+  const modelUrl = modelPath?.startsWith('/api/stations/') ? `${client.baseUrl}${modelPath}` : null
 
   return (
     <Screen header={<AppHeader />}>
@@ -179,11 +181,16 @@ export default function StationTour() {
               <div className="h-[360px]">
                 <SceneBoundary onError={() => setSceneFailed(true)}>
                   <Suspense fallback={<p role="status" className="p-12 text-center text-xs text-ink-500">{t.sceneLoading}</p>}>
-                    <TourScene spec={spec} floorUrl={floorUrl} visibleLevel={level} selectedId={selectedId} onSelect={setSelectedId}
+                    <TourScene spec={spec} floorUrl={floorUrl} modelUrl={modelUrl} reducedMotion={reduced} visibleLevel={level} selectedId={selectedId} onSelect={setSelectedId}
                       markers={markers} path={path} flying={flying && !reduced} onFlyEnd={() => setFlying(false)} pose={pose}
                       label={t.sceneLabel.replace('{station}', tour.station_name)} />
                   </Suspense>
                 </SceneBoundary>
+                {spec.world && (
+                  <p data-testid="osm-attribution" className="pointer-events-none absolute bottom-1 right-1 z-10 rounded bg-white/85 px-1.5 py-0.5 text-[10px] text-ink-700">
+                    {spec.world.attribution}
+                  </p>
+                )}
               </div>
             ) : (
               <div className="space-y-2 p-2 pt-10">

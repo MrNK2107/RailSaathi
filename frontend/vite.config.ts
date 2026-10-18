@@ -37,6 +37,8 @@ export default defineConfig(async () => {
           // React is shared by every screen; three.js is only for the 3D tour. Everything else splits by screen.
           manualChunks(id: string) {
             if (/\/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'react'
+            // three.js loaders (GLTFLoader for the heritage model) are imported on demand: their own lazy chunk.
+            if (/\/node_modules\/three\/examples\/jsm\/loaders\//.test(id)) return undefined
             if (/\/node_modules\/three\//.test(id)) return 'three'
             return undefined
           },
@@ -67,6 +69,9 @@ export default defineConfig(async () => {
       },
       pool: 'threads',
       maxWorkers: 2,
+      // R3F and drei ship CommonJS for Node, which would load a second (CJS) copy of three.js next to the ESM one the
+      // app code imports. Inlining them keeps one three.js in tests (the WorldLayer test mounts a real R3F scene).
+      server: { deps: { inline: ['@react-three/fiber', '@react-three/drei'] } },
     },
   }
 })

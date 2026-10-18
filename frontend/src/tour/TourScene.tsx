@@ -1,12 +1,16 @@
 // The 3D canvas of the virtual tour (three.js through @react-three/fiber). Loaded lazily, only when WebGL exists.
 // It draws exactly what buildSceneSpec() describes: the plan image as the floor, traced areas extruded to their
-// (nominal) heights, node pins, pathways and the route tube. Street View imagery is never drawn here.
+// (nominal) heights, node pins, pathways and the route as a glowing path. With an OpenStreetMap world the plan floor
+// gives way to WorldLayer (buildings, platforms, canopies, rails and the heritage model). Street View imagery is
+// never drawn here.
 import { Html, OrbitControls } from '@react-three/drei'
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState, type ElementRef, type MutableRefObject } from 'react'
 import * as THREE from 'three'
 import { cameraAt, flyDurationMs, pathLength, type CameraPose } from './cameraPath'
 import { PIN_HEIGHT, type SceneArea, type SceneEdge, type ScenePin, type SceneSpec, type Vec3 } from './sceneSpec'
+import WorldLayer from './WorldLayer'
+import { frameBounds } from './worldSpec'
 
 type OrbitControlsImpl = ElementRef<typeof OrbitControls>
 
@@ -14,6 +18,10 @@ export interface TourSceneProps {
   spec: SceneSpec
   /** Absolute URL of the plan image used as the floor texture. */
   floorUrl: string
+  /** Absolute URL of the heritage .glb when the scene has a world; null draws its footprint instead. */
+  modelUrl?: string | null
+  /** The route glows without pulsing when the user prefers reduced motion. */
+  reducedMotion?: boolean
   /** 'all', or the one level to show. */
   visibleLevel: number | 'all'
   selectedId: string | null
@@ -36,6 +44,8 @@ const PIN_COLOR: Record<string, string> = {
   information_desk: '#f59e0b', shop: '#f59e0b',
 }
 const ROUTE_COLOR = '#1a56db'
+const ROUTE_GLOW = '#3b82f6'
+const ROUTE_RADIUS = 1
 
 export default function TourScene(props: TourSceneProps) {
   const { spec, label } = props
@@ -52,19 +62,19 @@ export default function TourScene(props: TourSceneProps) {
   )
 }
 
-function SceneContent({ spec, floorUrl, visibleLevel, selectedId, onSelect, markers, path, flying, onFlyEnd, pose }: TourSceneProps) {
+function SceneContent({ spec, floorUrl, modelUrl = null, reducedMotion = false, visibleLevel, selectedId, onSelect, markers, path, flying, onFlyEnd, pose }: TourSceneProps) {
   const controls = useRef<OrbitControlsImpl | null>(null)
   const shown = (level: number) => visibleLevel === 'all' || visibleLevel === level
   const markerText = new Map(markers.map((mk) => [mk.id, mk.text]))
   return (
     <>
-      {shown(spec.floor.level) && <Floor spec={spec} url={floorUrl} />}
+      {spec.world ? <WorldLayer world={spec.world} modelUrl={modelUrl} /> : shown(spec.floor.level) && <Floor spec={spec} url={floorUrl} />}
       {spec.areas.filter((a) => shown(a.level)).map((a) => <AreaMesh key={a.id} area={a} />)}
       {spec.edges.filter((e) => shown(e.level)).map((e) => <EdgeLine key={e.id} edge={e} />)}
       {spec.pins.filter((p) => shown(p.level)).map((p) => (
         <Pin key={p.id} pin={p} selected={p.id === selectedId} marker={markerText.get(p.id)} onSelect={onSelect} />
       ))}
-      {path && path.length > 1 && <RouteTube path={path} />}
+      {path && path.length > 1 && <RouteTube path={path} pulse={!reducedMotion} />}
       <CameraRig controls={controls} spec={spec} path={path} flying={flying} onFlyEnd={onFlyEnd} pose={pose} />
       <OrbitControls ref={controls} makeDefault enabled={!flying} target={spec.camera.target}
         maxPolarAngle={Math.PI / 2.05} minDistance={5} maxDistance={spec.radius * 4} />
@@ -152,18 +162,24 @@ function Pin({ pin, selected, marker, onSelect }: { pin: ScenePin; selected: boo
   )
 }
 
-function RouteTube({ path }: { path: Vec3[] }) {
+/** The route as a glowing path: emissive, a little wider than a pathway, its glow pulsing unless motion is reduced. */
+function RouteTube({ path, pulse }: { path: Vec3[]; pulse: boolean }) {
+  const material = useRef<THREE.MeshStandardMaterial | null>(null)
   const geometry = useMemo(() => {
     const curve = new THREE.CurvePath<THREE.Vector3>()
     for (let i = 1; i < path.length; i += 1) {
       curve.add(new THREE.LineCurve3(new THREE.Vector3(...path[i - 1]), new THREE.Vector3(...path[i])))
     }
-    return new THREE.TubeGeometry(curve, Math.max(64, path.length * 8), 0.7, 8, false)
+    return new THREE.TubeGeometry(curve, Math.max(64, path.length * 8), ROUTE_RADIUS, 8, false)
   }, [path])
   useEffect(() => () => geometry.dispose(), [geometry])
+  useEffect(() => { if (!pulse && material.current) material.current.emissiveIntensity = 0.9 }, [pulse])
+  useFrame(({ clock }) => {
+    if (pulse && material.current) material.current.emissiveIntensity = 0.75 + 0.45 * Math.sin(clock.elapsedTime * 3)
+  })
   return (
-    <mesh geometry={geometry}>
-      <meshStandardMaterial color={ROUTE_COLOR} emissive={ROUTE_COLOR} emissiveIntensity={0.35} />
+    <mesh geometry={geometry} name="route">
+      <meshStandardMaterial ref={material} color={ROUTE_COLOR} emissive={ROUTE_GLOW} emissiveIntensity={0.9} toneMapped={false} />
     </mesh>
   )
 }
@@ -174,6 +190,7 @@ function CameraRig({ controls, spec, path, flying, onFlyEnd, pose }: {
   onFlyEnd: () => void; pose: CameraPose | null
 }) {
   const camera = useThree((s) => s.camera)
+  const size = useThree((s) => s.size)
   const progress = useRef(0)
   const ended = useRef(false)
   const duration = useMemo(() => (path ? flyDurationMs(pathLength(path)) : 0), [path])
@@ -196,7 +213,8 @@ function CameraRig({ controls, spec, path, flying, onFlyEnd, pose }: {
   }, [pose])
 
   useEffect(() => {
-    if (!pose && !flying) apply(spec.camera)
+    // A world is framed for this canvas's own aspect (spec.camera assumes a square one).
+    if (!pose && !flying) apply(spec.world ? frameBounds(spec.world.bounds, size.width / Math.max(1, size.height)) : spec.camera)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spec])
 

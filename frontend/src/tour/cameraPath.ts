@@ -1,6 +1,6 @@
 // Route → 3D path → camera, as pure functions (no three.js), so the fly-through is unit-tested.
 import type { RouteResult, StationTour, TourPanorama } from '../api/types'
-import { levelY, liftPolyline, PATH_LIFT, toFloor, type SceneSpec, type Vec2, type Vec3 } from './sceneSpec'
+import { floorMapper, levelY, liftPolyline, PATH_LIFT, type SceneSpec, type Vec2, type Vec3 } from './sceneSpec'
 
 export interface CameraPose {
   position: Vec3
@@ -15,7 +15,7 @@ export const LOOK_AHEAD = 20
 const same = (a: Vec3, b: Vec3) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2]
 
 /**
- * The route's `geometry`, segment by segment, in world coordinates. Each segment climbs from its start node's level
+ * The route's `geometry`, segment by segment, in scene coordinates (the OSM world frame when the tour has one). Each segment climbs from its start node's level
  * to its end node's level along its own geometry. Falls back to `route.geometry` on the start node's level when the
  * response has no segments.
  */
@@ -23,7 +23,8 @@ export function routeToPath(route: RouteResult, tour: StationTour, spec: SceneSp
   if (route.status !== 'ok') return []
   const nodeLevel = new Map(tour.nodes.map((n) => [n.id, n.level]))
   const y = (nodeId: string | undefined) => levelY(spec.levels, nodeLevel.get(nodeId ?? '') ?? spec.floor.level) + PATH_LIFT
-  const floor = (pts: RouteResult['geometry']): Vec2[] => pts.map((p) => toFloor(spec.frame, p))
+  const floorAt = floorMapper(tour, spec.frame) // the world frame when the scene has one
+  const floor = (pts: RouteResult['geometry']): Vec2[] => pts.map((p) => floorAt(p))
   const out: Vec3[] = []
   const push = (p: Vec3) => { if (out.length === 0 || !same(out[out.length - 1], p)) out.push(p) }
   if (route.segments.length > 0 && route.segments.every((s) => s.geometry?.length > 1)) {

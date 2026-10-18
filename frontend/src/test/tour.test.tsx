@@ -9,6 +9,11 @@ import type { TourSceneProps } from '../tour/TourScene'
 import { loadStreetView, onMapsAuthFailure, resetStreetViewLoaderForTests } from '../tour/streetView'
 import StreetViewDialog from '../tour/StreetViewDialog'
 import { MOBILE_STRINGS } from '../mobile/strings'
+import { act as r3fAct, createRoot, extend, useThree } from '@react-three/fiber'
+import * as THREE from 'three'
+import WorldLayer from '../tour/WorldLayer'
+import { buildWorldSpec } from '../tour/worldSpec'
+import { chennaiWorld } from './worldFixture'
 import routeJson from './data/chennai_central_route.json'
 import tourJson from './data/chennai_central_tour.json'
 import { response } from './fixtures'
@@ -24,6 +29,15 @@ vi.mock('../tour/TourScene', () => ({
 const env = vi.hoisted(() => ({ webgl: true, reduced: false }))
 vi.mock('../tour/environment', () => ({
   hasWebGL: () => env.webgl, useReducedMotion: () => env.reduced, prefersReducedMotion: () => env.reduced,
+}))
+const gltf = vi.hoisted(() => ({ urls: [] as string[] }))
+vi.mock('three/examples/jsm/loaders/GLTFLoader.js', () => ({
+  GLTFLoader: class {
+    load(url: string, _onLoad: unknown, _onProgress: unknown, onError: (e: Error) => void) {
+      gltf.urls.push(url)
+      setTimeout(() => onError(new Error('404 model.glb')), 0)
+    }
+  },
 }))
 const maps = vi.hoisted(() => ({ setOptions: vi.fn(), importLibrary: vi.fn() }))
 vi.mock('@googlemaps/js-api-loader', () => maps)
@@ -405,11 +419,60 @@ describe('Tour screen', () => {
     expect(screen.getByTestId('schematic-label')).toBeInTheDocument()
   })
 
+  it('with an OpenStreetMap world: the scene gets the world and the model URL; the screen credits OpenStreetMap', async () => {
+    await openTour(client({ ...chennai, world: chennaiWorld() }))
+    await screen.findByTestId('tour-scene')
+    expect(scene.last!.spec.world).not.toBeNull()
+    expect(scene.last!.modelUrl).toBe('http://test/api/stations/chennai_central/model.glb')
+    expect(scene.last!.reducedMotion).toBe(false)
+    expect(screen.getByTestId('osm-attribution')).toHaveTextContent('© OpenStreetMap contributors')
+  })
+
+  it('without a world there is no OpenStreetMap credit', async () => {
+    await openTour(client())
+    await screen.findByTestId('tour-scene')
+    expect(scene.last!.spec.world).toBeNull()
+    expect(screen.queryByTestId('osm-attribution')).not.toBeInTheDocument()
+  })
+
   it('opens on Chennai Central when the link names no station', async () => {
     const c = client()
     await openTour(c, '/tour')
     await screen.findByTestId('tour-scene')
     expect(c.stationTour).toHaveBeenCalledWith('chennai_central', expect.anything())
+  })
+})
+
+describe('WorldLayer (rendered by @react-three/fiber against a stub renderer: jsdom has no WebGL)', () => {
+  /** Just enough of THREE.WebGLRenderer for R3F to mount a scene graph without drawing it. */
+  const stubRenderer = (canvas: HTMLCanvasElement) => ({
+    domElement: canvas, render: () => undefined, setPixelRatio: () => undefined, setSize: () => undefined,
+    outputColorSpace: 'srgb', toneMapping: 0, shadowMap: { enabled: false, type: 0 }, forceContextLoss: () => undefined,
+  })
+
+  it('model load failure shows footprint', async () => {
+    const holder = document.createElement('div')
+    const canvas = document.createElement('canvas')
+    holder.appendChild(canvas)
+    document.body.appendChild(holder)
+    const world = buildWorldSpec(chennaiWorld())!
+    let scene: THREE.Scene | null = null
+    const Grab = () => { scene = useThree((s) => s.scene); return null }
+    extend(THREE) // <Canvas> does this; createRoot alone does not
+    const root = createRoot(canvas)
+    root.configure({ gl: stubRenderer(canvas) as unknown as THREE.WebGLRenderer, frameloop: 'never', events: undefined,
+      size: { width: 320, height: 480, top: 0, left: 0 } })
+    await r3fAct(async () => { root.render(<><WorldLayer world={world} modelUrl="http://test/api/stations/chennai_central/model.glb" /><Grab /></>) })
+    await waitFor(() => expect(gltf.urls).toEqual(['http://test/api/stations/chennai_central/model.glb']))
+    await waitFor(() => expect(scene!.getObjectByName('heritage-fallback')).toBeDefined())
+    const fallback = scene!.getObjectByName('heritage-fallback') as THREE.Mesh
+    expect((fallback.material as THREE.MeshStandardMaterial).color.getHexString()).toBe('7a1f1f')
+    fallback.geometry.computeBoundingBox()
+    expect(fallback.geometry.boundingBox!.max.y).toBeCloseTo(18, 3) // the footprint extruded to 18 m
+    expect(scene!.getObjectByName('world-buildings')).toBeDefined()
+    expect(holder.textContent).toContain('9 · 10') // the traced platforms' label, as HTML over the canvas
+    await r3fAct(async () => root.unmount())
+    holder.remove()
   })
 })
 
