@@ -8,6 +8,7 @@ The runtime only reads station data; this is the one way it changes. Usage (from
     uv run python scripts/stations.py preview chennai_central --from ent_wall_tax --to platform_10 --step-free
     uv run python scripts/stations.py publish chennai_central --dest gs://BUCKET/stations
     uv run python scripts/stations.py panoramas chennai_central --radius 150 --out panos.json
+    uv run python scripts/stations.py osm chennai_central           # OpenStreetMap footprints -> osm.json
 
 `publish` validates first, uploads the station folder to a new versioned folder
 (`<dest>/<station_id>/<version>/`, never overwritten) and then points `<dest>/catalogue.json` at it. Earlier
@@ -17,6 +18,10 @@ Default Credentials; bucket IAM is the access control.
 `panoramas` lists Street View pano ids near the station's geo_reference (Street View Static API metadata
 endpoint, key from GOOGLE_MAPS_API_KEY) with their plan position and nearest node, so an author can map them to
 nodes in station.json. It stores metadata only, never imagery, as the Google Maps terms require.
+
+`osm` runs one read-only Overpass query (or reads a saved response with --input) and writes the station's
+`osm.json`: building, platform, rail and subway footprints in metres from the OSM station node. Commit the file;
+the runtime never calls Overpass. Data (c) OpenStreetMap contributors, ODbL-1.0.
 """
 
 from __future__ import annotations
@@ -47,6 +52,7 @@ from app.navigation.services.graph_builder import build_graph  # noqa: E402
 from app.navigation.services.route_validator import check_map_image, validate_station_data  # noqa: E402
 from app.navigation.services.routing_engine import find_route  # noqa: E402
 from app.navigation.services.station_store import CATALOGUE_FILE, STATION_ID_RE  # noqa: E402
+from app.navigation.world import WORLD_FILE, elements_to_features, to_local  # noqa: E402
 
 VERSION_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.\-]{0,63}$")
 OPTIONAL_FILES = ("metadata.json", "info.json")
@@ -404,6 +410,115 @@ def cmd_panoramas(args) -> int:
     return 0
 
 
+# ---- osm ----------------------------------------------------------------------------------------------------
+
+OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+OSM_DEFAULT_BBOX = (13.0780, 80.2690, 13.0905, 80.2790)  # s, w, n, e: widened north so platforms 1-11 fit
+# The origin is the OSM station node. The heritage way is the main building's footprint, chosen by looking at the
+# building ways around the forecourt: 214739119 is the longest (about 120 m) and the one nearest the road the
+# station faces (3 m); OSM tags it building=roof, layer=1 (the front block and its colonnade). Poonamallee High
+# Road is mapped as EVR Periyar Salai, which lies 540 m west and is not the road beside the forecourt.
+OSM_ORIGINS = {"chennai_central": {"node": 2481969291, "lat": 13.0824232, "lon": 80.2759622,
+                                   "heritage_way": "way/214739119"}}
+OSM_USER_AGENT = "gdg-devfest-station-tooling/1.0 (offline OSM extract for a station tour)"
+
+
+class WorldBuildError(Exception):
+    pass
+
+
+def overpass_query(bbox: tuple[float, float, float, float]) -> str:
+    b = ",".join(f"{v:.4f}" for v in bbox)
+    parts = [
+        f'way["building"]({b});',
+        f'relation["building"]({b});',
+        f'way["railway"~"^(rail|platform|subway|station)$"]({b});',
+        f'way["public_transport"~"^(platform|station)$"]({b});',
+        f'relation["railway"="station"]({b});',
+        f'way["highway"~"^(footway|pedestrian|corridor)$"]["tunnel"]["layer"~"^-"]({b});',
+    ]
+    nl = chr(10)
+    return f"[out:json][timeout:90];{nl}({nl}  " + f"{nl}  ".join(parts) + f"{nl});{nl}out geom;"
+
+
+def fetch_overpass(query: str, client=None, pause_s: float = 10.0) -> dict:
+    """One read-only Overpass POST; a single retry after a pause when it fails or is rate limited."""
+    import time
+
+    import httpx
+
+    http = client or httpx.Client(timeout=120.0)
+    headers = {"User-Agent": OSM_USER_AGENT, "Accept": "application/json"}
+    last: Exception | None = None
+    try:
+        for attempt in range(2):
+            try:
+                res = http.post(OVERPASS_URL, data={"data": query}, headers=headers)
+                res.raise_for_status()
+                return res.json()
+            except (httpx.HTTPError, ValueError) as exc:
+                last = exc
+                if attempt == 0:
+                    time.sleep(pause_s)
+    finally:
+        if client is None:
+            http.close()
+    raise WorldBuildError(f"Overpass request failed twice: {last!r}")
+
+
+def build_world(overpass_json: dict, station_id: str, bbox, query: str, heritage_way: str | None = None) -> dict:
+    origin = OSM_ORIGINS.get(station_id)
+    if origin is None:
+        raise WorldBuildError(f"no OSM origin configured for {station_id}")
+    heritage = heritage_way or origin["heritage_way"]
+    origin = {"lat": origin["lat"], "lon": origin["lon"]}
+    features = elements_to_features(overpass_json, origin, heritage)
+    if not any(f["id"] == heritage and f["kind"] == "heritage" for f in features):
+        raise WorldBuildError(f"heritage building {heritage} is not in the data")
+    return {
+        "source": "OpenStreetMap",
+        "attribution": "© OpenStreetMap contributors",
+        "licence": "ODbL-1.0",
+        "osm_timestamp": str((overpass_json.get("osm3s") or {}).get("timestamp_osm_base", "")),
+        "bbox": list(bbox),
+        "query": query,
+        "origin": origin,
+        "heritage_way": heritage,
+        "features": features,
+    }
+
+
+def cmd_osm(args) -> int:
+    root = Path(args.root)
+    if args.station not in station_ids(root):
+        print(f"Unknown station {args.station!r}")
+        return 2
+    try:
+        bbox = tuple(float(v) for v in args.bbox.split(",")) if args.bbox else OSM_DEFAULT_BBOX
+        if len(bbox) != 4 or bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
+            raise ValueError
+    except ValueError:
+        print("--bbox must be south,west,north,east")
+        return 2
+    query = overpass_query(bbox)
+    try:
+        if args.input:
+            data = json.loads(Path(args.input).read_text(encoding="utf-8"))
+        else:
+            data = fetch_overpass(query)
+        world = build_world(data, args.station, bbox, query, args.heritage_way)
+    except (WorldBuildError, OSError, ValueError) as exc:
+        print(f"OSM extract failed: {exc}")
+        return 1
+    out = root / args.station / WORLD_FILE
+    out.write_text(json.dumps(world, separators=(",", ":"), ensure_ascii=False) + chr(10), encoding="utf-8")
+    kinds: dict[str, int] = {}
+    for f in world["features"]:
+        kinds[f["kind"]] = kinds.get(f["kind"], 0) + 1
+    print(f"Wrote {len(world['features'])} feature(s) to {out} ({kinds}); heritage {world['heritage_way']}")
+    return 0
+
+
 # ---- entry point --------------------------------------------------------------------------------------------
 
 def main(argv: list[str] | None = None) -> int:
@@ -442,6 +557,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--key-env", default="GOOGLE_MAPS_API_KEY", help="environment variable holding the API key")
     p.add_argument("--out", help="write the JSON here instead of stdout")
     p.set_defaults(func=cmd_panoramas)
+
+    p = sub.add_parser("osm", help="write osm.json (OpenStreetMap footprints) for a station")
+    p.add_argument("station")
+    p.add_argument("--bbox", help="south,west,north,east (default: %s)" % ",".join(map(str, OSM_DEFAULT_BBOX)))
+    p.add_argument("--input", help="read a saved Overpass response instead of querying the API")
+    p.add_argument("--heritage-way", help="way/<id> of the main building (default: the station's configured footprint)")
+    p.set_defaults(func=cmd_osm)
 
     args = parser.parse_args(argv)
     return args.func(args)
