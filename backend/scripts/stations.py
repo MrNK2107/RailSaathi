@@ -44,7 +44,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.config import STATIONS_DIR  # noqa: E402
-from app.navigation.alignment import RESIDUAL_LIMIT_M, fit, fit_points, pair_platforms  # noqa: E402
+from app.navigation.alignment import RESIDUAL_LIMIT_M, fit, fit_points, fit_similarity, pair_platforms  # noqa: E402
 from app.navigation.models.station import (  # noqa: E402
     Catalogue,
     CatalogueEntry,
@@ -550,6 +550,10 @@ def build_alignment(station: dict, metadata: dict, world: dict) -> dict:
     pairs, info = pair_platforms(station["areas"], world["features"], w, h, mpp)
     src, dst = fit_points(pairs)
     method, sim = fit(src, dst)
+    mpairs, _ = pair_platforms(station["areas"], world["features"], w, h, mpp, mirror=True,
+                               window_ids=sorted({p["feature"] for p in pairs}, key=[p["feature"] for p in pairs].index))
+    msim = fit_similarity(*fit_points(mpairs))
+    runner = info["runner_up"]
     block = {
         "method": method,
         "scale": round(sim.scale, 4),
@@ -563,6 +567,25 @@ def build_alignment(station: dict, metadata: dict, world: dict) -> dict:
         "platform_labels": [{"area": p["area"], "label": str(p["number"]), "osm_ref": p["ref"],
                              "label_source": "station_plan", "osm_ref_agrees": p["ref_agrees"]} for p in pairs],
         "candidates_tried": info["candidates_tried"],
+        "runner_up": {**runner, "note": "Second-best run of OSM islands; side-to-side placement is uncertain by "
+                                        "about one island (~20 m)."} if runner else None,
+        "parity_check": {
+            "mirrored_residual_m": round(msim.residual_m, 2),
+            "mirrored_transform": {"scale": round(msim.scale, 4), "rotation_deg": round(msim.rotation_deg, 3),
+                                   "tx": round(msim.tx, 2), "ty": round(msim.ty, 2),
+                                   "applied": "plan y is not negated: world = scale * R(rotation_deg) * (x, +y) + "
+                                              "(tx, ty), i.e. the plan mirrored across its platform axis, fitted to "
+                                              "the same OSM islands"},
+            "mirrored_pairs": [{"area": p["area"], "osm": p["feature"], "osm_ref": p["ref"]} for p in mpairs],
+        },
+        "parity_basis": "Default is the proper (non-mirrored) fit because the brief forbids reflection. The "
+                        "residual cannot tell the two apart (see parity_check). Evidence for mirrored: Wikipedia "
+                        "(Chennai Central / Wall Tax Road) says Wall Tax Road runs along the station's east side "
+                        "and its entrance leads to platform 1, so platform numbers rise westward, matching the OSM "
+                        "refs, while the proper fit puts plan platform 12 east of plan platform 7. Evidence for "
+                        "proper: ent_wall_tax lands on the east side under it, but that node sits on the plan's "
+                        "'MAIN ENTRANCE (Jawaharlal Nehru Road)' label, so this is weak. Status: unconfirmed, "
+                        "needs a user or site check.",
         "source": "Traced platform strips 7-12 (building end and mid-length point) fitted to OpenStreetMap platform "
                   "footprints in osm.json, two traced platforms per OSM island platform; (c) OpenStreetMap "
                   "contributors, ODbL-1.0.",

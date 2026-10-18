@@ -9,7 +9,8 @@ from pathlib import Path
 import pytest
 
 from app.config import STATIONS_DIR
-from app.navigation.alignment import RESIDUAL_LIMIT_M, fit, fit_similarity, fit_translation
+from app.navigation.alignment import (RESIDUAL_LIMIT_M, fit, fit_points, fit_similarity, fit_translation,
+                                      pair_platforms, platform_axis_points)
 from app.navigation.models.station import StationMetadata
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -87,3 +88,86 @@ def test_geo_reference_unchanged():
     assert geo["anchor"] == {"lat": 13.0825, "lon": 80.275, "x": 0.49039, "y": 0.49537}
     assert geo["expected_error_m"] == 50
     assert "world_alignment" in meta.model_extra
+
+
+# ---- pairing: a synthetic plan rotated -90 degrees onto OSM-like islands -----------------------------------------
+
+TX, TY = 300.0, 40.0  # truth: world = R(-90) * (x, y') + (TX, TY) = (y' + TX, -x + TY), plan metres (x, y' = -y)
+ISLANDS = {"way/1": (-185, "20;21"), "way/2": (-150, "18;19"), "way/3": (-95, "6;7"), "way/4": (-70, "4;5"),
+           "way/5": (-45, "2;3")}  # island centre east; the first two are a decoy window with a different pitch
+# traced strips across the platforms by world east (west first): two per island at the true pitch (25 m)
+STRIPS = [("platform_a", 12, -99), ("platform_b", 11, -91), ("platform_c", 10, -74), ("platform_d", 9, -66),
+          ("platform_e", 8, -49), ("platform_f", 7, -41)]
+
+
+def world_rect(east, n0, n1, half):
+    return [[east - half, n0], [east + half, n0], [east + half, n1], [east - half, n1]]
+
+
+def synthetic():
+    features = [{"id": "way/9", "kind": "heritage", "name": None, "ref": None,
+                 "points": world_rect(-30, -20, -5, 30)}]
+    for fid, (east, ref) in ISLANDS.items():
+        features.append({"id": fid, "kind": "platform", "name": None, "ref": ref,
+                         "points": world_rect(east, 20, 320, 4)})
+
+    def to_plan_area(aid, kind, name, rect):  # 100 px = 100 m, so normalized = metres / 100 and y is down
+        pts = [[(TY - n) / 100, -((e - TX)) / 100] for e, n in rect]
+        return {"id": aid, "kind": kind, "name": name, "polygon": pts}
+
+    areas = [to_plan_area("building", "building_footprint", "Building", world_rect(-30, -20, -5, 30))]
+    for aid, number, east in STRIPS:
+        areas.append(to_plan_area(aid, "platform", f"Platform {number}", world_rect(east, 20, 130, 3)))
+    return areas, features
+
+
+def test_pair_platforms_picks_the_true_window_in_proper_orientation():
+    areas, features = synthetic()
+    pairs, info = pair_platforms(areas, features, 100, 100, 1.0)
+    assert {p["area"]: p["feature"] for p in pairs} == {
+        "platform_a": "way/3", "platform_b": "way/3", "platform_c": "way/4", "platform_d": "way/4",
+        "platform_e": "way/5", "platform_f": "way/5"}
+    assert [p["number"] for p in pairs] == [7, 8, 9, 10, 11, 12]  # ordered across the platforms (plan lateral order)
+    best = min(info["candidates_tried"], key=lambda t: t["residual_m"])
+    assert best["features"] == ["way/5", "way/4", "way/3"]  # runs are listed in across-platform order and best["residual_m"] < 0.01
+    assert info["runner_up"]["features"] != best["features"] and info["runner_up"]["residual_m"] > 5
+    sim = fit_similarity(*fit_points(pairs))
+    assert sim.rotation_deg == pytest.approx(-90, abs=0.1)
+    assert sim.scale == pytest.approx(1.0, abs=0.01)
+    assert (sim.tx, sim.ty) == pytest.approx((TX, TY), abs=0.1)
+    o, a, b = sim.apply(0, 0), sim.apply(1, 0), sim.apply(0, 1)
+    assert (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]) > 0  # determinant > 0: no reflection
+
+
+def test_pair_platforms_mirror_reverses_the_order_and_window_can_be_forced():
+    areas, features = synthetic()
+    mirrored, _ = pair_platforms(areas, features, 100, 100, 1.0, mirror=True,
+                                 window_ids=["way/5", "way/4", "way/3"])
+    assert {p["area"]: p["feature"] for p in mirrored} == {
+        "platform_a": "way/5", "platform_b": "way/5", "platform_c": "way/4", "platform_d": "way/4",
+        "platform_e": "way/3", "platform_f": "way/3"}
+    with pytest.raises(ValueError):
+        pair_platforms(areas, features, 100, 100, 1.0, window_ids=["way/5", "way/3", "way/1"])
+
+
+def test_platform_axis_points_head_is_the_end_nearest_the_building():
+    strip = world_rect(-95, 20, 320, 4)
+    head, mid, extent = platform_axis_points(strip, toward=(-30.0, -12.0), length=110)
+    assert extent == pytest.approx(300)
+    assert head == pytest.approx((-95, 20), abs=1e-6)
+    assert mid == pytest.approx((-95, 75), abs=1e-6)  # half of 110 m in from the head
+    assert platform_axis_points(strip, toward=(-95.0, 900.0))[0] == pytest.approx((-95, 320), abs=1e-6)
+
+
+def test_committed_alignment_is_reproduced_from_the_committed_data():
+    folder = STATIONS_DIR / "chennai_central"
+    load = lambda name: json.loads((folder / name).read_text(encoding="utf-8"))  # noqa: E731
+    metadata = load("metadata.json")
+    block = cli.build_alignment(load("station.json"), metadata, load("osm.json"))
+    committed = metadata["world_alignment"]
+    assert block["method"] == committed["method"] == "similarity"
+    assert block["pairs"] == committed["pairs"]
+    assert block["residual_m"] == pytest.approx(committed["residual_m"], abs=0.01)
+    assert block["parity_check"]["mirrored_residual_m"] == pytest.approx(
+        committed["parity_check"]["mirrored_residual_m"], abs=0.01)
+    assert block["runner_up"]["features"] == committed["runner_up"]["features"]

@@ -138,7 +138,8 @@ def _lateral(point: Point, u: Point) -> float:
 
 
 def pair_platforms(station_areas: list[dict[str, Any]], features: list[dict[str, Any]], width_px: int,
-                   height_px: int, mpp: float, reach_m: float = 250.0) -> tuple[list[dict[str, Any]], dict]:
+                   height_px: int, mpp: float, reach_m: float = 250.0, mirror: bool = False,
+                   window_ids: list[str] | None = None) -> tuple[list[dict[str, Any]], dict]:
     """Pair the traced platform areas with OSM platforms by geometry, orientation-first.
 
     Each traced platform is a strip leading away from the traced building; each OSM platform (one that has a ref,
@@ -149,14 +150,16 @@ def pair_platforms(station_areas: list[dict[str, Any]], features: list[dict[str,
     Returns (pairs, info). Each pair holds the area id, plan number, OSM feature id and ref and the plan (x, -y)
     and world points to fit (building-end point and the point half a traced length in); info lists the
     alternatives tried. Labels stay the traced plan's (`label_source: station_plan`); `ref_agrees` says whether the
-    OSM ref also names that number."""
+    OSM ref also names that number. `mirror=True` reflects the plan across its platform axis first (plan (x, y)
+    instead of (x, -y)), for the parity check; `window_ids` restricts the search to that run of OSM islands."""
     building = next((a for a in station_areas if a["kind"] == "building_footprint"), None)
     heritage = next((f for f in features if f["kind"] == "heritage"), None)
     if building is None or heritage is None:
         raise ValueError("need a traced building_footprint area and an OSM heritage building to orient platforms")
 
     def metres(area: dict[str, Any]) -> list[Point]:
-        return [(p[0] * width_px * mpp, -p[1] * height_px * mpp) for p in area["polygon"]]
+        sign = 1.0 if mirror else -1.0
+        return [(p[0] * width_px * mpp, sign * p[1] * height_px * mpp) for p in area["polygon"]]
 
     plan_toward, world_toward = polygon_centroid(metres(building)), polygon_centroid(heritage["points"])
     plan = [(a, platform_axis_points(metres(a), plan_toward)) for a in station_areas
@@ -183,6 +186,8 @@ def pair_platforms(station_areas: list[dict[str, Any]], features: list[dict[str,
     tried = []
     for start in range(0, len(islands) - need + 1):
         window = islands[start:start + need]
+        if window_ids is not None and [f["id"] for f, _ in window] != window_ids:
+            continue
         pairs = []
         for i, (area, (head, mid, _)) in enumerate(plan):
             feat, (whead, wmid) = window[i // 2]
@@ -195,8 +200,10 @@ def pair_platforms(station_areas: list[dict[str, Any]], features: list[dict[str,
         tried.append({"features": [f["id"] for f, _ in window], "residual_m": round(residual, 2)})
         if best is None or residual < best[0]:
             best = (residual, pairs)
-    assert best is not None
-    return best[1], {"candidates_tried": tried}
+    if best is None:
+        raise ValueError("no run of OSM platforms matches the requested window")
+    ranked = sorted(tried, key=lambda t: t["residual_m"])
+    return best[1], {"candidates_tried": tried, "runner_up": ranked[1] if len(ranked) > 1 else None}
 
 
 def fit_points(pairs: list[dict[str, Any]]) -> tuple[list[Point], list[Point]]:
