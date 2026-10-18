@@ -68,7 +68,7 @@ function SceneContent({ spec, floorUrl, modelUrl = null, reducedMotion = false, 
   const markerText = new Map(markers.map((mk) => [mk.id, mk.text]))
   return (
     <>
-      {spec.world ? <WorldLayer world={spec.world} modelUrl={modelUrl} /> : shown(spec.floor.level) && <Floor spec={spec} url={floorUrl} />}
+      {spec.world ? <WorldLayer world={spec.world} modelUrl={modelUrl} routeEnd={path && path.length > 1 ? [path[path.length - 1][0], path[path.length - 1][2]] : null} /> : shown(spec.floor.level) && <Floor spec={spec} url={floorUrl} />}
       {spec.areas.filter((a) => shown(a.level)).map((a) => <AreaMesh key={a.id} area={a} />)}
       {spec.edges.filter((e) => shown(e.level)).map((e) => <EdgeLine key={e.id} edge={e} />)}
       {spec.pins.filter((p) => shown(p.level)).map((p) => (
@@ -213,8 +213,8 @@ function CameraRig({ controls, spec, path, flying, onFlyEnd, pose }: {
   }, [pose])
 
   useEffect(() => {
-    // A world is framed for this canvas's own aspect (spec.camera assumes a square one).
-    if (!pose && !flying) apply(spec.world ? frameBounds(spec.world.bounds, size.width / Math.max(1, size.height)) : spec.camera)
+    // A world's platforms and heritage building (its focus) are framed for this canvas's own aspect (spec.camera assumes a square one).
+    if (!pose && !flying) apply(spec.world ? frameBounds(spec.world.focus, size.width / Math.max(1, size.height)) : spec.camera)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spec])
 

@@ -12,7 +12,7 @@ import {
 import routeJson from './data/chennai_central_route.json'
 import tourJson from './data/chennai_central_tour.json'
 import { chennaiWorld } from './worldFixture'
-import { planToWorld } from '../tour/worldSpec'
+import { frameBounds, planToWorld } from '../tour/worldSpec'
 
 const chennai = tourJson as unknown as StationTour
 const chennaiRoute = routeJson as unknown as RouteResult
@@ -302,9 +302,11 @@ describe('with an OpenStreetMap world', () => {
     expect(wallTax.position[0]).toBeCloseTo(x, 2)
     expect(wallTax.position[2]).toBeCloseTo(z, 2)
     expect(spec.areas).toEqual([]) // the OSM buildings and platforms replace the traced boxes
-    const { bounds } = spec.world!
-    expect(spec.camera.target[0]).toBeCloseTo((bounds.minX + bounds.maxX) / 2, 3)
-    expect(spec.camera.target[2]).toBeCloseTo((bounds.minZ + bounds.maxZ) / 2, 3)
+    // R15: the opening pose frames the platforms and the heritage building (focus), not every building drawn.
+    const { focus } = spec.world!
+    expect(spec.camera).toEqual(frameBounds(focus, 1))
+    expect(spec.camera.target[0]).toBeCloseTo((focus.minX + focus.maxX) / 2, 3)
+    expect(spec.camera.target[2]).toBeCloseTo((focus.minZ + focus.maxZ) / 2, 3)
     expect(spec.camera.position[2]).toBeGreaterThan(spec.camera.target[2]) // from the south
   })
 })

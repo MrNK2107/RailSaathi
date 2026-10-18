@@ -4,12 +4,13 @@
 // the plain .glb (GLTFLoader, loaded on demand, no Draco), placed at its footprint's area centroid; if it cannot be
 // loaded the footprint is extruded to 18 m instead.
 import { Html } from '@react-three/drei'
-import { useEffect, useMemo, useState } from 'react'
+import { useFrame } from '@react-three/fiber'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import type { Vec2 } from './sceneSpec'
 import {
-  HERITAGE_FALLBACK_HEIGHT_M, PLATFORM_HEIGHT_M, polygonCentroid, ROOF_Y_M, type WorldBuilding, type WorldSpec,
+  HERITAGE_FALLBACK_HEIGHT_M, LABEL_DISTANCE_M, PLATFORM_HEIGHT_M, polygonCentroid, ROOF_Y_M, shownPlatformLabels, type WorldBuilding, type WorldSpec,
 } from './worldSpec'
 
 const COLOR = { building: '#cbd2dc', platform: '#e7e2d6', rail: '#4b5563', roof: '#9fb3c8', ground: '#eef1f4', heritage: '#7a1f1f' }
@@ -17,17 +18,32 @@ const GROUND_MARGIN_M = 80
 const RAIL_Y = 0.12
 const POST_SIZE_M = 0.35
 const LABEL_INSET_M = 30
+const ORIGIN = new THREE.Vector3()
 
 export interface WorldLayerProps {
   world: WorldSpec
   /** Absolute URL of the heritage .glb, or null (then the footprint is extruded). */
   modelUrl: string | null
+  /** Floor point where the route ends: that island keeps its label at any zoom. */
+  routeEnd?: Vec2 | null
 }
 
-export default function WorldLayer({ world, modelUrl }: WorldLayerProps) {
+export default function WorldLayer({ world, modelUrl, routeEnd = null }: WorldLayerProps) {
   const { minX, maxX, minZ, maxZ } = world.bounds
   // Platform labels sit at the station end of each platform (towards the heritage building), where the route arrives.
   const toward = useMemo<Vec2>(() => (world.heritage ? polygonCentroid(world.heritage.outline) : [0, 0]), [world.heritage])
+  // Close or far from the orbit target, checked each frame but stored only when it flips (no per-frame re-render).
+  const [close, setClose] = useState(false)
+  const closeRef = useRef(close)
+  useFrame(({ camera, controls }) => {
+    const target = (controls as { target?: THREE.Vector3 } | null)?.target ?? ORIGIN
+    const now = camera.position.distanceTo(target) <= LABEL_DISTANCE_M
+    if (now !== closeRef.current) {
+      closeRef.current = now
+      setClose(now)
+    }
+  })
+  const shown = useMemo(() => shownPlatformLabels(world.platforms, close ? 0 : Infinity, routeEnd), [world.platforms, close, routeEnd])
   return (
     <group name="world">
       <mesh name="world-ground" rotation={[-Math.PI / 2, 0, 0]} position={[(minX + maxX) / 2, -0.02, (minZ + maxZ) / 2]}>
@@ -39,7 +55,8 @@ export default function WorldLayer({ world, modelUrl }: WorldLayerProps) {
       <Extruded name="world-roofs" items={world.roofs} y={ROOF_Y_M} color={COLOR.roof} opacity={0.85} />
       <RoofPosts roofs={world.roofs} />
       <Rails rails={world.rails} />
-      {world.platforms.filter((p) => p.label).map((p, i) => {
+      {world.platforms.map((p, i) => {
+        if (!shown.has(i)) return null
         const [x, z] = labelPoint(p.outline, toward)
         return (
           <Html key={`${p.label}-${i}`} center position={[x, PLATFORM_HEIGHT_M + 1.5, z]} zIndexRange={[5, 0]} style={{ pointerEvents: 'none' }}>

@@ -223,7 +223,7 @@ export function buildSceneSpec(tour: StationTour): SceneSpec {
   if (world) {
     const { minX, maxX, minZ, maxZ } = world.bounds
     const radius = round(Math.hypot(maxX - minX, maxZ - minZ) / 2)
-    return { stationId: tour.station_id, frame, traced, levels, areas, pins, edges, radius, floor, camera: frameBounds(world.bounds, 1), world }
+    return { stationId: tour.station_id, frame, traced, levels, areas, pins, edges, radius, floor, camera: frameBounds(world.focus, 1), world }
   }
   const radius = round(Math.hypot(frame.width, frame.depth) / 2)
   return {

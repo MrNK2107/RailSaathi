@@ -4,7 +4,9 @@
 import * as THREE from 'three'
 import type { StationTour } from '../api/types'
 import { buildSceneSpec } from '../tour/sceneSpec'
-import { buildWorldSpec, frameBounds, planToWorld, polygonCentroid, type WorldBounds } from '../tour/worldSpec'
+import {
+  buildWorldSpec, FOCUS_MARGIN_M, frameBounds, LABEL_DISTANCE_M, planToWorld, polygonCentroid, shownPlatformLabels, type WorldBounds,
+} from '../tour/worldSpec'
 import tourJson from './data/chennai_central_tour.json'
 import { CHENNAI_ALIGNMENT, chennaiWorld, feature, HERITAGE, PLATFORM_5_6, square } from './worldFixture'
 
@@ -92,6 +94,29 @@ describe('buildWorldSpec', () => {
     expect(maxZ - minZ).toBeLessThanOrEqual(500)
     expect(maxX - minX).toBeLessThanOrEqual(500)
     for (const p of spec.platforms) for (const [, z] of p.outline) expect(z).toBeGreaterThanOrEqual(minZ - 1e-6)
+  })
+
+  it('focus (R15): platforms and heritage plus a margin, inside the bounds, smaller than the bounds when far buildings exist', () => {
+    const { focus, bounds } = spec
+    expect(focus.minX).toBeGreaterThanOrEqual(bounds.minX)
+    expect(focus.maxX).toBeLessThanOrEqual(bounds.maxX)
+    expect(focus.minZ).toBeGreaterThanOrEqual(bounds.minZ)
+    expect(focus.maxZ).toBeLessThanOrEqual(bounds.maxZ)
+    // Heritage reaches x = -108.32; the platforms reach x = 130 and z = 60. b/plain (x -155, z 85) is outside the focus.
+    expect(focus.minX).toBeCloseTo(-108.32 - FOCUS_MARGIN_M, 3)
+    expect(focus.maxX).toBe(bounds.maxX) // 130 + margin is past the bounds: kept inside
+    expect(focus.maxZ).toBeCloseTo(60 + FOCUS_MARGIN_M, 3)
+    expect((focus.maxX - focus.minX) * (focus.maxZ - focus.minZ)).toBeLessThan((bounds.maxX - bounds.minX) * (bounds.maxZ - bounds.minZ))
+  })
+
+  it('platform labels: all when the camera is close, only the route destination island when far', () => {
+    const traced = spec.platforms.findIndex((p) => p.label === '9 · 10')
+    const osm = spec.platforms.findIndex((p) => p.label === '1A')
+    const unlabelled = spec.platforms.findIndex((p) => p.label === null)
+    expect(shownPlatformLabels(spec.platforms, LABEL_DISTANCE_M, null)).toEqual(new Set([traced, osm]))
+    expect(shownPlatformLabels(spec.platforms, LABEL_DISTANCE_M + 1, null)).toEqual(new Set())
+    expect(shownPlatformLabels(spec.platforms, 800, [-40, -60])).toEqual(new Set([traced])) // inside way/397320033
+    expect(shownPlatformLabels(spec.platforms, 800, [125, -30]).has(unlabelled)).toBe(false) // no label to show
   })
 
   it('no alignment, no world spec', () => {

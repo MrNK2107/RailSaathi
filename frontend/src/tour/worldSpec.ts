@@ -23,6 +23,10 @@ export const HERITAGE_FALLBACK_HEIGHT_M = 18
 export const COMPLEX_REACH_M = 250
 /** Camera pitch above the horizon when framing the complex from the south. */
 export const FRAME_PITCH_DEG = 55
+/** Margin around the platforms and the heritage building in the opening frame (ruling R15). */
+export const FOCUS_MARGIN_M = 18
+/** Platform labels show only when the camera is this close to its target (the route's destination island always shows). */
+export const LABEL_DISTANCE_M = 150
 /** Heights the framing keeps in view above the ground (the heritage roofline is lower than this). */
 const FRAME_TOP_M = 20
 
@@ -38,7 +42,10 @@ export interface WorldSpec {
   platforms: WorldPlatform[]
   rails: Vec2[][]
   heritage: WorldHeritage | null
+  /** Everything drawn (ground, clipping, far plane). */
   bounds: WorldBounds
+  /** What the opening camera frames: the platforms and the heritage building plus FOCUS_MARGIN_M, within `bounds`. */
+  focus: WorldBounds
   attribution: string
 }
 
@@ -210,7 +217,44 @@ export function buildWorldSpec(world: TourWorld | null | undefined): WorldSpec |
     height: world.model?.height_m ?? HERITAGE_HEIGHT_M,
   } : null
 
-  return { buildings, roofs, platforms, rails, heritage, bounds, attribution: OSM_ATTRIBUTION }
+  const focus = focusBounds([...platforms.map((p) => p.outline), ...(heritage ? [heritage.outline] : [])], bounds)
+  return { buildings, roofs, platforms, rails, heritage, bounds, focus, attribution: OSM_ATTRIBUTION }
+}
+
+/** Bounds of the given rings plus FOCUS_MARGIN_M, kept inside `within`; `within` itself when there are no rings. */
+function focusBounds(rings: Vec2[][], within: WorldBounds): WorldBounds {
+  const pts = rings.flat()
+  if (pts.length === 0) return within
+  const xs = pts.map((p) => p[0])
+  const zs = pts.map((p) => p[1])
+  return {
+    minX: Math.max(within.minX, Math.min(...xs) - FOCUS_MARGIN_M), maxX: Math.min(within.maxX, Math.max(...xs) + FOCUS_MARGIN_M),
+    minZ: Math.max(within.minZ, Math.min(...zs) - FOCUS_MARGIN_M), maxZ: Math.min(within.maxZ, Math.max(...zs) + FOCUS_MARGIN_M),
+  }
+}
+
+/** Ray-casting point-in-ring test on the floor plane. */
+export function insideRing([x, z]: Vec2, ring: Vec2[]): boolean {
+  let hit = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+    const [xi, zi] = ring[i]
+    const [xj, zj] = ring[j]
+    if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) hit = !hit
+  }
+  return hit
+}
+
+/**
+ * Which platforms show their label: every labelled one when the camera is within LABEL_DISTANCE_M of its target,
+ * otherwise only the island the route ends on (so the opening view on a phone is not a pile of overlapping labels).
+ */
+export function shownPlatformLabels(platforms: WorldPlatform[], cameraDistance: number, routeEnd: Vec2 | null): Set<number> {
+  const shown = new Set<number>()
+  platforms.forEach((p, i) => {
+    if (!p.label) return
+    if (cameraDistance <= LABEL_DISTANCE_M || (routeEnd && insideRing(routeEnd, p.outline))) shown.add(i)
+  })
+  return shown
 }
 
 /**
