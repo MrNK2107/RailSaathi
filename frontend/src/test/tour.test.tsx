@@ -486,4 +486,35 @@ describe('links into the tour', () => {
     const link = await screen.findByRole('link', { name: /Explore the station in 3D/ })
     expect(link).toHaveAttribute('href', '#/tour?station=chennai_central')
   })
+
+  it('with a world: the intro says where the model comes from, and the world note interpolates the alignment residual', async () => {
+    await openTour(client({ ...chennai, world: chennaiWorld() }))
+    await screen.findByTestId('tour-scene')
+    expect(screen.getByText(m.tour.introWorld)).toBeInTheDocument()
+    expect(screen.queryByText(m.tour.intro)).not.toBeInTheDocument()
+    const residual = String(Math.round(chennaiWorld().alignment!.residual_m))
+    const note = screen.getByTestId('world-note')
+    expect(note).toHaveTextContent(m.tour.worldNote.replace('{residual}', residual))
+    expect(note.textContent).not.toContain('{residual}')
+  })
+
+  it('without a world: the original intro and no world note', async () => {
+    await openTour(client())
+    await screen.findByTestId('tour-scene')
+    expect(screen.getByText(m.tour.intro)).toBeInTheDocument()
+    expect(screen.queryByTestId('world-note')).not.toBeInTheDocument()
+  })
+
+  it('the attribution sits next to the schematic chip in one row, and is shown once', async () => {
+    await openTour(client({ ...chennai, world: chennaiWorld() }))
+    await screen.findByTestId('tour-scene')
+    expect(screen.getAllByText('© OpenStreetMap contributors')).toHaveLength(1)
+    expect(screen.getByTestId('osm-attribution').parentElement).toBe(screen.getByTestId('schematic-label').parentElement)
+  })
+
+  it('the scene is given the "platform number from the station plan" tooltip text', async () => {
+    await openTour(client({ ...chennai, world: chennaiWorld() }))
+    await screen.findByTestId('tour-scene')
+    expect(scene.last!.platformFromPlan).toBe(m.tour.platformFromPlan)
+  })
 })

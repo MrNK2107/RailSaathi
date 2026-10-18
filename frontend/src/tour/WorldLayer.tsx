@@ -26,9 +26,11 @@ export interface WorldLayerProps {
   modelUrl: string | null
   /** Floor point where the route ends: that island keeps its label at any zoom. */
   routeEnd?: Vec2 | null
+  /** Tooltip for labels whose number comes from the station plan. */
+  platformFromPlan?: string
 }
 
-export default function WorldLayer({ world, modelUrl, routeEnd = null }: WorldLayerProps) {
+export default function WorldLayer({ world, modelUrl, routeEnd = null, platformFromPlan }: WorldLayerProps) {
   const { minX, maxX, minZ, maxZ } = world.bounds
   // Platform labels sit at the station end of each platform (towards the heritage building), where the route arrives.
   const toward = useMemo<Vec2>(() => (world.heritage ? polygonCentroid(world.heritage.outline) : [0, 0]), [world.heritage])
@@ -60,7 +62,7 @@ export default function WorldLayer({ world, modelUrl, routeEnd = null }: WorldLa
         const [x, z] = labelPoint(p.outline, toward)
         return (
           <Html key={`${p.label}-${i}`} center position={[x, PLATFORM_HEIGHT_M + 1.5, z]} zIndexRange={[5, 0]} style={{ pointerEvents: 'none' }}>
-            <span className="whitespace-nowrap rounded bg-white/90 px-1 text-[10px] font-bold text-ink-700 shadow">{p.label}</span>
+            <span title={p.labelSource === 'station_plan' ? platformFromPlan : undefined} className="whitespace-nowrap rounded bg-white/90 px-1 text-[10px] font-bold text-ink-700 shadow">{p.label}</span>
           </Html>
         )
       })}

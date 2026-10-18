@@ -14,6 +14,8 @@ test('tour route: schematic 3D model of Chennai Central with a route fly-through
 
   await expect(page.getByRole('heading', { name: 'Explore the station' })).toBeVisible()
   await expect(page.getByTestId('schematic-label')).toHaveText('Schematic — not to scale')
+  await expect(page.getByTestId('osm-attribution')).toHaveText('© OpenStreetMap contributors')
+  await expect(page.getByTestId('world-note')).toContainText('within about 6 m')
   const scene = page.getByRole('img', { name: /3D schematic model of Chennai Central/ })
   await expect(scene.locator('canvas')).toBeVisible()
   expect(await scene.locator('canvas').evaluate((c: HTMLCanvasElement) => !!(c.getContext('webgl2') || c.getContext('webgl')))).toBe(true)

@@ -134,7 +134,7 @@ export default function StationTour() {
     <Screen header={<AppHeader />}>
       <section className="m-4 space-y-3 rounded-2xl bg-white p-4 shadow-card ring-1 ring-ink-100">
         <h1 className="text-lg font-extrabold text-brand-900">{t.title}</h1>
-        <p className="text-xs text-ink-500">{t.intro}</p>
+        <p className="text-xs text-ink-500">{spec?.world ? t.introWorld : t.intro}</p>
         <label htmlFor="tour-station" className="block text-xs font-semibold text-ink-700">
           {n.station}
           <select id="tour-station" value={stationId} onChange={(e) => setStationId(e.target.value)} className={SELECT}>
@@ -156,7 +156,9 @@ export default function StationTour() {
               <p role="alert" data-code={w.detailsError.code} className="rounded-xl bg-red-50 p-3 text-xs text-red-900">{t.detailsFailed} {w.detailsError.message}</p>
             )}
             {spec?.frame.units === 'plan_units' && <p className="text-xs text-ink-500">{t.planUnits}</p>}
-            {tour.areas.length > 0 && <p className="text-xs text-ink-500">{t.nominalHeights}</p>}
+            {spec?.world
+              ? <p data-testid="world-note" className="text-xs text-ink-500">{t.worldNote.replace('{residual}', String(Math.round(tour.world?.alignment?.residual_m ?? 0)))}</p>
+              : tour.areas.length > 0 && <p className="text-xs text-ink-500">{t.nominalHeights}</p>}
             {!tour.routing_enabled && (
               <p role="alert" data-code="routing_unavailable" className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900">{n.routingUnavailable}</p>
             )}
@@ -174,23 +176,23 @@ export default function StationTour() {
       {tour && spec && (
         <section aria-label={t.title} className="space-y-3 px-4 pb-4">
           <div className="relative overflow-hidden rounded-2xl bg-ink-100 ring-1 ring-ink-100">
-            <p data-testid="schematic-label" className="pointer-events-none absolute left-2 top-2 z-10 rounded-md bg-amber-100/95 px-2 py-1 text-[11px] font-bold text-amber-900">
-              {t.schematicLabel}
-            </p>
+            <div className="pointer-events-none absolute inset-x-2 top-2 z-10 flex flex-wrap items-start gap-1">
+              <p data-testid="schematic-label" className="rounded-md bg-amber-100/95 px-2 py-1 text-[11px] font-bold text-amber-900">
+                {t.schematicLabel}
+              </p>
+              {spec.world && (
+                <p data-testid="osm-attribution" className="rounded-md bg-white/90 px-2 py-1 text-[11px] text-ink-700">{t.osmAttribution}</p>
+              )}
+            </div>
             {show3d ? (
               <div className="h-[360px]">
                 <SceneBoundary onError={() => setSceneFailed(true)}>
                   <Suspense fallback={<p role="status" className="p-12 text-center text-xs text-ink-500">{t.sceneLoading}</p>}>
                     <TourScene spec={spec} floorUrl={floorUrl} modelUrl={modelUrl} reducedMotion={reduced} visibleLevel={level} selectedId={selectedId} onSelect={setSelectedId}
-                      markers={markers} path={path} flying={flying && !reduced} onFlyEnd={() => setFlying(false)} pose={pose}
+                      platformFromPlan={t.platformFromPlan} markers={markers} path={path} flying={flying && !reduced} onFlyEnd={() => setFlying(false)} pose={pose}
                       label={t.sceneLabel.replace('{station}', tour.station_name)} />
                   </Suspense>
                 </SceneBoundary>
-                {spec.world && (
-                  <p data-testid="osm-attribution" className="pointer-events-none absolute bottom-1 right-1 z-10 rounded bg-white/85 px-1.5 py-0.5 text-[10px] text-ink-700">
-                    {spec.world.attribution}
-                  </p>
-                )}
               </div>
             ) : (
               <div className="space-y-2 p-2 pt-10">

@@ -20,6 +20,8 @@ export interface TourSceneProps {
   floorUrl: string
   /** Absolute URL of the heritage .glb when the scene has a world; null draws its footprint instead. */
   modelUrl?: string | null
+  /** Tooltip for a platform label whose number was read off the station plan. */
+  platformFromPlan?: string
   /** The route glows without pulsing when the user prefers reduced motion. */
   reducedMotion?: boolean
   /** 'all', or the one level to show. */
@@ -62,13 +64,13 @@ export default function TourScene(props: TourSceneProps) {
   )
 }
 
-function SceneContent({ spec, floorUrl, modelUrl = null, reducedMotion = false, visibleLevel, selectedId, onSelect, markers, path, flying, onFlyEnd, pose }: TourSceneProps) {
+function SceneContent({ spec, floorUrl, modelUrl = null, platformFromPlan, reducedMotion = false, visibleLevel, selectedId, onSelect, markers, path, flying, onFlyEnd, pose }: TourSceneProps) {
   const controls = useRef<OrbitControlsImpl | null>(null)
   const shown = (level: number) => visibleLevel === 'all' || visibleLevel === level
   const markerText = new Map(markers.map((mk) => [mk.id, mk.text]))
   return (
     <>
-      {spec.world ? <WorldLayer world={spec.world} modelUrl={modelUrl} routeEnd={path && path.length > 1 ? [path[path.length - 1][0], path[path.length - 1][2]] : null} /> : shown(spec.floor.level) && <Floor spec={spec} url={floorUrl} />}
+      {spec.world ? <WorldLayer world={spec.world} modelUrl={modelUrl} platformFromPlan={platformFromPlan} routeEnd={path && path.length > 1 ? [path[path.length - 1][0], path[path.length - 1][2]] : null} /> : shown(spec.floor.level) && <Floor spec={spec} url={floorUrl} />}
       {spec.areas.filter((a) => shown(a.level)).map((a) => <AreaMesh key={a.id} area={a} />)}
       {spec.edges.filter((e) => shown(e.level)).map((e) => <EdgeLine key={e.id} edge={e} />)}
       {spec.pins.filter((p) => shown(p.level)).map((p) => (

@@ -78,6 +78,28 @@ There are two kinds of closure:
 A schematic three.js model built from `GET /api/stations/{id}/tour`: levels, areas, nodes and edges in metres from
 the plan scale. It has a route fly-through.
 
+### The OpenStreetMap world (Chennai Central)
+
+Where a station has an `osm.json`, the tour payload carries a `world` block and the scene draws the real surroundings
+instead of the bare plan: buildings, platforms, canopies and tracks from OpenStreetMap, plus a low-poly model of the
+heritage frontage and clock tower. Nothing is fetched from Google or Overpass at runtime.
+
+- **Data sources.** `osm.json` (metres east/north of the OSM station node) comes from one read-only Overpass query,
+  made once by `uv run python scripts/stations.py osm chennai_central` and committed. Credit, verbatim:
+  `© OpenStreetMap contributors` (ODbL). The tour screen shows it as a chip beside the "Schematic" chip.
+- **Alignment.** The hand-traced plan is fitted onto the OSM platform footprints by
+  `uv run python scripts/stations.py align chennai_central`, which writes `world_alignment` (a similarity transform
+  from plan metres to east/north, the pairs used, and `residual_m`) into `metadata.json`. `validate` rejects a
+  residual over the limit. The screen states the residual ("within about N m"); the walkways and routes remain
+  schematic. Platform numbers come from the plan pairs (`label_source: "station_plan"`), and their label tooltip says
+  so. Whether the plan's numbering parity matches the real platforms is not confirmed.
+- **Heritage model.** `backend/scripts/build_station_model.py` is the source of `heritage.glb` (plain glTF 2.0, no
+  Draco, no textures, at most 2 MB):
+  `blender --background --python scripts/build_station_model.py -- --footprint data/stations/chennai_central/osm.json --out data/stations/chennai_central/heritage.glb`.
+  Wall and tower heights are nominal, not surveyed.
+- **Opening view.** The camera frames the heritage building and the traced walking graph; platforms run north behind
+  it and their far ends can be off-screen. Platform labels show once you zoom in or choose a route.
+
 Street View panoramas appear only where nodes have them **and** a Maps browser key is configured
 (`GOOGLE_MAPS_BROWSER_KEY`, optional). Without the key, the tour links out to Google Maps. **No panoramas are
 authored yet.** The owner finds them with `uv run python scripts/stations.py panoramas chennai_central`, which needs a
