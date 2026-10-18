@@ -58,7 +58,7 @@ from app.navigation.models.station import (  # noqa: E402
 from app.navigation.services.graph_builder import build_graph  # noqa: E402
 from app.navigation.services.route_validator import check_map_image, validate_station_data  # noqa: E402
 from app.navigation.services.routing_engine import find_route  # noqa: E402
-from app.navigation.services.station_store import CATALOGUE_FILE, STATION_ID_RE  # noqa: E402
+from app.navigation.services.station_store import CATALOGUE_FILE, MODEL_FILE, STATION_ID_RE  # noqa: E402
 from app.navigation.world import WORLD_FILE, elements_to_features, to_local  # noqa: E402
 
 VERSION_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.\-]{0,63}$")
@@ -281,6 +281,8 @@ def publish(root: Path, station_id: str, dest: str, version: str | None = None, 
     station = Station.model_validate(_read_json(folder / "station.json"))
     files = [("station.json", "application/json"), (station.map.image, "image/png")]
     files += [(name, "application/json") for name in OPTIONAL_FILES if (folder / name).is_file()]
+    if (folder / MODEL_FILE).is_file():
+        files.append((MODEL_FILE, "model/gltf-binary"))
     rel_folder = f"{station_id}/{version}"
     for name, content_type in files:
         bucket.blob(key(f"{rel_folder}/{name}")).upload_from_string(

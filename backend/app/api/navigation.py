@@ -124,6 +124,15 @@ async def get_station_map(request: Request, station_id: str) -> Response:
     return Response(loaded.map_png, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
 
 
+@router.get("/api/stations/{station_id}/model.glb")
+async def get_station_model(request: Request, station_id: str) -> Response:
+    """The station's low-poly heritage building (plain glTF binary), served from the loaded catalogue."""
+    loaded = _station(_c(request), station_id)
+    if not loaded.model_glb:
+        raise HTTPException(404, {"code": "model_not_found", "message": "This station has no 3D model."})
+    return Response(loaded.model_glb, media_type="model/gltf-binary", headers={"Cache-Control": "public, max-age=86400"})
+
+
 @router.get("/api/stations/{station_id}/info")
 async def get_station_info(request: Request, station_id: str) -> dict:
     """Helplines, station facts, and amenities gathered for the station."""
@@ -135,6 +144,25 @@ async def get_station_info(request: Request, station_id: str) -> dict:
 
 TOUR_FRAME = ("Metres from the plan's top-left corner: x to the right, y down the plan. Bearings are degrees clockwise "
               "from plan-up; geo_reference.rotation_deg relates plan-up to true north.")
+
+
+MODEL_HEIGHT_M = 41  # the heritage clock tower; the model is built to this (scripts/build_station_model.py)
+
+
+def _world_block(loaded: LoadedStation) -> dict | None:
+    """OpenStreetMap footprints, the plan-to-world alignment and the heritage model, or None without osm.json."""
+    world = loaded.world
+    if not world:
+        return None
+    extra = (loaded.metadata.model_extra or {}) if loaded.metadata else {}
+    heritage = world.get("heritage_way")
+    model = None
+    if loaded.model_glb and heritage:
+        model = {"url": f"/api/stations/{loaded.station.station_id}/model.glb", "feature_id": heritage,
+                 "height_m": MODEL_HEIGHT_M}
+    return {"attribution": world.get("attribution"), "licence": world.get("licence"),
+            "osm_timestamp": world.get("osm_timestamp"), "features": world.get("features", []),
+            "alignment": extra.get("world_alignment"), "model": model}
 
 
 @router.get("/api/stations/{station_id}/tour")
@@ -184,6 +212,7 @@ async def get_station_tour(request: Request, station_id: str) -> dict:
                    "geometry_m": path_m(e.geometry)} for e in station.edges],
         "panoramas": [p.model_dump(mode="json") for p in station.panoramas],
         "panoramas_note": extra.get("panoramas_note"),
+        "world": _world_block(loaded),
         "provenance": _provenance(c, loaded).model_dump(mode="json"),
     }
 

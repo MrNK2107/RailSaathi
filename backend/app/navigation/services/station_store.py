@@ -27,11 +27,13 @@ from app.config import DATA_DIR
 from app.navigation.models.station import Catalogue, CatalogueEntry, Station, StationMetadata
 from app.navigation.services.graph_builder import StationGraph, build_graph
 from app.navigation.services.route_validator import check_map_image, validate_graph
+from app.navigation.world import WORLD_FILE
 
 log = logging.getLogger("railsaathi.stations")
 
 STATION_ID_RE = re.compile(r"^[a-z0-9_]{1,64}$")
 CATALOGUE_FILE = "catalogue.json"
+MODEL_FILE = "heritage.glb"
 COMMON_HELPLINES = DATA_DIR / "common" / "helplines_india.json"
 
 
@@ -90,6 +92,8 @@ class LoadedStation:
     info: dict[str, Any]
     map_png: bytes
     graph: StationGraph  # prebuilt, no closures applied
+    world: dict[str, Any] | None = None  # osm.json (offline OpenStreetMap footprints), when the station has one
+    model_glb: bytes | None = None  # heritage.glb, the low-poly main building, when the station has one
 
 
 @dataclass
@@ -143,7 +147,14 @@ def load_station(source: StationSource, entry: CatalogueEntry) -> LoadedStation:
     if errors:
         raise ValueError("; ".join(f"{e.code}: {e.message}" for e in errors[:5]))
     info = _json(source, f"{entry.path}/info.json") or {}
-    return LoadedStation(entry, station, metadata, info, map_png or b"", build_graph(station, metadata))
+    try:  # the world is decoration: a broken osm.json must not stop the station loading
+        world = _json(source, f"{entry.path}/{WORLD_FILE}")
+    except ValueError:
+        log.warning("Station %s: %s is not valid JSON; serving without a world", entry.station_id, WORLD_FILE)
+        world = None
+    model = source.read(f"{entry.path}/{MODEL_FILE}")
+    return LoadedStation(entry, station, metadata, info, map_png or b"", build_graph(station, metadata),
+                         world if isinstance(world, dict) else None, model)
 
 
 def load_catalogue(source: StationSource) -> StationCatalogue:

@@ -40,7 +40,7 @@ const twoLevel = (over: Partial<StationTour> = {}): StationTour => ({
 
 describe('tour payload shape (types mirror the backend)', () => {
   // Keys of the real payload must be exactly the keys the TypeScript types declare.
-  const tourKeys: Record<keyof StationTour, true> = {
+  const tourKeys: Record<Exclude<keyof StationTour, 'world'>, true> = {  // `world` is newer than the captured fixture
     station_id: true, station_name: true, version: true, layout_basis: true, routing_enabled: true, ar_enabled: true,
     ar_guidance_available: true, map: true, scale: true, frame: true, geo_reference: true, levels: true, areas: true, nodes: true,
     edges: true, panoramas: true, panoramas_note: true, provenance: true,

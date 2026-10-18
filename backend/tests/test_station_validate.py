@@ -349,6 +349,14 @@ def test_publish_uploads_osm_json_when_present(tmp_path):
     assert bucket.objects["stations/test_station/v1/osm.json"] == b'{"features": []}'
 
 
+def test_publish_uploads_heritage_glb_when_present(tmp_path):
+    write_station(tmp_path)
+    (tmp_path / "test_station" / "heritage.glb").write_bytes(b"glTF-test")
+    bucket = FakeBucket({})
+    cli.publish(tmp_path, "test_station", "gs://bkt/stations", "v1", client=fake_client(bucket))
+    assert bucket.objects["stations/test_station/v1/heritage.glb"] == b"glTF-test"
+
+
 def test_publish_creates_the_catalogue_when_missing_and_refuses_invalid_stations(tmp_path):
     write_station(tmp_path)
     bucket = FakeBucket()

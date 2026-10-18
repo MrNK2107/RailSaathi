@@ -245,6 +245,7 @@ Details are in [STATION_NAVIGATION.md](STATION_NAVIGATION.md) and [AR_GUIDANCE.m
 | GET | `/api/stations` | The station list: `station_id`, `station_name`, `station_code` (e.g. `MAS`, so a journey leg can find its floor plan), `city`, `data_status`, `version`, `node_count`, `edge_count` |
 | GET | `/api/stations/{station_id}` | The graph, metadata, `layout_basis`, `routing_enabled` and `provenance` (`cached`, source "RailSaathi station catalogue (schematic)") |
 | GET | `/api/stations/{station_id}/map` | The plan image (PNG), served from the loaded catalogue. The data directory is never mounted |
+| GET | `/api/stations/{station_id}/model.glb` | The heritage building as a plain glTF binary (low-poly, metres, +Y up, +X east, -Z north), served from the loaded catalogue; 404 when the station has none. The same station's tour payload carries `world` (OSM footprints, plan-to-world alignment, model link) |
 | GET | `/api/stations/{station_id}/info` | Helplines (national numbers only, each with its source), station facts, amenities, `layout_note` and `provenance` |
 | GET | `/api/stations/{station_id}/tour` | Everything the 3D tour draws: levels, areas, nodes and edges in metres, panoramas, and `ar_guidance_available` |
 | POST | `/api/navigation/route` | A route between two nodes, or from a position: `{station_id, source \| source_position, destination, preferences: {avoid_stairs, wheelchair, require_verified_accessibility}, apply_disruptions, previous_edge_ids, simulate_closures}` |

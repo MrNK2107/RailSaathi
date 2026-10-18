@@ -760,6 +760,54 @@ export interface GeoReference {
   expected_error_m: number
 }
 
+/** One OpenStreetMap feature in metres from the world origin: `points` are [east, north]; rings are open. */
+export interface TourWorldFeature {
+  /** "way/<osm id>" or "relation/<osm id>". */
+  id: string
+  kind: 'building' | 'roof' | 'platform' | 'rail' | 'subway' | 'station' | 'heritage'
+  name: string | null
+  ref: string | null
+  levels: number | null
+  height_m: number | null
+  layer: number | null
+  points: Point[]
+}
+
+/** metadata.json world_alignment, passed through verbatim: plan metres (x, -y) -> (east, north) metres. */
+export interface TourWorldAlignment {
+  method: string
+  scale: number
+  rotation_deg: number
+  tx: number
+  ty: number
+  residual_m: number
+  pairs: unknown
+  source: string
+  verification: string
+  parity_check?: unknown
+  parity_basis?: unknown
+  runner_up?: unknown
+  [key: string]: unknown
+}
+
+/** The heritage building: a plain .glb in metres, +Y up, origin at the footprint centroid, +X east, -Z north. */
+export interface TourWorldModel {
+  url: string
+  /** The `TourWorldFeature.id` whose footprint the model is built on (its centroid is the model origin). */
+  feature_id: string
+  height_m: number
+}
+
+/** OpenStreetMap world around the station (c) OpenStreetMap contributors, ODbL. Absent without osm.json. */
+export interface TourWorld {
+  attribution: string
+  licence: string
+  osm_timestamp: string
+  features: TourWorldFeature[]
+  alignment: TourWorldAlignment | null
+  model: TourWorldModel | null
+}
+
 /** GET /api/stations/{id}/tour */
 export interface StationTour {
   station_id: string
@@ -780,6 +828,7 @@ export interface StationTour {
   edges: TourEdge[]
   panoramas: TourPanorama[]
   panoramas_note: string | null
+  world?: TourWorld | null
   provenance: Provenance
 }
 

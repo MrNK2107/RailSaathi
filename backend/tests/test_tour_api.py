@@ -223,3 +223,37 @@ def test_panoramas_command_needs_a_key_and_writes_metadata_only(tmp_path, monkey
     assert doc["station_id"] == "chennai_central" and [p["pano_id"] for p in doc["panoramas"]] == ["p1"]
     assert "KEY123" not in out.read_text(encoding="utf-8") and "KEY123" not in capsys.readouterr().out
     assert list(tmp_path.iterdir()) == [out]  # no imagery written
+
+
+# ---- world block and heritage model ------------------------------------------------------------------------------
+
+def test_tour_world_block_for_chennai_central():
+    world = make().get("/api/stations/chennai_central/tour").json()["world"]
+    assert world["attribution"] == "© OpenStreetMap contributors" and world["licence"] == "ODbL-1.0"
+    assert world["osm_timestamp"] and world["features"]
+    assert any(f["kind"] == "heritage" and f["id"].startswith("way/") for f in world["features"])
+    assert world["alignment"]["method"] and "parity_check" in world["alignment"]
+    assert world["model"]["url"].endswith("model.glb") and world["model"]["height_m"] == 41
+    assert world["model"]["feature_id"] in {f["id"] for f in world["features"]}
+
+
+def test_tour_world_null_for_egmore():
+    assert make().get("/api/stations/chennai_egmore/tour").json()["world"] is None
+
+
+def test_model_glb_served():
+    res = make().get("/api/stations/chennai_central/model.glb")
+    assert res.status_code == 200 and res.headers["content-type"] == "model/gltf-binary"
+    assert res.content.startswith(b"glTF") and len(res.content) <= 2_000_000
+    assert res.headers["cache-control"] == "public, max-age=86400"
+
+
+def test_model_glb_404_without_a_model():
+    assert make().get("/api/stations/chennai_egmore/model.glb").status_code == 404
+    assert make().get("/api/stations/nowhere/model.glb").status_code == 404
+
+
+def test_existing_tour_fields_unchanged():
+    body = make().get("/api/stations/chennai_central/tour").json()
+    assert body["geo_reference"]["method"] == "anchor_scale_rotation"
+    assert body["nodes"][0]["position_m"] == [158.9, 28.11]
