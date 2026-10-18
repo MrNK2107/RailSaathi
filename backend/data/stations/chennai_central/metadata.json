@@ -16,7 +16,9 @@
     "Distances are not measured; any distance shown is an estimate from the plan scale bar.",
     "Pathways with verification 'simulated' (sug_*) were suggested by proximity where the plan shows no clear walkway.",
     "Area polygons (platforms 7-12, track beds, main concourse, ticketing hall, building outline) are rectangles traced by hand from map.png; they are approximate. Extrusion heights are nominal display values (platforms 0.84 m, building 8 m), not measurements.",
-    "Visual cues are expected signage or plan features derived from the plan's labels and symbols (via node names) and from adjacent mapped nodes; none is verified on site (verified_on is null). The plan shows platforms 7-12 only and no foot-over-bridge, so no cues exist for other platforms or FOB stairs."
+    "Visual cues are expected signage or plan features derived from the plan's labels and symbols (via node names) and from adjacent mapped nodes; none is verified on site (verified_on is null). The plan shows platforms 7-12 only and no foot-over-bridge, so no cues exist for other platforms or FOB stairs.",
+    "world_alignment fits the traced plan to OpenStreetMap platform footprints (osm.json) with a proper rotation (no mirroring) and a scale of about 0.86; it is a schematic-to-map fit with an RMS residual of a few metres over the fitted platforms but a much larger position error away from them, and it is pending on-site verification. The fit places the plan's platforms 7-12 on OSM islands 3;4, 5;6 and 7;8: only 7 and 8 agree with the OSM refs, and OSM has no island 11;12 mapped. Platform numbers are therefore taken from the traced plan (label_source station_plan), not from OSM. The plan and OSM may differ in platform order, so treat the platform numbering across the plan as unconfirmed.",
+    "Entrance names, checked 2026-10-18 against the aligned plan, the committed osm.json and Wikipedia (Chennai Central): Wikipedia says the main entrance is on Poonamallee High Road (renamed EVR Periyar Salai in OSM) and the east side is on Wall Tax Road. osm.json holds no road geometry or names (only buildings, platforms, rails and subways), so no OSM road name could be looked up and no OSM entrance is mapped. The aligned positions are consistent with Wikipedia: ent_wall_tax lands at the eastern end of the station building and ent_jn_road on its southern front, so the plan's label 'Jawaharlal Nehru Road' probably refers to the Poonamallee High Road frontage. OSM and Wikipedia do not both confirm any rename, so no node was renamed and the plan's labels stay as traced; the conflict is open. Sources: Wikipedia, Chennai Central railway station; OpenStreetMap (osm.json)."
   ],
   "geo_reference": {
     "method": "anchor_scale_rotation",
@@ -33,5 +35,166 @@
     "expected_error_m": 50
   },
   "layout_basis": "schematic",
-  "panoramas_note": "No Street View or photosphere pano ids are authored yet: none could be verified offline. Run `uv run python scripts/stations.py panoramas chennai_central --radius 150` with GOOGLE_MAPS_API_KEY set, check each pano on site or in Street View, and add it to station.json panoramas with verified_on."
+  "panoramas_note": "No Street View or photosphere pano ids are authored yet: none could be verified offline. Run `uv run python scripts/stations.py panoramas chennai_central --radius 150` with GOOGLE_MAPS_API_KEY set, check each pano on site or in Street View, and add it to station.json panoramas with verified_on.",
+  "world_alignment": {
+    "method": "similarity",
+    "scale": 0.855,
+    "rotation_deg": -80.104,
+    "tx": 11.27,
+    "ty": 139.93,
+    "residual_m": 6.07,
+    "frame": "plan metres (x, -y) -> OSM (east, north) metres from osm.json origin; world = scale * R(rotation_deg) * (x, -y) + (tx, ty)",
+    "pairs": [
+      {
+        "area": "platform_12_area",
+        "osm": "way/397320032",
+        "osm_ref": "3;4"
+      },
+      {
+        "area": "platform_11_area",
+        "osm": "way/397320032",
+        "osm_ref": "3;4"
+      },
+      {
+        "area": "platform_10_area",
+        "osm": "way/397320033",
+        "osm_ref": "5;6"
+      },
+      {
+        "area": "platform_9_area",
+        "osm": "way/397320033",
+        "osm_ref": "5;6"
+      },
+      {
+        "area": "platform_8_area",
+        "osm": "way/397320034",
+        "osm_ref": "7;8"
+      },
+      {
+        "area": "platform_7_area",
+        "osm": "way/397320034",
+        "osm_ref": "7;8"
+      }
+    ],
+    "platform_labels": [
+      {
+        "area": "platform_12_area",
+        "label": "12",
+        "osm_ref": "3;4",
+        "label_source": "station_plan",
+        "osm_ref_agrees": false
+      },
+      {
+        "area": "platform_11_area",
+        "label": "11",
+        "osm_ref": "3;4",
+        "label_source": "station_plan",
+        "osm_ref_agrees": false
+      },
+      {
+        "area": "platform_10_area",
+        "label": "10",
+        "osm_ref": "5;6",
+        "label_source": "station_plan",
+        "osm_ref_agrees": false
+      },
+      {
+        "area": "platform_9_area",
+        "label": "9",
+        "osm_ref": "5;6",
+        "label_source": "station_plan",
+        "osm_ref_agrees": false
+      },
+      {
+        "area": "platform_8_area",
+        "label": "8",
+        "osm_ref": "7;8",
+        "label_source": "station_plan",
+        "osm_ref_agrees": true
+      },
+      {
+        "area": "platform_7_area",
+        "label": "7",
+        "osm_ref": "7;8",
+        "label_source": "station_plan",
+        "osm_ref_agrees": true
+      }
+    ],
+    "candidates_tried": [
+      {
+        "features": [
+          "way/441663214",
+          "way/441663215",
+          "way/397320042"
+        ],
+        "residual_m": 50.86
+      },
+      {
+        "features": [
+          "way/441663215",
+          "way/397320042",
+          "way/441663216"
+        ],
+        "residual_m": 51.29
+      },
+      {
+        "features": [
+          "way/397320042",
+          "way/441663216",
+          "way/215471625"
+        ],
+        "residual_m": 89.63
+      },
+      {
+        "features": [
+          "way/441663216",
+          "way/215471625",
+          "way/624157904"
+        ],
+        "residual_m": 103.43
+      },
+      {
+        "features": [
+          "way/215471625",
+          "way/624157904",
+          "way/397320035"
+        ],
+        "residual_m": 106.25
+      },
+      {
+        "features": [
+          "way/624157904",
+          "way/397320035",
+          "way/397320032"
+        ],
+        "residual_m": 98.48
+      },
+      {
+        "features": [
+          "way/397320035",
+          "way/397320032",
+          "way/397320033"
+        ],
+        "residual_m": 10.64
+      },
+      {
+        "features": [
+          "way/397320032",
+          "way/397320033",
+          "way/397320034"
+        ],
+        "residual_m": 6.07
+      },
+      {
+        "features": [
+          "way/397320033",
+          "way/397320034",
+          "way/211435498"
+        ],
+        "residual_m": 108.65
+      }
+    ],
+    "source": "Traced platform strips 7-12 (building end and mid-length point) fitted to OpenStreetMap platform footprints in osm.json, two traced platforms per OSM island platform; (c) OpenStreetMap contributors, ODbL-1.0.",
+    "verification": "pending"
+  }
 }

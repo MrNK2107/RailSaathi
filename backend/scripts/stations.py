@@ -9,6 +9,7 @@ The runtime only reads station data; this is the one way it changes. Usage (from
     uv run python scripts/stations.py publish chennai_central --dest gs://BUCKET/stations
     uv run python scripts/stations.py panoramas chennai_central --radius 150 --out panos.json
     uv run python scripts/stations.py osm chennai_central           # OpenStreetMap footprints -> osm.json
+    uv run python scripts/stations.py align chennai_central         # fit the traced plan to osm.json
 
 `publish` validates first, uploads the station folder to a new versioned folder
 (`<dest>/<station_id>/<version>/`, never overwritten) and then points `<dest>/catalogue.json` at it. Earlier
@@ -22,6 +23,11 @@ nodes in station.json. It stores metadata only, never imagery, as the Google Map
 `osm` runs one read-only Overpass query (or reads a saved response with --input) and writes the station's
 `osm.json`: building, platform, rail and subway footprints in metres from the OSM station node. Commit the file;
 the runtime never calls Overpass. Data (c) OpenStreetMap contributors, ODbL-1.0.
+
+`align` fits the hand-traced plan onto `osm.json` (platform footprints; see app/navigation/alignment.py) and
+writes `world_alignment` into metadata.json: a similarity transform from plan metres (x, -y) to (east, north)
+metres, or a translation when the similarity residual exceeds 15 m. `geo_reference` is never touched; `validate`
+errors when the recorded residual is over the limit.
 """
 
 from __future__ import annotations
@@ -38,6 +44,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.config import STATIONS_DIR  # noqa: E402
+from app.navigation.alignment import RESIDUAL_LIMIT_M, fit, fit_points, pair_platforms  # noqa: E402
 from app.navigation.models.station import (  # noqa: E402
     Catalogue,
     CatalogueEntry,
@@ -70,6 +77,21 @@ def _read_json(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def check_alignment(metadata: StationMetadata | None) -> list[ValidationIssue]:
+    """The recorded world_alignment residual must be within RESIDUAL_LIMIT_M."""
+    alignment = ((metadata.model_extra or {}) if metadata else {}).get("world_alignment")
+    if not isinstance(alignment, dict):
+        return []
+    residual = alignment.get("residual_m")
+    if not isinstance(residual, (int, float)) or isinstance(residual, bool):
+        return [ValidationIssue(level="error", code="alignment_invalid",
+                                message="world_alignment.residual_m is missing or not a number")]
+    if residual > RESIDUAL_LIMIT_M:
+        return [ValidationIssue(level="error", code="alignment_residual_high",
+                                message=f"world_alignment residual {residual} m is over the {RESIDUAL_LIMIT_M} m limit")]
+    return []
+
+
 def validate_station(root: Path, station_id: str) -> ValidationReport:
     """Schema, graph, step-free, level, area, panorama, cue and map-image checks for one station folder."""
     folder = root / station_id
@@ -92,7 +114,7 @@ def validate_station(root: Path, station_id: str) -> ValidationReport:
         issues.append(ValidationIssue(level="error", code="invalid_json", message=f"station.json: {exc}"))
         return ValidationReport(valid=False, errors=issues, warnings=[])
     report = validate_station_data(raw, metadata, expected_station_id=station_id)
-    errors = issues + report.errors
+    errors = issues + report.errors + check_alignment(metadata)
     if report.valid:
         station = Station.model_validate(raw)
         image = folder / station.map.image
@@ -519,6 +541,58 @@ def cmd_osm(args) -> int:
     return 0
 
 
+# ---- align --------------------------------------------------------------------------------------------------
+
+def build_alignment(station: dict, metadata: dict, world: dict) -> dict:
+    """The world_alignment block for a station: traced platforms fitted to OSM platforms (see alignment.py)."""
+    w, h = station["map"]["width"], station["map"]["height"]
+    mpp = metadata["map_scale"]["metres_per_pixel"]
+    pairs, info = pair_platforms(station["areas"], world["features"], w, h, mpp)
+    src, dst = fit_points(pairs)
+    method, sim = fit(src, dst)
+    block = {
+        "method": method,
+        "scale": round(sim.scale, 4),
+        "rotation_deg": round(sim.rotation_deg, 3),
+        "tx": round(sim.tx, 2),
+        "ty": round(sim.ty, 2),
+        "residual_m": round(sim.residual_m, 2),
+        "frame": "plan metres (x, -y) -> OSM (east, north) metres from osm.json origin; "
+                 "world = scale * R(rotation_deg) * (x, -y) + (tx, ty)",
+        "pairs": [{"area": p["area"], "osm": p["feature"], "osm_ref": p["ref"]} for p in pairs],
+        "platform_labels": [{"area": p["area"], "label": str(p["number"]), "osm_ref": p["ref"],
+                             "label_source": "station_plan", "osm_ref_agrees": p["ref_agrees"]} for p in pairs],
+        "candidates_tried": info["candidates_tried"],
+        "source": "Traced platform strips 7-12 (building end and mid-length point) fitted to OpenStreetMap platform "
+                  "footprints in osm.json, two traced platforms per OSM island platform; (c) OpenStreetMap "
+                  "contributors, ODbL-1.0.",
+        "verification": "pending",
+    }
+    if method == "translation":
+        block["fallback_reason"] = (f"similarity residual exceeded {RESIDUAL_LIMIT_M} m; translation only "
+                                    "(scale 1, rotation 0)")
+    return block
+
+
+def cmd_align(args) -> int:
+    folder = Path(args.root) / args.station
+    try:
+        station, metadata = _read_json(folder / "station.json"), _read_json(folder / "metadata.json")
+        world = _read_json(folder / WORLD_FILE)
+        block = build_alignment(station, metadata, world)
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"{args.station}: cannot align: {exc}")
+        return 1
+    metadata["world_alignment"] = block
+    (folder / "metadata.json").write_text(json.dumps(metadata, indent=2, ensure_ascii=False) + "\n",
+                                           encoding="utf-8")
+    print(f"{args.station}: {block['method']} scale={block['scale']} rotation={block['rotation_deg']} deg "
+          f"t=({block['tx']}, {block['ty']}) residual={block['residual_m']} m")
+    for p in block["platform_labels"]:
+        print(f"  {p['area']:18} -> {p['osm_ref']:5} (plan label {p['label']}, ref agrees: {p['osm_ref_agrees']})")
+    return 0
+
+
 # ---- entry point --------------------------------------------------------------------------------------------
 
 def main(argv: list[str] | None = None) -> int:
@@ -564,6 +638,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--input", help="read a saved Overpass response instead of querying the API")
     p.add_argument("--heritage-way", help="way/<id> of the main building (default: the station's configured footprint)")
     p.set_defaults(func=cmd_osm)
+
+    p = sub.add_parser("align", help="fit the traced plan to osm.json and write metadata.json world_alignment")
+    p.add_argument("station")
+    p.set_defaults(func=cmd_align)
 
     args = parser.parse_args(argv)
     return args.func(args)
