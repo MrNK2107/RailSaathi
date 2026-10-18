@@ -68,9 +68,15 @@ function SceneContent({ spec, floorUrl, modelUrl = null, platformFromPlan, reduc
   const controls = useRef<OrbitControlsImpl | null>(null)
   const shown = (level: number) => visibleLevel === 'all' || visibleLevel === level
   const markerText = new Map(markers.map((mk) => [mk.id, mk.text]))
+  // The pin labels that are drawn (see Pin): the world layer keeps platform labels clear of them.
+  const pinLabels = spec.pins.filter((p) => shown(p.level)).flatMap((p) => {
+    const text = p.id === selectedId ? p.name : markerText.has(p.id) ? `${markerText.get(p.id)}: ${p.name}` : null
+    const r = p.type === 'junction' || p.type === 'concourse' ? 0.9 : 1.6
+    return text ? [{ position: [p.position[0], p.position[1] + r * 2.2, p.position[2]] as [number, number, number], text }] : []
+  })
   return (
     <>
-      {spec.world ? <WorldLayer world={spec.world} modelUrl={modelUrl} platformFromPlan={platformFromPlan} /> : shown(spec.floor.level) && <Floor spec={spec} url={floorUrl} />}
+      {spec.world ? <WorldLayer world={spec.world} modelUrl={modelUrl} platformFromPlan={platformFromPlan} pinLabels={pinLabels} /> : shown(spec.floor.level) && <Floor spec={spec} url={floorUrl} />}
       {spec.areas.filter((a) => shown(a.level)).map((a) => <AreaMesh key={a.id} area={a} />)}
       {spec.edges.filter((e) => shown(e.level)).map((e) => <EdgeLine key={e.id} edge={e} />)}
       {spec.pins.filter((p) => shown(p.level)).map((p) => (

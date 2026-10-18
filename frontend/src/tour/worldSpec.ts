@@ -261,6 +261,33 @@ export function shownPlatformLabels(platforms: WorldPlatform[], cameraDistance: 
   return shown
 }
 
+/** An on-screen label box in canvas pixels, centred on (x, y). */
+export interface LabelRect { x: number; y: number; w: number; h: number }
+
+/** Pixel distance between two label boxes: 0 when they overlap, else the gap between their nearest edges. */
+function rectGap(a: LabelRect, b: LabelRect): number {
+  const dx = Math.max(0, Math.abs(a.x - b.x) - (a.w + b.w) / 2)
+  const dy = Math.max(0, Math.abs(a.y - b.y) - (a.h + b.h) / 2)
+  return Math.hypot(dx, dy)
+}
+
+/**
+ * Screen-space declutter (R20). `labels` are the platform labels that shownPlatformLabels allows, in stable order;
+ * `pins` are the pin labels (start, destination, selected place), which always win. A platform label is hidden when
+ * it is within `margin` px of a pin label or of a platform label already placed (greedy, in the given order).
+ * Returns the indices into `labels` that stay visible.
+ */
+export function declutterLabels(pins: LabelRect[], labels: LabelRect[], margin = 44): Set<number> {
+  const placed: LabelRect[] = []
+  const keep = new Set<number>()
+  labels.forEach((l, i) => {
+    if (pins.some((p) => rectGap(p, l) < margin) || placed.some((p) => rectGap(p, l) < margin)) return
+    placed.push(l)
+    keep.add(i)
+  })
+  return keep
+}
+
 /**
  * A camera pose that keeps the whole complex (ground to FRAME_TOP_M) in view on a canvas of the given aspect
  * (width / height), looking north from the south at FRAME_PITCH_DEG, so the frontage faces the camera.

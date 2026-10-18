@@ -10,7 +10,7 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import type { Vec2 } from './sceneSpec'
 import {
-  HERITAGE_FALLBACK_HEIGHT_M, LABEL_DISTANCE_M, PLATFORM_HEIGHT_M, polygonCentroid, ROOF_Y_M, shownPlatformLabels, type WorldBuilding, type WorldSpec,
+  HERITAGE_FALLBACK_HEIGHT_M, LABEL_DISTANCE_M, PLATFORM_HEIGHT_M, polygonCentroid, ROOF_Y_M, shownPlatformLabels, declutterLabels, type LabelRect, type WorldBuilding, type WorldSpec,
 } from './worldSpec'
 
 const COLOR = { building: '#cbd2dc', platform: '#e7e2d6', rail: '#4b5563', roof: '#9fb3c8', ground: '#eef1f4', heritage: '#7a1f1f' }
@@ -26,24 +26,55 @@ export interface WorldLayerProps {
   modelUrl: string | null
   /** Tooltip for labels whose number comes from the station plan. */
   platformFromPlan?: string
+  /** Pin labels currently drawn (start, destination, selected place): world position of the label and its text. */
+  pinLabels?: { position: [number, number, number]; text: string }[]
 }
 
-export default function WorldLayer({ world, modelUrl, platformFromPlan }: WorldLayerProps) {
+const THROTTLE_S = 0.15
+/** Approximate on-screen size of the HTML labels (text-[11px] bold pins, text-[10px] bold platform labels). */
+const pinRect = (x: number, y: number, text: string): LabelRect => ({ x, y, w: text.length * 6.4 + 12, h: 22 })
+const platformRect = (x: number, y: number, text: string): LabelRect => ({ x, y, w: text.length * 5.8 + 8, h: 18 })
+
+export default function WorldLayer({ world, modelUrl, platformFromPlan, pinLabels = [] }: WorldLayerProps) {
   const { minX, maxX, minZ, maxZ } = world.bounds
   // Platform labels sit at the station end of each platform (towards the heritage building), where the route arrives.
   const toward = useMemo<Vec2>(() => (world.heritage ? polygonCentroid(world.heritage.outline) : [0, 0]), [world.heritage])
-  // Close or far from the orbit target, checked each frame but stored only when it flips (no per-frame re-render).
-  const [close, setClose] = useState(false)
-  const closeRef = useRef(close)
-  useFrame(({ camera, controls }) => {
+  // Which platform labels are drawn: those the zoom allows (R16/R19) that are not within 44 px of a pin label or of
+  // another platform label (R20). Worked out at most every THROTTLE_S and stored only when the set changes.
+  const [visible, setVisible] = useState<ReadonlySet<number>>(() => new Set())
+  const visibleKey = useRef('')
+  const lastRun = useRef(-Infinity)
+  const points = useMemo(() => world.platforms.map((p) => (p.label ? labelPoint(p.outline, toward) : null)), [world.platforms, toward])
+  const pinsRef = useRef(pinLabels)
+  pinsRef.current = pinLabels
+  useFrame(({ camera, controls, clock, size }) => {
+    if (clock.elapsedTime - lastRun.current < THROTTLE_S) return
+    lastRun.current = clock.elapsedTime
     const target = (controls as { target?: THREE.Vector3 } | null)?.target ?? ORIGIN
-    const now = camera.position.distanceTo(target) <= LABEL_DISTANCE_M
-    if (now !== closeRef.current) {
-      closeRef.current = now
-      setClose(now)
+    const close = camera.position.distanceTo(target) <= LABEL_DISTANCE_M
+    const allowed = [...shownPlatformLabels(world.platforms, close ? 0 : Infinity)]
+    const project = (x: number, y: number, z: number) => {
+      const v = new THREE.Vector3(x, y, z).project(camera)
+      return v.z < 1 ? { x: (v.x * 0.5 + 0.5) * size.width, y: (-v.y * 0.5 + 0.5) * size.height } : null
+    }
+    const pins = pinsRef.current.flatMap((p) => {
+      const s = project(...p.position)
+      return s ? [pinRect(s.x, s.y, p.text)] : []
+    })
+    const cands = allowed.flatMap((i) => {
+      const [x, z] = points[i]!
+      const s = project(x, PLATFORM_HEIGHT_M + 1.5, z)
+      return s ? [{ i, rect: platformRect(s.x, s.y, world.platforms[i].label!) }] : []
+    })
+    const keep = declutterLabels(pins, cands.map((c) => c.rect))
+    const next = new Set(cands.filter((_, k) => keep.has(k)).map((c) => c.i))
+    const key = [...next].join(',')
+    if (key !== visibleKey.current) {
+      visibleKey.current = key
+      setVisible(next)
     }
   })
-  const shown = useMemo(() => shownPlatformLabels(world.platforms, close ? 0 : Infinity), [world.platforms, close])
+  const shown = visible
   return (
     <group name="world">
       <mesh name="world-ground" rotation={[-Math.PI / 2, 0, 0]} position={[(minX + maxX) / 2, -0.02, (minZ + maxZ) / 2]}>

@@ -5,7 +5,7 @@ import * as THREE from 'three'
 import type { StationTour } from '../api/types'
 import { buildSceneSpec } from '../tour/sceneSpec'
 import {
-  buildWorldSpec, FOCUS_MARGIN_M, frameBounds, LABEL_DISTANCE_M, planToWorld, polygonCentroid, shownPlatformLabels, type WorldBounds,
+  buildWorldSpec, declutterLabels, FOCUS_MARGIN_M, frameBounds, LABEL_DISTANCE_M, planToWorld, polygonCentroid, shownPlatformLabels, type WorldBounds,
 } from '../tour/worldSpec'
 import tourJson from './data/chennai_central_tour.json'
 import { CHENNAI_ALIGNMENT, chennaiWorld, feature, HERITAGE, PLATFORM_5_6, square } from './worldFixture'
@@ -194,5 +194,31 @@ describe('buildSceneSpec', () => {
       world: null,
     })
     expect(buildSceneSpec({ ...egmore, world: null }).world).toBeNull()
+  })
+})
+
+describe('declutterLabels (R20)', () => {
+  const box = (x: number, y: number, w = 40, h = 18) => ({ x, y, w, h })
+
+  it('hides a platform label that overlaps or is within 44 px of a pin label; keeps a far one', () => {
+    const pin = box(100, 100, 160, 22)
+    expect(declutterLabels([pin], [box(100, 100)])).toEqual(new Set()) // on top of the pin
+    expect(declutterLabels([pin], [box(100, 150)])).toEqual(new Set()) // gap 150-100-20 = 30 px
+    expect(declutterLabels([pin], [box(100, 200)])).toEqual(new Set([0])) // gap 79 px
+  })
+
+  it('the pin wins over a platform label that came first', () => {
+    expect(declutterLabels([box(50, 50)], [box(60, 52), box(300, 300)])).toEqual(new Set([1]))
+  })
+
+  it('is greedy in the given order: the earlier platform label stays, the later one near it goes', () => {
+    const labels = [box(100, 100), box(130, 100), box(260, 100)]
+    expect(declutterLabels([], labels)).toEqual(new Set([0, 2]))
+    expect(declutterLabels([], [...labels].reverse())).toEqual(new Set([0, 1])) // order decides, deterministically
+    expect(declutterLabels([], labels)).toEqual(declutterLabels([], labels))
+  })
+
+  it('without pins or neighbours every label stays', () => {
+    expect(declutterLabels([], [box(0, 0), box(200, 0)])).toEqual(new Set([0, 1]))
   })
 })
