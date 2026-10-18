@@ -347,7 +347,7 @@ def main() -> None:
         public_url = None
         if args.public:
             print("Opening the public tunnel ...")
-            tunnel, public_url = start_tunnel(cloudflared, app_url)
+            tunnel, public_url = start_tunnel(cloudflared, f"http://127.0.0.1:{args.frontend_port}")
             procs.append(tunnel)
         ip = lan_ip()
         print()

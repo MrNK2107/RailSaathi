@@ -81,7 +81,7 @@ python run.py --warm-llm                           # load the local Ollama model
   runs the backend without `--reload`, and sets `PUBLIC_TUNNEL=1` so rate limits count each visitor separately.
   Why `vite preview` and not the dev server: the production build is minified and split into chunks, so the first
   load over a mobile connection is much smaller, and a tunnel makes the dev server's many small module requests
-  slow. (Chosen by design, not measured.)
+  slow. (Chosen by design; the first load was not timed on Fast 3G.)
 - **`--warm-llm`** sends Ollama an empty prompt so the local model (`OLLAMA_MODEL`, default `gemma4:latest`) is
   loaded before the first visitor, and prints how long that took. It needs Ollama as `LLM_PROVIDER` or
   `LLM_FALLBACK`. With Ollama in use, `run.py` also warns when under 10 GB of RAM is free (try

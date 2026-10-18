@@ -75,3 +75,48 @@ def test_llm_settings_read_environment_then_backend_env(tmp_path):
 def test_loaded_ollama_models_is_empty_on_error():
     run = load_run()
     assert run.loaded_ollama_models("http://127.0.0.1:9") == []
+
+
+def test_public_without_cloudflared_exits_with_install_guidance(monkeypatch):
+    import pytest
+
+    run = load_run()
+    monkeypatch.setattr(run, "tool", lambda name: name)
+    monkeypatch.setattr(run.shutil, "which", lambda name: None)
+    monkeypatch.setattr(run.sys, "argv", ["run.py", "--public"])
+    with pytest.raises(SystemExit) as exc:
+        run.main()
+    assert "winget install Cloudflare.cloudflared" in str(exc.value)
+    assert "brew install cloudflared" in str(exc.value)
+
+
+def test_start_tunnel_returns_the_public_url_from_stderr(monkeypatch):
+    run = load_run()
+    seen = {}
+
+    class FakeProc:
+        stderr = iter(["INF Starting\n", "INF |  https://calm-owl-7.trycloudflare.com  |\n"])
+
+        def poll(self):
+            return None
+
+    def fake_popen(cmd, **kwargs):
+        seen["cmd"] = cmd
+        return FakeProc()
+
+    monkeypatch.setattr(run.subprocess, "Popen", fake_popen)
+    proc, url = run.start_tunnel("cloudflared", "http://127.0.0.1:5173")
+    assert url == "https://calm-owl-7.trycloudflare.com"
+    assert seen["cmd"][:4] == ["cloudflared", "tunnel", "--url", "http://127.0.0.1:5173"]
+
+
+def test_llm_warnings_cover_quota_ram_and_loaded_models():
+    run = load_run()
+    gemini = {"LLM_PROVIDER": "gemini", "LLM_FALLBACK": "", "OLLAMA_MODEL": "gemma4:latest"}
+    assert any("quota" in w for w in run.llm_warnings(gemini, True, None, []))
+    assert run.llm_warnings(gemini, False, None, []) == []
+    local = {"LLM_PROVIDER": "gemini", "LLM_FALLBACK": "ollama", "OLLAMA_MODEL": "gemma4:latest"}
+    out = run.llm_warnings(local, True, 4 * 1024**3, ["a", "b"])
+    assert any("OLLAMA_MODEL=llama3.2:3b" in w and "4.0 GB" in w for w in out)
+    assert any("a, b" in w for w in out)
+    assert not any("quota" in w for w in out)
