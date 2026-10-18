@@ -120,3 +120,42 @@ def test_llm_warnings_cover_quota_ram_and_loaded_models():
     assert any("OLLAMA_MODEL=llama3.2:3b" in w and "4.0 GB" in w for w in out)
     assert any("a, b" in w for w in out)
     assert not any("quota" in w for w in out)
+
+
+def test_start_tunnel_failure_reports_cloudflared_output(monkeypatch):
+    import pytest
+
+    run = load_run()
+
+    class FakeProc:
+        stderr = iter(["INF Starting\n", "ERR failed to request quota: 429 Too Many Requests\n"])
+
+        def poll(self):
+            return 1  # exited early
+
+    monkeypatch.setattr(run.subprocess, "Popen", lambda cmd, **kw: FakeProc())
+    with pytest.raises(SystemExit) as exc:
+        run.start_tunnel("cloudflared", "http://127.0.0.1:5173")
+    message = str(exc.value)
+    assert "exited early" in message and "429 Too Many Requests" in message
+
+
+def test_memory_warnings_are_printed_before_the_model_is_warmed(monkeypatch, capsys):
+    import pytest
+
+    run = load_run()
+    order = []
+    monkeypatch.setattr(run, "tool", lambda name: name)
+    monkeypatch.setattr(run.shutil, "which", lambda name: name)
+    monkeypatch.setattr(run, "port_free", lambda port: True)
+    monkeypatch.setattr(run, "llm_settings", lambda env: {"LLM_PROVIDER": "ollama", "LLM_FALLBACK": "",
+                                                          "OLLAMA_URL": "http://x", "OLLAMA_MODEL": "m"})
+    monkeypatch.setattr(run, "free_ram_bytes", lambda: order.append("ram") or 1024**3)
+    monkeypatch.setattr(run, "loaded_ollama_models", lambda url: [])
+    monkeypatch.setattr(run, "warm_llm", lambda url, model: order.append("warm") or 1.0)
+    monkeypatch.setattr(run, "start", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("stop here")))
+    monkeypatch.setattr(run.sys, "argv", ["run.py", "--warm-llm", "--skip-install"])
+    with pytest.raises(RuntimeError):
+        run.main()
+    assert order == ["ram", "warm"]
+    assert "OLLAMA_MODEL=llama3.2:3b" in capsys.readouterr().out

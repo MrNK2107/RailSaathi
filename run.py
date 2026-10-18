@@ -26,6 +26,7 @@ import sys
 import threading
 import time
 import urllib.request
+from collections import deque
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -165,20 +166,29 @@ def start_tunnel(cloudflared: str, local_url: str) -> tuple[subprocess.Popen, st
                             stdout=subprocess.DEVNULL, text=True, encoding="utf-8", errors="replace",
                             creationflags=flags, start_new_session=not WINDOWS)
     found: list[str] = []
+    tail: deque[str] = deque(maxlen=5)  # the last lines say why cloudflared gave no link
 
     def read() -> None:
         for line in proc.stderr:  # keeps draining so cloudflared never blocks on a full pipe
+            if line.strip():
+                tail.append(line.strip())
             url = parse_tunnel_url(line)
             if url and not found:
                 found.append(url)
 
-    threading.Thread(target=read, daemon=True).start()
+    reader = threading.Thread(target=read, daemon=True)
+    reader.start()
     deadline = time.time() + 30
     while time.time() < deadline and not found and proc.poll() is None:
         time.sleep(0.2)
     if not found:
+        exited = proc.poll() is not None
         stop(proc)
-        sys.exit("cloudflared did not give a public link within 30 seconds. Check your connection and try again.")
+        reader.join(timeout=2)
+        why = "exited early" if exited else "gave no public link within 30 seconds"
+        details = "\n".join(f"  {line}" for line in tail)
+        sys.exit(f"cloudflared {why}. Check your connection and try again."
+                 + (f"\nLast cloudflared output:\n{details}" if details else ""))
     return proc, found[0]
 
 
@@ -310,6 +320,10 @@ def main() -> None:
 
     settings = llm_settings(env)
     ollama_in_use = "ollama" in (settings["LLM_PROVIDER"], settings["LLM_FALLBACK"])
+    # Measure memory and print the warnings before warming: afterwards the model is resident and free RAM is lower.
+    loaded = loaded_ollama_models(settings["OLLAMA_URL"]) if ollama_in_use else []
+    for warning in llm_warnings(settings, args.public, free_ram_bytes() if ollama_in_use else None, loaded):
+        print(warning)
     if args.warm_llm and not ollama_in_use:
         print("--warm-llm: Ollama is neither LLM_PROVIDER nor LLM_FALLBACK, so there is nothing to warm.")
     elif args.warm_llm:
@@ -318,9 +332,6 @@ def main() -> None:
             print(f"  Model ready in {warm_llm(settings['OLLAMA_URL'], settings['OLLAMA_MODEL']):.1f} s.")
         except OSError as exc:
             print(f"  Could not warm the model ({exc}). Is Ollama running at {settings['OLLAMA_URL']}?")
-    loaded = loaded_ollama_models(settings["OLLAMA_URL"]) if ollama_in_use else []
-    for warning in llm_warnings(settings, args.public, free_ram_bytes() if ollama_in_use else None, loaded):
-        print(warning)
 
     if args.public and not (args.skip_build and (FRONTEND / "dist").exists()):
         print("Building the frontend (npx vite build)...")
