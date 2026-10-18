@@ -432,7 +432,8 @@ describe('Tour screen', () => {
     await openTour(client())
     await screen.findByTestId('tour-scene')
     expect(scene.last!.spec.world).toBeNull()
-    expect(screen.queryByTestId('osm-attribution')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('osm-attribution')).toBeNull()
+    expect(screen.queryByText('© OpenStreetMap contributors')).toBeNull()
   })
 
   it('opens on Chennai Central when the link names no station', async () => {
@@ -462,7 +463,7 @@ describe('WorldLayer (rendered by @react-three/fiber against a stub renderer: js
     const root = createRoot(canvas)
     root.configure({ gl: stubRenderer(canvas) as unknown as THREE.WebGLRenderer, frameloop: 'never', events: undefined,
       size: { width: 320, height: 480, top: 0, left: 0 } })
-    await r3fAct(async () => { root.render(<><WorldLayer world={world} modelUrl="http://test/api/stations/chennai_central/model.glb" routeEnd={[-40, -60]} /><Grab /></>) })
+    await r3fAct(async () => { root.render(<><WorldLayer world={world} modelUrl="http://test/api/stations/chennai_central/model.glb" /><Grab /></>) })
     await waitFor(() => expect(gltf.urls).toEqual(['http://test/api/stations/chennai_central/model.glb']))
     await waitFor(() => expect(scene!.getObjectByName('heritage-fallback')).toBeDefined())
     const fallback = scene!.getObjectByName('heritage-fallback') as THREE.Mesh
@@ -470,8 +471,8 @@ describe('WorldLayer (rendered by @react-three/fiber against a stub renderer: js
     fallback.geometry.computeBoundingBox()
     expect(fallback.geometry.boundingBox!.max.y).toBeCloseTo(18, 3) // the footprint extruded to 18 m
     expect(scene!.getObjectByName('world-buildings')).toBeDefined()
-    // The camera has not come close yet, so only the route's destination island is labelled (HTML over the canvas).
-    expect(holder.textContent).toContain('9 · 10')
+    // The camera has not come close yet, so no platform label is drawn (R19; HTML over the canvas).
+    expect(holder.textContent).not.toContain('9 · 10')
     expect(holder.textContent).not.toContain('1A')
     await r3fAct(async () => root.unmount())
     holder.remove()

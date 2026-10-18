@@ -70,7 +70,7 @@ function SceneContent({ spec, floorUrl, modelUrl = null, platformFromPlan, reduc
   const markerText = new Map(markers.map((mk) => [mk.id, mk.text]))
   return (
     <>
-      {spec.world ? <WorldLayer world={spec.world} modelUrl={modelUrl} platformFromPlan={platformFromPlan} routeEnd={path && path.length > 1 ? [path[path.length - 1][0], path[path.length - 1][2]] : null} /> : shown(spec.floor.level) && <Floor spec={spec} url={floorUrl} />}
+      {spec.world ? <WorldLayer world={spec.world} modelUrl={modelUrl} platformFromPlan={platformFromPlan} /> : shown(spec.floor.level) && <Floor spec={spec} url={floorUrl} />}
       {spec.areas.filter((a) => shown(a.level)).map((a) => <AreaMesh key={a.id} area={a} />)}
       {spec.edges.filter((e) => shown(e.level)).map((e) => <EdgeLine key={e.id} edge={e} />)}
       {spec.pins.filter((p) => shown(p.level)).map((p) => (

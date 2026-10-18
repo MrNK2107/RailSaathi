@@ -183,9 +183,10 @@ function tracedLabels(alignment: TourWorldAlignment): Map<string, string[]> {
 
 /**
  * The drawable world, or null without a world or an alignment (the plan cannot be placed in it). Platforms the
- * traced plan was fitted onto carry the plan's numbers (what the route and the pins use); other platforms their
- * OSM ref ("3;4" shown as "3 · 4"), unless the ref names a number the plan already puts elsewhere: the plan and OSM
- * number the platforms differently here (metadata parity_basis), and two "9 · 10" labels would contradict each other.
+ * traced plan was fitted onto carry the plan's numbers (what the route and the pins use). Other platforms are
+ * unlabelled whenever the plan numbers any island (R18): plan numbers and OSM refs disagree here (metadata
+ * parity_basis), so mixing them ("11 · 12" beside "2 · 3") would contradict itself. Only a world with no plan numbers
+ * at all shows OSM refs ("3;4" as "3 · 4").
  */
 export function buildWorldSpec(world: TourWorld | null | undefined, focusPoints: Vec2[] = []): WorldSpec | null {
   if (!world || !world.alignment) return null
@@ -206,7 +207,7 @@ export function buildWorldSpec(world: TourWorld | null | undefined, focusPoints:
     const plan = traced.get(f.id)
     if (plan?.length) return [{ outline, label: plan.join(' · '), labelSource: 'station_plan' }]
     const refs = (f.ref ?? '').split(';').map((r) => r.trim()).filter(Boolean)
-    if (refs.length > 0 && !refs.some((r) => planNumbers.has(r))) return [{ outline, label: refs.join(' · '), labelSource: 'osm' }]
+    if (planNumbers.size === 0 && refs.length > 0) return [{ outline, label: refs.join(' · '), labelSource: 'osm' }]
     return [{ outline, label: null, labelSource: null }]
   })
   const rails = features.filter((f) => f.kind === 'rail').flatMap((f) => clipPolyline(f.points.map(toWorld), bounds))
@@ -249,13 +250,13 @@ export function insideRing([x, z]: Vec2, ring: Vec2[]): boolean {
 
 /**
  * Which platforms show their label: every labelled one when the camera is within LABEL_DISTANCE_M of its target,
- * otherwise only the island the route ends on (so the opening view on a phone is not a pile of overlapping labels).
+ * none otherwise (R19: the route's "Destination" pin already names the platform, and the two would collide).
  */
-export function shownPlatformLabels(platforms: WorldPlatform[], cameraDistance: number, routeEnd: Vec2 | null): Set<number> {
+export function shownPlatformLabels(platforms: WorldPlatform[], cameraDistance: number): Set<number> {
   const shown = new Set<number>()
   platforms.forEach((p, i) => {
     if (!p.label) return
-    if (cameraDistance <= LABEL_DISTANCE_M || (routeEnd && insideRing(routeEnd, p.outline))) shown.add(i)
+    if (cameraDistance <= LABEL_DISTANCE_M) shown.add(i)
   })
   return shown
 }

@@ -98,7 +98,7 @@ heritage frontage and clock tower. Nothing is fetched from Google or Overpass at
   `blender --background --python scripts/build_station_model.py -- --footprint data/stations/chennai_central/osm.json --out data/stations/chennai_central/heritage.glb`.
   Wall and tower heights are nominal, not surveyed.
 - **Opening view.** The camera frames the heritage building and the traced walking graph; platforms run north behind
-  it and their far ends can be off-screen. Platform labels show once you zoom in or choose a route.
+  it and their far ends can be off-screen. Platform labels show once you zoom in (the route's Destination pin names its platform at the opening zoom). Only platforms fitted to the plan are labelled, with the plan's numbers; other platforms stay unlabelled because plan numbers and OSM refs disagree.
 
 Street View panoramas appear only where nodes have them **and** a Maps browser key is configured
 (`GOOGLE_MAPS_BROWSER_KEY`, optional). Without the key, the tour links out to Google Maps. **No panoramas are

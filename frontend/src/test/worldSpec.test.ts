@@ -51,14 +51,22 @@ describe('buildWorldSpec', () => {
     expect(tagged.buildings[0].height).toBe(12.5)
   })
 
-  it('platform label prefers osm ref', () => {
+  it('platform labels: plan numbers on fitted islands; OSM refs only when the plan numbers nothing', () => {
     const suburban = spec.platforms.find((p) => p.outline.some(([x]) => x === 60))!
-    expect(suburban).toMatchObject({ label: '1A', labelSource: 'osm' })
+    expect(suburban).toMatchObject({ label: null, labelSource: null }) // R18: plan numbers exist, so OSM refs are hidden
     const unnamed = spec.platforms.find((p) => p.outline.some(([x]) => x === 120))!
     expect(unnamed).toMatchObject({ label: null, labelSource: null })
     // An OSM ref naming a number the traced plan puts on another island is not shown (it would contradict it).
     const clash = buildWorldSpec(chennaiWorld([HERITAGE, PLATFORM_5_6, feature('p/9-10', 'platform', [[60, -60], [80, -60], [80, 0], [60, 0]], { ref: '9;10' })]))!
     expect(clash.platforms.find((p) => p.outline.some(([x]) => x === 60))).toMatchObject({ label: null, labelSource: null })
+    // An unfitted platform whose ref ("2;3") is not a plan number is still hidden while traced pairs exist (R18).
+    const unfitted = buildWorldSpec(chennaiWorld([HERITAGE, PLATFORM_5_6, feature('p/2-3', 'platform', [[60, -60], [80, -60], [80, 0], [60, 0]], { ref: '2;3' })]))!
+    expect(unfitted.platforms.find((p) => p.outline.some(([x]) => x === 60))).toMatchObject({ label: null, labelSource: null })
+    expect(unfitted.platforms.some((p) => p.labelSource === 'station_plan')).toBe(true)
+    // With no traced pairs at all, the OSM ref is the label.
+    const noPlan = buildWorldSpec({ ...chennaiWorld([HERITAGE, feature('p/2-3', 'platform', [[60, -60], [80, -60], [80, 0], [60, 0]], { ref: '2;3' })]),
+      alignment: { ...CHENNAI_ALIGNMENT, pairs: [], platform_labels: [] } })!
+    expect(noPlan.platforms[0]).toMatchObject({ label: '2 · 3', labelSource: 'osm' })
   })
 
   it('station_plan label for traced platforms', () => {
@@ -128,14 +136,13 @@ describe('buildWorldSpec', () => {
     expect((focus.maxX - focus.minX) * (focus.maxZ - focus.minZ)).toBeLessThan((bounds.maxX - bounds.minX) * (bounds.maxZ - bounds.minZ))
   })
 
-  it('platform labels: all when the camera is close, only the route destination island when far', () => {
+  it('platform labels: all labelled ones when the camera is close, none when far (R19)', () => {
     const traced = spec.platforms.findIndex((p) => p.label === '9 · 10')
-    const osm = spec.platforms.findIndex((p) => p.label === '1A')
     const unlabelled = spec.platforms.findIndex((p) => p.label === null)
-    expect(shownPlatformLabels(spec.platforms, LABEL_DISTANCE_M, null)).toEqual(new Set([traced, osm]))
-    expect(shownPlatformLabels(spec.platforms, LABEL_DISTANCE_M + 1, null)).toEqual(new Set())
-    expect(shownPlatformLabels(spec.platforms, 800, [-40, -60])).toEqual(new Set([traced])) // inside way/397320033
-    expect(shownPlatformLabels(spec.platforms, 800, [125, -30]).has(unlabelled)).toBe(false) // no label to show
+    expect(shownPlatformLabels(spec.platforms, LABEL_DISTANCE_M)).toEqual(new Set([traced]))
+    expect(shownPlatformLabels(spec.platforms, LABEL_DISTANCE_M).has(unlabelled)).toBe(false) // no label to show
+    expect(shownPlatformLabels(spec.platforms, LABEL_DISTANCE_M + 1)).toEqual(new Set())
+    expect(shownPlatformLabels(spec.platforms, 800)).toEqual(new Set())
   })
 
   it('no alignment, no world spec', () => {

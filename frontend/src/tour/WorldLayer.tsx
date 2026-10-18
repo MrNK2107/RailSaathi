@@ -24,13 +24,11 @@ export interface WorldLayerProps {
   world: WorldSpec
   /** Absolute URL of the heritage .glb, or null (then the footprint is extruded). */
   modelUrl: string | null
-  /** Floor point where the route ends: that island keeps its label at any zoom. */
-  routeEnd?: Vec2 | null
   /** Tooltip for labels whose number comes from the station plan. */
   platformFromPlan?: string
 }
 
-export default function WorldLayer({ world, modelUrl, routeEnd = null, platformFromPlan }: WorldLayerProps) {
+export default function WorldLayer({ world, modelUrl, platformFromPlan }: WorldLayerProps) {
   const { minX, maxX, minZ, maxZ } = world.bounds
   // Platform labels sit at the station end of each platform (towards the heritage building), where the route arrives.
   const toward = useMemo<Vec2>(() => (world.heritage ? polygonCentroid(world.heritage.outline) : [0, 0]), [world.heritage])
@@ -45,7 +43,7 @@ export default function WorldLayer({ world, modelUrl, routeEnd = null, platformF
       setClose(now)
     }
   })
-  const shown = useMemo(() => shownPlatformLabels(world.platforms, close ? 0 : Infinity, routeEnd), [world.platforms, close, routeEnd])
+  const shown = useMemo(() => shownPlatformLabels(world.platforms, close ? 0 : Infinity), [world.platforms, close])
   return (
     <group name="world">
       <mesh name="world-ground" rotation={[-Math.PI / 2, 0, 0]} position={[(minX + maxX) / 2, -0.02, (minZ + maxZ) / 2]}>
