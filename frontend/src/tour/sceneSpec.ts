@@ -187,8 +187,9 @@ export function liftPolyline(points: Vec2[], y0: number, y1: number): Vec3[] {
 
 export function buildSceneSpec(tour: StationTour): SceneSpec {
   const frame = sceneFrame(tour)
-  const world = tour.scale ? buildWorldSpec(tour.world) : null
   const floorAt = floorMapper(tour, frame)
+  // The opening frame holds the heritage building and the traced graph (ruling R17).
+  const world = tour.scale ? buildWorldSpec(tour.world, tour.routing_enabled ? tour.nodes.map((n) => floorAt(n.position, n.position_m)) : []) : null
   const levels = sceneLevels(tour)
   const traced = tour.routing_enabled
   const panoNodes = new Set(tour.panoramas.map((p) => p.node_id))

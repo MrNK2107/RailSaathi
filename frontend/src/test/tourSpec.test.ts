@@ -302,8 +302,17 @@ describe('with an OpenStreetMap world', () => {
     expect(wallTax.position[0]).toBeCloseTo(x, 2)
     expect(wallTax.position[2]).toBeCloseTo(z, 2)
     expect(spec.areas).toEqual([]) // the OSM buildings and platforms replace the traced boxes
-    // R15: the opening pose frames the platforms and the heritage building (focus), not every building drawn.
-    const { focus } = spec.world!
+    // R15/R17: the opening pose frames the heritage building and every traced node (focus), not every building drawn.
+    // (Clamped to the bounds: this small test world's bounds end before the southern pins do.)
+    const { focus, bounds } = spec.world!
+    const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
+    for (const p of spec.pins) {
+      const [x, z] = [clamp(p.position[0], bounds.minX, bounds.maxX), clamp(p.position[2], bounds.minZ, bounds.maxZ)]
+      expect(x).toBeGreaterThanOrEqual(focus.minX)
+      expect(x).toBeLessThanOrEqual(focus.maxX)
+      expect(z).toBeGreaterThanOrEqual(focus.minZ)
+      expect(z).toBeLessThanOrEqual(focus.maxZ)
+    }
     expect(spec.camera).toEqual(frameBounds(focus, 1))
     expect(spec.camera.target[0]).toBeCloseTo((focus.minX + focus.maxX) / 2, 3)
     expect(spec.camera.target[2]).toBeCloseTo((focus.minZ + focus.maxZ) / 2, 3)

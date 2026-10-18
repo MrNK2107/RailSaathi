@@ -96,16 +96,35 @@ describe('buildWorldSpec', () => {
     for (const p of spec.platforms) for (const [, z] of p.outline) expect(z).toBeGreaterThanOrEqual(minZ - 1e-6)
   })
 
-  it('focus (R15): platforms and heritage plus a margin, inside the bounds, smaller than the bounds when far buildings exist', () => {
+  it('focus (R17): heritage and graph nodes plus a margin, not the platforms, kept inside the bounds', () => {
+    const nodes: [number, number][] = [[10.94, -1.96], [-20, -60], [40, 30]]
+    const { focus, bounds, heritage } = buildWorldSpec(chennaiWorld(), nodes)!
+    const holds = ([x, z]: [number, number]) => x >= focus.minX && x <= focus.maxX && z >= focus.minZ && z <= focus.maxZ
+    for (const p of [...heritage!.outline, ...nodes]) expect(holds(p)).toBe(true)
+    expect(focus.minX).toBeCloseTo(-108.32 - FOCUS_MARGIN_M, 3)
+    expect(focus.maxX).toBeCloseTo(40 + FOCUS_MARGIN_M, 3)
+    expect(focus.minZ).toBeCloseTo(-60 - FOCUS_MARGIN_M, 3)
+    expect(focus.maxZ).toBeCloseTo(30 + FOCUS_MARGIN_M, 3)
+    // The far (north) ends of the platforms are drawn but not framed: way/397320033 runs to the bounds' north edge.
+    expect(focus.minZ).toBeGreaterThan(bounds.minZ + 100)
+    expect(spec.platforms.some((p) => p.outline.some((pt) => !holds(pt)))).toBe(true)
+    // Clamped inside the bounds.
+    const wide = buildWorldSpec(chennaiWorld(), [[1000, 1000]])!
+    expect(wide.focus.maxX).toBe(wide.bounds.maxX)
+    expect(wide.focus.maxZ).toBe(wide.bounds.maxZ)
+  })
+
+  it('focus without graph nodes is the heritage building plus the margin, inside the bounds', () => {
     const { focus, bounds } = spec
     expect(focus.minX).toBeGreaterThanOrEqual(bounds.minX)
     expect(focus.maxX).toBeLessThanOrEqual(bounds.maxX)
     expect(focus.minZ).toBeGreaterThanOrEqual(bounds.minZ)
     expect(focus.maxZ).toBeLessThanOrEqual(bounds.maxZ)
-    // Heritage reaches x = -108.32; the platforms reach x = 130 and z = 60. b/plain (x -155, z 85) is outside the focus.
+    // Heritage ring: x -108.32..4.01, z 1..25.9.
     expect(focus.minX).toBeCloseTo(-108.32 - FOCUS_MARGIN_M, 3)
-    expect(focus.maxX).toBe(bounds.maxX) // 130 + margin is past the bounds: kept inside
-    expect(focus.maxZ).toBeCloseTo(60 + FOCUS_MARGIN_M, 3)
+    expect(focus.maxX).toBeCloseTo(4.01 + FOCUS_MARGIN_M, 3)
+    expect(focus.minZ).toBeCloseTo(1 - FOCUS_MARGIN_M, 3)
+    expect(focus.maxZ).toBeCloseTo(25.9 + FOCUS_MARGIN_M, 3)
     expect((focus.maxX - focus.minX) * (focus.maxZ - focus.minZ)).toBeLessThan((bounds.maxX - bounds.minX) * (bounds.maxZ - bounds.minZ))
   })
 

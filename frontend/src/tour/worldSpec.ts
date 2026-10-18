@@ -23,7 +23,7 @@ export const HERITAGE_FALLBACK_HEIGHT_M = 18
 export const COMPLEX_REACH_M = 250
 /** Camera pitch above the horizon when framing the complex from the south. */
 export const FRAME_PITCH_DEG = 55
-/** Margin around the platforms and the heritage building in the opening frame (ruling R15). */
+/** Margin around the heritage building and the traced graph in the opening frame (rulings R15, R17). */
 export const FOCUS_MARGIN_M = 18
 /** Platform labels show only when the camera is this close to its target (the route's destination island always shows). */
 export const LABEL_DISTANCE_M = 150
@@ -44,7 +44,10 @@ export interface WorldSpec {
   heritage: WorldHeritage | null
   /** Everything drawn (ground, clipping, far plane). */
   bounds: WorldBounds
-  /** What the opening camera frames: the platforms and the heritage building plus FOCUS_MARGIN_M, within `bounds`. */
+  /**
+   * What the opening camera frames (R17): the heritage ring and the traced graph's nodes (`focusPoints`, already in the
+   * world frame) plus FOCUS_MARGIN_M, kept inside `bounds`. Platforms do not count: their far ends would pull it north.
+   */
   focus: WorldBounds
   attribution: string
 }
@@ -184,7 +187,7 @@ function tracedLabels(alignment: TourWorldAlignment): Map<string, string[]> {
  * OSM ref ("3;4" shown as "3 · 4"), unless the ref names a number the plan already puts elsewhere: the plan and OSM
  * number the platforms differently here (metadata parity_basis), and two "9 · 10" labels would contradict each other.
  */
-export function buildWorldSpec(world: TourWorld | null | undefined): WorldSpec | null {
+export function buildWorldSpec(world: TourWorld | null | undefined, focusPoints: Vec2[] = []): WorldSpec | null {
   if (!world || !world.alignment) return null
   const { features } = world
   const bounds = complexBounds(features)
@@ -217,7 +220,7 @@ export function buildWorldSpec(world: TourWorld | null | undefined): WorldSpec |
     height: world.model?.height_m ?? HERITAGE_HEIGHT_M,
   } : null
 
-  const focus = focusBounds([...platforms.map((p) => p.outline), ...(heritage ? [heritage.outline] : [])], bounds)
+  const focus = focusBounds([...(heritage ? [heritage.outline] : []), focusPoints], bounds)
   return { buildings, roofs, platforms, rails, heritage, bounds, focus, attribution: OSM_ATTRIBUTION }
 }
 
