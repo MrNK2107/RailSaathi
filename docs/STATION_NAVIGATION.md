@@ -106,6 +106,26 @@ authored yet.** The owner finds them with `uv run python scripts/stations.py pan
 server-side Maps key with the Street View Static API in `GOOGLE_MAPS_API_KEY` (or the variable named by `--key-env`). Street View under the production Content-Security-Policy has not been tested yet, because there is no Maps
 key.
 
+### Measured on 2026-10-18 (16 GB RAM laptop, RTX 5060 Laptop 8 GB VRAM)
+
+- **Tests:** backend 1337 passed; frontend unit 437 passed; Playwright e2e 27 passed (including the 3D tour of
+  Chennai Central).
+- **Local model (gemma4:latest via Ollama): not measured.** Latency for "What is RAC?" and the planner turn was
+  not recorded. The load itself was aborted by a guard: free RAM was 2.4 GB before the load and fell to 0.0-0.8 GB
+  while `--warm-llm` loaded the model (VRAM rose from 1.5 GB to 4.7 GB of 8 GB), so the run was stopped and the model
+  unloaded. Free RAM recovered to 6.8 GB afterwards. Run the demo on a machine with more free RAM, or use
+  `OLLAMA_MODEL=llama3.2:3b`.
+- **Ollama unreachable** (simulated with `LLM_PROVIDER=ollama OLLAMA_URL=http://127.0.0.1:9`, not by stopping
+  Ollama): the planner still answered by rules (2.2 s, Chennai to Bengaluru, date resolved, asked for passenger
+  count). The ticketing chat answered HTTP 200 with `status: "unavailable"` and official links after 2.3 s, with no
+  error. With Ollama as the only provider it does not switch to the rule-based agent.
+- **Public link (`--public`), phone frame rate, mobile first-load time: not measured.** cloudflared is not installed
+  on this machine and was not installed. Hand-off for whoever runs it:
+  1. Install cloudflared, run `python run.py --public`, open the printed `https://...trycloudflare.com` link.
+  2. On two phones, one on mobile data: open the tour and the chat; check there is no certificate warning.
+  3. Record the first-load time (seconds to an interactive tour), the frame rate impression while orbiting, and
+     whether the chat answered.
+
 ## Authoring stations
 
 Stations are authored and published with a CLI. The service never writes station data.

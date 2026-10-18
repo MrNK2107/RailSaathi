@@ -81,11 +81,15 @@ python run.py --warm-llm                           # load the local Ollama model
   runs the backend without `--reload`, and sets `PUBLIC_TUNNEL=1` so rate limits count each visitor separately.
   Why `vite preview` and not the dev server: the production build is minified and split into chunks, so the first
   load over a mobile connection is much smaller, and a tunnel makes the dev server's many small module requests
-  slow. (Chosen by design; the first load was not timed on Fast 3G.)
+  slow. (Chosen by design; the first load was not timed on Fast 3G, and the tunnel itself and phone behaviour have
+  not been measured: cloudflared was not available when this was verified, so this is to be measured.)
 - **`--warm-llm`** sends Ollama an empty prompt so the local model (`OLLAMA_MODEL`, default `gemma4:latest`) is
   loaded before the first visitor, and prints how long that took. It needs Ollama as `LLM_PROVIDER` or
   `LLM_FALLBACK`. With Ollama in use, `run.py` also warns when under 10 GB of RAM is free (try
-  `OLLAMA_MODEL=llama3.2:3b`) or when more than one model is loaded.
+  `OLLAMA_MODEL=llama3.2:3b`) or when more than one model is loaded. Measured 2026-10-18 on a 16 GB RAM, RTX 5060
+  Laptop 8 GB machine with about 2.4 GB RAM free: loading gemma4 drove free RAM to about 0 GB (VRAM 1.5 to 4.7 GB), so
+  close other apps first. Answer latency with gemma4 is not measured; see
+  [STATION_NAVIGATION.md](docs/STATION_NAVIGATION.md).
 - **Live NTES data.** `run.py` sets `RAILWAY_DATA_MODE=ntes` unless you set it yourself (see below).
 
 Or start the two servers yourself:
