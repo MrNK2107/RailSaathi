@@ -55,7 +55,7 @@ from app.navigation.services.station_store import CATALOGUE_FILE, STATION_ID_RE 
 from app.navigation.world import WORLD_FILE, elements_to_features, to_local  # noqa: E402
 
 VERSION_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.\-]{0,63}$")
-OPTIONAL_FILES = ("metadata.json", "info.json")
+OPTIONAL_FILES = ("metadata.json", "info.json", WORLD_FILE)
 
 
 # ---- validate -----------------------------------------------------------------------------------------------
