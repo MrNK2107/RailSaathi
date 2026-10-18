@@ -87,8 +87,8 @@ python run.py --warm-llm                           # load the local Ollama model
   loaded before the first visitor, and prints how long that took. It needs Ollama as `LLM_PROVIDER` or
   `LLM_FALLBACK`. With Ollama in use, `run.py` also warns when under 10 GB of RAM is free (try
   `OLLAMA_MODEL=llama3.2:3b`) or when more than one model is loaded. Measured 2026-10-18 on a 16 GB RAM, RTX 5060
-  Laptop 8 GB machine with about 2.4 GB RAM free: loading gemma4 drove free RAM to about 0 GB (VRAM 1.5 to 4.7 GB), so
-  close other apps first. Answer latency with gemma4 is not measured; see
+  Laptop 8 GB machine with about 3.7 GB RAM free (2.4 GB when the load started): loading gemma4 drove the free-RAM counter to 0.0 GB at its
+  lowest (it excludes standby cache, so this may overstate real pressure; VRAM 1.5 to 4.7 GB), so close other apps first. Answer latency with gemma4 is not measured; see
   [STATION_NAVIGATION.md](docs/STATION_NAVIGATION.md).
 - **Live NTES data.** `run.py` sets `RAILWAY_DATA_MODE=ntes` unless you set it yourself (see below).
 

@@ -111,9 +111,11 @@ key.
 - **Tests:** backend 1337 passed; frontend unit 437 passed; Playwright e2e 27 passed (including the 3D tour of
   Chennai Central).
 - **Local model (gemma4:latest via Ollama): not measured.** Latency for "What is RAC?" and the planner turn was
-  not recorded. The load itself was aborted by a guard: free RAM was 2.4 GB before the load and fell to 0.0-0.8 GB
-  while `--warm-llm` loaded the model (VRAM rose from 1.5 GB to 4.7 GB of 8 GB), so the run was stopped and the model
-  unloaded. Free RAM recovered to 6.8 GB afterwards. Run the demo on a machine with more free RAM, or use
+  not recorded. The load itself was aborted by a guard: free RAM was about 3.7 GB before the load, 2.4 GB when the
+  warm load started, and reached 0.0 GB at its lowest (VRAM rose from 1.5 GB to 4.7 GB of 8 GB), so the run was
+  stopped and the model unloaded. Windows' free-memory counter excludes the standby cache, so 0.0 GB may overstate
+  real pressure. Free RAM recovered to 6.8 GB afterwards. The provenance check (the answer must name
+  "gemma4 (local)") was not observed because no gemma4 turn completed. Run the demo on a machine with more free RAM, or use
   `OLLAMA_MODEL=llama3.2:3b`.
 - **Ollama unreachable** (simulated with `LLM_PROVIDER=ollama OLLAMA_URL=http://127.0.0.1:9`, not by stopping
   Ollama): the planner still answered by rules (2.2 s, Chennai to Bengaluru, date resolved, asked for passenger

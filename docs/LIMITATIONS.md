@@ -103,9 +103,10 @@ or beacon positioning, and languages other than English and Tamil.
   one NAT share a bucket.
 - Gemini runs on Vertex AI. When it is slow or down, the planner falls back to rules, and ticketing answers
   `unavailable` with official links. No LLM outage produces a 500.
-- **Local model memory (2026-10-18, 16 GB RAM, RTX 5060 Laptop 8 GB).** With about 2.4 GB RAM free, loading
-  gemma4 through Ollama pushed free RAM to about 0 GB (VRAM 1.5 to 4.7 GB), so gemma4 answer latency was not
-  measured. With Ollama as the only LLM and unreachable, ticketing chat answers `unavailable` with official links
+- **Local model memory (2026-10-18, 16 GB RAM, RTX 5060 Laptop 8 GB).** With about 3.7 GB RAM free (2.4 GB when
+  the load started), loading gemma4 through Ollama pushed the free-RAM counter to 0.0 GB at its lowest (it excludes
+  standby cache, so this may overstate real pressure; VRAM 1.5 to 4.7 GB), so gemma4 answer latency and the
+  "gemma4 (local)" provenance string were not measured. With Ollama as the only LLM and unreachable, ticketing chat answers `unavailable` with official links
   (no error) rather than rule-based guidance; the planner falls back to rules.
 - **Public demo link not verified end to end.** `python run.py --public` was unit-tested only: cloudflared was
   not installed, so the tunnel, certificate behaviour, phone frame rate and mobile first-load time are
