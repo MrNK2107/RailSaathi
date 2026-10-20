@@ -1,6 +1,6 @@
 // AR guidance component and its place in the wayfinder. Camera, motion permission and frame capture are mocked
 // (src/ar/device.ts, src/ar/frame.ts); everything else (state machine, budget, maths, copy) is the real code.
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, getConfig, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from '../App'
 import { ApiError, type ApiClient } from '../api/client'
@@ -164,8 +164,10 @@ describe('AR guidance', () => {
   it('an auto re-localise that comes due in a hidden tab runs when the tab is visible again', async () => {
     const timers: { fn: () => void; ms: number }[] = []
     const real = globalThis.setTimeout
+    // Testing Library's own findBy/waitFor timeout must keep running for real, so it is not mistaken for the AR timer.
+    const libTimeout = getConfig().asyncUtilTimeout
     const spy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((fn: () => void, ms?: number) => {
-      if ((ms ?? 0) > 1_000) { timers.push({ fn, ms: ms ?? 0 }); return 0 as unknown as ReturnType<typeof setTimeout> }
+      if ((ms ?? 0) > 1_000 && ms !== libTimeout) { timers.push({ fn, ms: ms ?? 0 }); return 0 as unknown as ReturnType<typeof setTimeout> }
       return real(fn, ms)
     }) as typeof setTimeout)
     let hidden = false

@@ -1,4 +1,9 @@
 import '@testing-library/jest-dom/vitest'
+import { configure } from '@testing-library/react'
+
+// Screens are lazy-loaded; on a cold module graph under the full parallel run the first import can exceed the default
+// 1 s findBy/waitFor budget, which made a different handful of tests fail each run. Give async queries more headroom.
+configure({ asyncUtilTimeout: 5000 })
 
 // jsdom reports errors that React rethrows inside an error boundary ("Error: Uncaught [...]") on its virtual console,
 // which Vitest 4 wires to the runner's own console. Route them through the test's console.error instead, so tests that
