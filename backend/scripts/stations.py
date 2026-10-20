@@ -59,7 +59,7 @@ from app.navigation.services.graph_builder import build_graph  # noqa: E402
 from app.navigation.services.route_validator import check_map_image, validate_station_data  # noqa: E402
 from app.navigation.services.routing_engine import find_route  # noqa: E402
 from app.navigation.services.station_store import CATALOGUE_FILE, MODEL_FILE, STATION_ID_RE  # noqa: E402
-from app.navigation.world import WORLD_FILE, elements_to_features, to_local  # noqa: E402
+from app.navigation.world import WORLD_FILE, elements_to_features  # noqa: E402
 
 VERSION_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.\-]{0,63}$")
 OPTIONAL_FILES = ("metadata.json", "info.json", WORLD_FILE)
