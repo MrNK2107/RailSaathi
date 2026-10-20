@@ -67,7 +67,7 @@ def test_primary_used_when_healthy():
     assert llm.generate(USER, (), Deadline(20)).text == "from gemini"
     assert secondary.calls == 0
     assert llm.name == "gemini"
-    assert llm.status() == {"active": "gemini", "primary_cooling_until": None}
+    assert llm.status() == {"active": "gemini", "reason": None, "cooldown_remaining_s": None}
 
 
 def test_auth_error_falls_back_and_cools_down():
@@ -77,7 +77,11 @@ def test_auth_error_falls_back_and_cools_down():
     llm = FallbackChatLLM(primary, secondary, clock=clock)
     turn = llm.generate(USER, (), Deadline(20))
     assert turn.text == "from gemma" and turn.model == "gemma4"
-    assert llm.status() == {"active": "gemma4", "primary_cooling_until": clock.now + COOLDOWN_SECONDS}
+    assert llm.status() == {"active": "gemma4", "reason": "primary_auth_failed",
+                            "cooldown_remaining_s": COOLDOWN_SECONDS}
+    clock.now += 10
+    assert llm.status()["cooldown_remaining_s"] == COOLDOWN_SECONDS - 10
+    clock.now -= 10
 
     clock.now += 30  # still cooling: straight to the secondary
     assert llm.generate(USER, (), Deadline(20)).text == "from gemma"
@@ -86,7 +90,7 @@ def test_auth_error_falls_back_and_cools_down():
     clock.now += 31  # 61 s after the failure: the primary is tried again
     assert llm.generate(USER, (), Deadline(20)).text == "from gemini"
     assert primary.calls == 2
-    assert llm.status() == {"active": "gemini", "primary_cooling_until": None}
+    assert llm.status() == {"active": "gemini", "reason": None, "cooldown_remaining_s": None}
 
 
 def test_timeout_does_not_cool_down():
@@ -97,7 +101,7 @@ def test_timeout_does_not_cool_down():
         llm.generate(USER, (), Deadline(20))
     assert err.value.kind is LLMErrorKind.TIMEOUT
     assert secondary.calls == 0
-    assert llm.status()["primary_cooling_until"] is None
+    assert llm.status()["cooldown_remaining_s"] is None and llm.status()["reason"] is None
     assert llm.generate(USER, (), Deadline(20)).text == "from gemini"
 
 
@@ -191,7 +195,8 @@ def test_extractor_source_names_the_answering_provider_in_worker_threads():
 
 def test_build_chat_llm_ollama_only():
     llm, reason = build_chat_llm(OLLAMA_SETTINGS)
-    assert isinstance(llm, OllamaChatLLM) and reason is None
+    assert isinstance(llm, FallbackChatLLM) and isinstance(llm.primary, OllamaChatLLM) and reason is None
+    assert llm.secondary.name == "rules"  # the rule-based agent answers when Ollama cannot
     llm, reason = build_llm(OLLAMA_SETTINGS)
     assert isinstance(llm, OllamaIntentProvider) and reason is None
 
@@ -200,7 +205,8 @@ def test_build_chat_llm_gemini_unconfigured_uses_ollama():
     settings = Settings(_env_file=None, llm_provider="gemini", llm_fallback="ollama", gcp_project="",
                         gemini_api_key="")
     llm, reason = build_chat_llm(settings)
-    assert isinstance(llm, OllamaChatLLM) and reason == "gemini_not_configured_using_ollama"
+    assert isinstance(llm, FallbackChatLLM) and isinstance(llm.primary, OllamaChatLLM)
+    assert reason == "gemini_not_configured_using_ollama"
     llm, reason = build_llm(settings)
     assert isinstance(llm, OllamaIntentProvider) and reason == "gemini_not_configured_using_ollama"
 
@@ -264,7 +270,7 @@ def test_health_reports_active_model():
     container = build_container(settings, clock=FixedClock(FIXED_NOW), use_configured_llm=False, chat_llm=chat)
     body = TestClient(create_app(settings, container)).get("/api/health").json()
     assert body["ai"]["chat"]["active"] == "gemini"
-    assert body["ai"]["chat"]["primary_cooling_until"] is None
+    assert body["ai"]["chat"]["cooldown_remaining_s"] is None and body["ai"]["chat"]["reason"] is None
     assert body["llm"]["chat"]["active"] == "gemini"
 
 
@@ -292,3 +298,66 @@ def test_ollama_lock_wait_counts_against_deadline():
     time.sleep(0.3)
     assert calls == []  # the abandoned attempt never reached the model
     assert caller.chat({"messages": []}, Deadline(5))["message"]["content"] == "ok"
+
+
+# --- rule-based rescue when Ollama is in the chain; health reason; extractor pause -------------------------------
+
+def test_rescue_on_covers_other_errors_without_cooldown():
+    primary = FakeChat("gemma4", LLMError(LLMErrorKind.TIMEOUT), "from gemma")
+    rules = FakeChat("rules", "from rules")
+    llm = FallbackChatLLM(primary, rules, rescue_on=frozenset(LLMErrorKind), min_seconds=0.0)
+    assert llm.generate(USER, (), Deadline(0.5)).text == "from rules"  # min_seconds=0: no deadline floor
+    assert llm.status()["reason"] is None  # TIMEOUT is not a cooldown error
+    assert llm.generate(USER, (), Deadline(20)).text == "from gemma"
+
+
+def test_status_reason_names_primary_error():
+    primary = FakeChat("gemini", LLMError(LLMErrorKind.THROTTLED))
+    llm = FallbackChatLLM(primary, FakeChat("gemma4", "x"))
+    llm.generate(USER, (), Deadline(20))
+    assert llm.status()["reason"] == "primary_throttled"
+
+
+def test_ollama_provider_refused_connection_answers_with_rules(db):
+    def refuse(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refused", request=request)
+
+    from app.container import _rules_rescue
+
+    llm = _rules_rescue(OllamaChatLLM(OLLAMA_SETTINGS, transport=httpx.MockTransport(refuse)))
+    res = AgentController(llm, db, now=lambda: FIXED_NOW).process_message("What is RAC?")
+    assert res.status == "answered"
+    assert res.provenance["source"].startswith("RailSaathi rule-based guidance")
+
+
+def test_ollama_chat_api_falls_back_to_rules_over_http():
+    """LLM_PROVIDER=ollama with nothing listening (a refused connection): /api/chat still answers, rule-based."""
+    settings = Settings(_env_file=None, llm_provider="ollama", ollama_url="http://127.0.0.1:1")
+    chat_llm, reason = build_chat_llm(settings)
+    assert reason is None and isinstance(chat_llm, FallbackChatLLM) and chat_llm.secondary.name == "rules"
+    container = build_container(settings, clock=FixedClock(FIXED_NOW), use_configured_llm=False, chat_llm=chat_llm)
+    body = TestClient(create_app(settings, container)).post("/api/chat", json={"message": "What is RAC?"}).json()
+    assert body["status"] == "answered"
+    assert body["provenance"]["source"].startswith("RailSaathi rule-based guidance")
+
+
+def test_gemini_only_chain_is_not_wrapped():
+    settings = Settings(_env_file=None, llm_provider="gemini", gemini_api_key="k")
+    llm, _ = build_chat_llm(settings)
+    assert llm is not None and not isinstance(llm, FallbackChatLLM)
+
+
+def test_extractor_status_nests_fallback_and_keeps_boolean_active(resolver):
+    chain = FallbackIntentLLM(FakeIntent("gemini", LLMError(LLMErrorKind.AUTH)), FakeIntent("gemma4", IntentUpdate()))
+    extractor = IntentExtractor(RuleBasedExtractor(resolver), chain)
+    status = extractor.llm_status
+    assert status["active"] is True and status["fallback"]["active"] == "gemini"
+
+
+def test_extractor_does_not_pause_over_a_fallback_wrapper(resolver):
+    chain = FallbackIntentLLM(FakeIntent("gemini", LLMError(LLMErrorKind.AUTH)),
+                              FakeIntent("gemma4", LLMError(LLMErrorKind.NOT_CONFIGURED)))
+    extractor = IntentExtractor(RuleBasedExtractor(resolver), chain)
+    ctx = _ctx()
+    extractor.extract("Chennai to Madurai", ctx)
+    assert extractor.llm_status["active"] is True

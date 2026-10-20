@@ -33,7 +33,11 @@ class IntentExtractor:
         if self._llm is None:
             return {"provider": None, "active": False, "reason": self._unavailable_reason or "not_configured"}
         paused = time.monotonic() < self._paused_until
-        return {"provider": self._llm.name, "active": not paused, "last_error": self._last_error}
+        status = {"provider": self._llm.name, "active": not paused, "last_error": self._last_error}
+        fallback = getattr(self._llm, "status", None)  # a fallback wrapper: which model answers now and why
+        if callable(fallback):
+            status["fallback"] = fallback()
+        return status
 
     def extract(self, message: str, context: ExtractionContext) -> ExtractionResult:
         if self._llm is None:
@@ -46,7 +50,8 @@ class IntentExtractor:
             update = self._llm.extract_intent(message, context)
         except LLMError as err:
             self._last_error = err.kind.value
-            if err.kind in PERSISTENT_ERRORS:
+            # A fallback wrapper runs its own cooldown; pausing here too would skip its secondary model.
+            if err.kind in PERSISTENT_ERRORS and not callable(getattr(self._llm, "status", None)):
                 self._paused_until = time.monotonic() + PAUSE_SECONDS
             log.warning("LLM extraction failed (%s); using rule-based fallback", err.kind.value)
             return ExtractionResult(self._rules.extract(message, context.pending_field), "rules", err.kind.value)

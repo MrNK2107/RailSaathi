@@ -10,6 +10,7 @@ Use the factory with uvicorn so nothing is built at import time:
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from app.api.errors import register_error_handlers
 from app.api.middleware import BodySizeLimitMiddleware, RateLimitMiddleware
@@ -49,6 +50,7 @@ def create_app(settings: Settings | None = None, container: Container | None = N
     limiter = (RedisRateLimiter(c.redis, settings.redis_key_prefix) if c.redis is not None
                else InMemoryRateLimiter(settings.rate_limit_max_keys))
     app.state.rate_limiter = limiter  # also used by routes with their own budgets (AR localisation)
+    app.add_middleware(GZipMiddleware, minimum_size=1024)  # the tour JSON is large; no streaming responses exist
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_body_bytes,
                        path_limits={LOCALIZE_PATH: settings.localize_max_body_bytes})
     app.add_middleware(RateLimitMiddleware, limiter=limiter, per_minute=settings.rate_limit_per_minute,

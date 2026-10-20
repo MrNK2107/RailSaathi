@@ -29,6 +29,15 @@ def make(root=STATIONS_DIR, vision=None, **kw) -> TestClient:
     return TestClient(create_app(settings, container))
 
 
+def test_tour_is_gzipped_when_the_client_accepts_it():
+    client = make(vision=MockVisionLocalizer([]))
+    plain = client.get("/api/stations/chennai_central/tour", headers={"Accept-Encoding": "identity"})
+    zipped = client.get("/api/stations/chennai_central/tour", headers={"Accept-Encoding": "gzip"})
+    assert "content-encoding" not in plain.headers
+    assert zipped.headers["content-encoding"] == "gzip"
+    assert zipped.json() == plain.json()  # the client decompresses transparently
+
+
 # ---- tour ------------------------------------------------------------------------------------------------------
 
 def test_chennai_tour_has_levels_areas_graph_in_metres_and_provenance():

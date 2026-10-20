@@ -129,7 +129,8 @@ def test_pair_platforms_picks_the_true_window_in_proper_orientation():
         "platform_e": "way/5", "platform_f": "way/5"}
     assert [p["number"] for p in pairs] == [7, 8, 9, 10, 11, 12]  # ordered across the platforms (plan lateral order)
     best = min(info["candidates_tried"], key=lambda t: t["residual_m"])
-    assert best["features"] == ["way/5", "way/4", "way/3"]  # runs are listed in across-platform order and best["residual_m"] < 0.01
+    assert best["features"] == ["way/5", "way/4", "way/3"]  # runs are listed in across-platform order
+    assert best["residual_m"] < 0.01
     assert info["runner_up"]["features"] != best["features"] and info["runner_up"]["residual_m"] > 5
     sim = fit_similarity(*fit_points(pairs))
     assert sim.rotation_deg == pytest.approx(-90, abs=0.1)

@@ -109,7 +109,7 @@ def test_missing_configuration_raises_not_configured():
 # ---- orchestrator fallback ----------------------------------------------------
 
 def test_extractor_falls_back_to_rules_and_pauses_on_access_denied(resolver):
-    llm = MagicMock()
+    llm = MagicMock(spec=["name", "extract_intent"])  # no `status`: not a fallback wrapper, so the extractor pauses
     llm.name = "bedrock"
     llm.extract_intent.side_effect = LLMError(LLMErrorKind.ACCESS_DENIED, "denied")
     extractor = IntentExtractor(RuleBasedExtractor(resolver), llm)

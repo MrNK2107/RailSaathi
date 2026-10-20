@@ -88,7 +88,11 @@ class Container:
     def chat_llm_status(self) -> dict:
         status = {"provider": self.agent_llm.name, "llm": self.chat_llm is not None, "reason": self.chat_llm_reason}
         fallback = getattr(self.chat_llm, "status", None)  # FallbackChatLLM: the model answering now, cooldown
-        return {**status, **fallback()} if callable(fallback) else status
+        if not callable(fallback):
+            return status
+        merged = {**status, **fallback()}
+        merged["reason"] = status["reason"] or merged["reason"]  # the build-time reason wins over the runtime one
+        return merged
 
 
 def build_clock(settings: Settings) -> Clock:
@@ -157,6 +161,16 @@ def build_llm(settings: Settings) -> tuple[IntentLLM | None, str | None]:
         return None, f"bedrock_{err.kind.value}"
 
 
+def _rules_rescue(chain: ChatLLM) -> ChatLLM:
+    """A chain containing the local model never leaves the passenger without an answer: any LLM error falls back to
+    the rule-based agent at once (no minimum deadline, no cooldown: the local model may come back any moment)."""
+    from app.agent.keyword_llm import KeywordChatLLM
+    from app.llm.base import LLMErrorKind
+    from app.llm.fallback import FallbackChatLLM
+
+    return FallbackChatLLM(chain, KeywordChatLLM(), rescue_on=frozenset(LLMErrorKind), min_seconds=0.0)
+
+
 def build_chat_llm(settings: Settings) -> tuple[ChatLLM | None, str | None]:
     """Ticketing agent LLM: (llm, reason_if_unavailable). Gemini, or the local Ollama model in development
     (alone, or as Gemini's fallback with LLM_FALLBACK=ollama); anything else (or a construction failure) returns None
@@ -171,14 +185,15 @@ def build_chat_llm(settings: Settings) -> tuple[ChatLLM | None, str | None]:
             return None, "llm_disabled"
         from app.llm.ollama import OllamaChatLLM
 
-        return OllamaChatLLM(settings, system_instruction=SYSTEM_INSTRUCTION), None
+        return _rules_rescue(OllamaChatLLM(settings, system_instruction=SYSTEM_INSTRUCTION)), None
     if choice != "gemini":
         return None, "llm_disabled"
     if not settings.gemini_configured:
         if _ollama_fallback(settings):
             from app.llm.ollama import OllamaChatLLM
 
-            return OllamaChatLLM(settings, system_instruction=SYSTEM_INSTRUCTION), "gemini_not_configured_using_ollama"
+            return (_rules_rescue(OllamaChatLLM(settings, system_instruction=SYSTEM_INSTRUCTION)),
+                    "gemini_not_configured_using_ollama")
         return None, "gemini_not_configured"
     try:
         from app.llm.gemini import GeminiChatLLM
@@ -191,7 +206,7 @@ def build_chat_llm(settings: Settings) -> tuple[ChatLLM | None, str | None]:
         from app.llm.fallback import FallbackChatLLM
         from app.llm.ollama import OllamaChatLLM
 
-        return FallbackChatLLM(gemini, OllamaChatLLM(settings, system_instruction=SYSTEM_INSTRUCTION)), None
+        return _rules_rescue(FallbackChatLLM(gemini, OllamaChatLLM(settings, system_instruction=SYSTEM_INSTRUCTION))), None
     return gemini, None
 
 

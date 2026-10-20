@@ -31,11 +31,17 @@ _ids = itertools.count()
 
 
 class _Fallback:
-    def __init__(self, primary, secondary, clock: Callable[[], float] = time.monotonic) -> None:
+    def __init__(self, primary, secondary, clock: Callable[[], float] = time.monotonic, *,
+                 rescue_on: frozenset[LLMErrorKind] = FALLBACK_ERRORS,
+                 min_seconds: float = MIN_FALLBACK_SECONDS) -> None:
         self.primary = primary
         self.secondary = secondary
         self._clock = clock
+        # `rescue_on`: the error kinds the secondary answers instead; only FALLBACK_ERRORS also start the cooldown.
+        self._rescue_on = rescue_on
+        self._min_seconds = min_seconds
         self._cooling_until: float | None = None
+        self._last_error: LLMErrorKind | None = None
         self._answered: contextvars.ContextVar[str | None] = contextvars.ContextVar(
             f"llm_fallback_answered_{next(_ids)}", default=None)
 
@@ -49,9 +55,12 @@ class _Fallback:
         return self._cooling_until is not None
 
     def status(self) -> dict:
+        """Which model answers now and why: `reason` is `primary_<error kind>` while the secondary is active."""
         cooling = self._cooling()
+        remaining = max(0.0, self._cooling_until - self._clock()) if cooling and self._cooling_until else None
         return {"active": self.secondary.name if cooling else self.primary.name,
-                "primary_cooling_until": self._cooling_until}
+                "reason": f"primary_{self._last_error.value}" if cooling and self._last_error else None,
+                "cooldown_remaining_s": remaining}
 
     def _call(self, call: Callable[[object], T], deadline: Deadline | None) -> T:
         if not self._cooling():
@@ -60,10 +69,12 @@ class _Fallback:
                 self._answered.set(self.primary.name)
                 return result
             except LLMError as err:
-                if err.kind not in FALLBACK_ERRORS:
+                if err.kind not in self._rescue_on:
                     raise
-                self._cooling_until = self._clock() + COOLDOWN_SECONDS
-                if deadline is not None and deadline.remaining() < MIN_FALLBACK_SECONDS:
+                if err.kind in FALLBACK_ERRORS:
+                    self._cooling_until = self._clock() + COOLDOWN_SECONDS
+                    self._last_error = err.kind
+                if deadline is not None and deadline.remaining() < self._min_seconds:
                     raise
         result = call(self.secondary)
         self._answered.set(self.secondary.name)
@@ -73,8 +84,10 @@ class _Fallback:
 class FallbackChatLLM(_Fallback):
     """`ChatLLM` that answers on `primary`, or on `secondary` while the primary is failing persistently."""
 
-    def __init__(self, primary: ChatLLM, secondary: ChatLLM, clock: Callable[[], float] = time.monotonic) -> None:
-        super().__init__(primary, secondary, clock)
+    def __init__(self, primary: ChatLLM, secondary: ChatLLM, clock: Callable[[], float] = time.monotonic, *,
+                 rescue_on: frozenset[LLMErrorKind] = FALLBACK_ERRORS,
+                 min_seconds: float = MIN_FALLBACK_SECONDS) -> None:
+        super().__init__(primary, secondary, clock, rescue_on=rescue_on, min_seconds=min_seconds)
 
     def generate(self, messages: Sequence[ChatMessage], tools: Sequence[ToolSpec], deadline: Deadline) -> LLMTurn:
         return self._call(lambda llm: llm.generate(messages, tools, deadline), deadline)
