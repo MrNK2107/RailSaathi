@@ -48,3 +48,7 @@ backend/data/ml/observations/
 
 # QR code written by run.py
 railsaathi-qr.svg
+
+# Local tool state
+.impeccable/
+.playwright-mcp/
