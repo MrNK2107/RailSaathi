@@ -27,7 +27,7 @@ export const DEFAULT_TOUR_STATION = 'chennai_central'
 const NO_CONFIG: ClientConfig = { google_maps_browser_key: null, features: { ar_guidance_stations: [] } }
 
 const BUTTON = 'rounded-xl bg-white px-3 py-2 text-xs font-semibold text-ink-700 ring-1 ring-ink-300 hover:bg-ink-100 disabled:opacity-50'
-const SELECT = 'mt-1 w-full rounded-xl border border-ink-300 bg-white px-3 py-2 text-xs font-medium text-ink-900 focus:border-brand-600 focus:outline-none'
+const SELECT = 'mt-1 w-full rounded-xl border border-ink-300 bg-white px-3 py-2 text-xs font-medium text-ink-900 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/30'
 
 /** Falls back to the 2D plan if the 3D canvas throws (lost or refused WebGL context, driver errors). */
 class SceneBoundary extends Component<{ onError: () => void; children: ReactNode }, { failed: boolean }> {

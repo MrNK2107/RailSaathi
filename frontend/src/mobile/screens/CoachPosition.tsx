@@ -29,7 +29,7 @@ export default function CoachPosition({ client, m, errors, lang }: {
   }
 
   const found = state.kind === 'found' ? state : null
-  const input = 'mt-1 w-full rounded-xl border border-ink-300 bg-white px-3 py-2 text-xs text-ink-900 focus:border-brand-600 focus:outline-none'
+  const input = 'mt-1 w-full rounded-xl border border-ink-300 bg-white px-3 py-2 text-xs text-ink-900 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/30'
   return (
     <section aria-labelledby="coach-title" className="mx-4 mb-3 rounded-2xl bg-white p-4 shadow-card ring-1 ring-ink-100">
       <h2 id="coach-title" className="text-sm font-bold text-brand-900">{m.coachTitle}</h2>

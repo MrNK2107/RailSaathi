@@ -200,7 +200,7 @@ export default function StationNavigation() {
         <div>
           <label htmlFor="nav-station" className="block text-xs font-semibold text-ink-700">{n.station}</label>
           <select id="nav-station" value={stationId} onChange={(e) => setPicked(e.target.value)}
-            className="mt-1 min-h-[44px] w-full rounded-xl border border-ink-300 bg-white px-3 py-2 text-sm font-medium text-ink-900 focus:border-brand-600 focus:outline-none">
+            className="mt-1 min-h-[44px] w-full rounded-xl border border-ink-300 bg-white px-3 py-2 text-sm font-medium text-ink-900 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/30">
             {!stationId && <option value="">{n.chooseStation}</option>}
             {stations.map((s) => <option key={s.station_id} value={s.station_id}>{s.station_name}</option>)}
           </select>

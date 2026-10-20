@@ -13,7 +13,7 @@ interface Props {
   onSwap: () => void
 }
 
-const SELECT = 'mt-0.5 min-h-[44px] w-full min-w-0 rounded-xl border border-ink-300 bg-white px-2.5 py-2 text-sm font-medium text-ink-900 focus:border-brand-600 focus:outline-none'
+const SELECT = 'mt-0.5 min-h-[44px] w-full min-w-0 rounded-xl border border-ink-300 bg-white px-2.5 py-2 text-sm font-medium text-ink-900 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/30'
 
 export function EndpointPicker({ places, from, to, sameEndpoints, onFrom, onTo, onSwap }: Props) {
   const { m } = useApp()
